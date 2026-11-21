@@ -83,8 +83,10 @@ fun SleepTimerState.tileText(): String? = when (this) {
 
     is SleepTimerState.Countdown -> "$remainingMinutes MIN LEFT"
 
-    // Shorter than the Now Playing line: the home overline must not ellipsize.
-    SleepTimerState.Finished -> "PAUSED BY TIMER"
+    // Icon says bedtime, so the text says the outcome, and stays inside the one-line budget:
+    // "PAUSED BY TIMER" is as long as "NOTHING PLAYING" in characters but all its glyphs are
+    // wide, so the home overline ellipsized it. The Now Playing line keeps the long sentence.
+    SleepTimerState.Finished -> "TIMER DONE"
 }
 
 /** Secondary notification line, appended to the artist. Null when no timer is active. */

@@ -55,7 +55,10 @@ class SleepTimerTest {
     @Test fun `finished explains the pause but is no longer armed`() {
         assertEquals("Paused by sleep timer", SleepTimerState.Finished.statusText())
         assertEquals("Sleep timer finished, playback paused", SleepTimerState.Finished.statusDescription())
-        assertEquals("PAUSED BY TIMER", SleepTimerState.Finished.tileText())
+        // The home overline is one line and ellipsized "PAUSED BY TIMER", so the tile says the
+        // outcome in short words; the long sentence stays on Now Playing.
+        assertEquals("TIMER DONE", SleepTimerState.Finished.tileText())
+        assertEquals("Paused by sleep timer", SleepTimerState.Finished.statusText())
         assertNull(SleepTimerState.Finished.notificationSuffix())
         assertFalse(SleepTimerState.Finished.active)
     }
