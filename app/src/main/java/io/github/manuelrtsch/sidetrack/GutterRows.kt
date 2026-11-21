@@ -62,20 +62,7 @@ fun ArtistGutterRow(
                 artist.artRes,
                 artist.name,
                 "Artist",
-                Modifier
-                    .focusRequester(rowFocus)
-                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                    .then(bodyModifier)
-                    .onFocusChanged { state ->
-                        if (state.isFocused) focus.rowFocused(key) else focus.rowUnfocused(key)
-                    }
-                    .then(
-                        if (selected) {
-                            Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                        } else {
-                            Modifier
-                        }
-                    ),
+                gutterRowModifier(key, selected, focus, rowFocus, focusRequester, bodyModifier),
                 artUrl = artist.artUrl,
                 showArrow = !gutterVisible,
                 onClick = {
@@ -85,17 +72,7 @@ fun ArtistGutterRow(
             )
         }
     ) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
-        RowActionSquare(
-            color = SidekitTheme.colors.surfaceA4,
-            label = "Actions for ${artist.name}",
-            content = { MeatballIcon() },
-            modifier = squareFocus,
-            onClick = {
-                focus.touchDismissed(key)
-                bar.show(RowActionSelection(key, artist.name, actions, rowFocus))
-            }
-        )
+        GutterMeatball(key, artist.name, focus, bar, rowFocus, actions)
     }
 }
 
@@ -226,20 +203,7 @@ private fun LibraryCollectionGutterRow(
                 artRes,
                 title,
                 secondary,
-                Modifier
-                    .focusRequester(rowFocus)
-                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                    .then(bodyModifier)
-                    .onFocusChanged { state ->
-                        if (state.isFocused) focus.rowFocused(key) else focus.rowUnfocused(key)
-                    }
-                    .then(
-                        if (selected) {
-                            Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                        } else {
-                            Modifier
-                        }
-                    ),
+                gutterRowModifier(key, selected, focus, rowFocus, focusRequester, bodyModifier),
                 artUrl = artUrl,
                 showArrow = !gutterVisible,
                 onClick = {
@@ -249,17 +213,7 @@ private fun LibraryCollectionGutterRow(
             )
         }
     ) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
-        RowActionSquare(
-            color = SidekitTheme.colors.surfaceA4,
-            label = "Actions for $title",
-            content = { MeatballIcon() },
-            modifier = squareFocus,
-            onClick = {
-                focus.touchDismissed(key)
-                bar.show(RowActionSelection(key, title, actions, rowFocus))
-            }
-        )
+        GutterMeatball(key, title, focus, bar, rowFocus, actions)
     }
 }
 
@@ -287,19 +241,7 @@ fun HistoryRow(
     GutterRow(key, focus, squares = 1, modifier = modifier, content = { gutterVisible ->
         MediaRow(
             item,
-            Modifier
-                .focusRequester(rowFocus)
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .onFocusChanged { state ->
-                    if (state.isFocused) focus.rowFocused(key) else focus.rowUnfocused(key)
-                }
-                .then(
-                    if (selected) {
-                        Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                    } else {
-                        Modifier
-                    }
-                ),
+            gutterRowModifier(key, selected, focus, rowFocus, focusRequester),
             secondary = secondary,
             trailing = if (gutterVisible) null else formatDuration(item.durationMs),
             onClick = {
@@ -308,36 +250,26 @@ fun HistoryRow(
             }
         )
     }) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
-        RowActionSquare(
-            color = SidekitTheme.colors.surfaceA4,
-            label = "Actions for ${item.title}",
-            content = { MeatballIcon() },
-            modifier = squareFocus,
-            onClick = {
-                focus.touchDismissed(key)
-                bar.show(
-                    RowActionSelection(
-                        key = key,
-                        title = item.title,
-                        focusRequester = rowFocus,
-                        actions = rowActions(
-                            addToQueueRowAction(item.title) { onAddToQueue(item) },
-                            removeFromHistoryRowAction(item.title) {
-                                val undo = onRemove(item)
-                                if (undo != null) {
-                                    bar.showUndo(
-                                        RowActionUndo(
-                                            contentDescription = "Undo remove ${item.title} from history",
-                                            onClick = undo
-                                        )
-                                    )
-                                }
-                            }
+        GutterMeatball(
+            key,
+            item.title,
+            focus,
+            bar,
+            rowFocus,
+            rowActions(
+                addToQueueRowAction(item.title) { onAddToQueue(item) },
+                removeFromHistoryRowAction(item.title) {
+                    val undo = onRemove(item)
+                    if (undo != null) {
+                        bar.showUndo(
+                            RowActionUndo(
+                                contentDescription = "Undo remove ${item.title} from history",
+                                onClick = undo
+                            )
                         )
-                    )
-                )
-            }
+                    }
+                }
+            )
         )
     }
 }
