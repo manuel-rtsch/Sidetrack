@@ -8,8 +8,13 @@ description: Install the Rust toolchain, cargo-ndk and the NDK version app/build
 runs:
   using: composite
   steps:
+    # cargo-ndk cross-compiles with `--target <triple>`, and rustup installs only the host's std
+    # by default, so the two Android triples buildSpotifyNative builds have to be requested here.
+    # Without them the bridge fails with `can't find crate for core` before any Kotlin is packaged.
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android,x86_64-linux-android
 
     - name: Cache Cargo registry and target directory
       uses: Swatinem/rust-cache@v2
