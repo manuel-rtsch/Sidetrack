@@ -38,6 +38,11 @@ and tone cannot drift per screen:
 
 `OptionsBuilderTest` pins the rules.
 
+**Glyph.** No two entries in the same bar share an icon. Three squares drop their label, so the
+symbol is the only thing left to tell them apart: `Add to queue` carries the queue glyph
+(`QueueMusic`) and `Add to playlist` the list-with-plus one (`PlaylistAdd`), because the two sit
+next to each other on album and radio rows.
+
 **Row action shape follows the count**: three or more actions are icon-only squares, one or two
 keep their label, because a contextual bar earns its space from the gesture that opened it. This
 is the one deliberate difference from the Options bar.

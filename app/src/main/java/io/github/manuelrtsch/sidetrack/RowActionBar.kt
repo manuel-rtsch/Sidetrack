@@ -81,7 +81,9 @@ fun addToQueueRowAction(
     key = "addToQueue",
     label = label,
     contentDescription = "Add $title to queue",
-    icon = SidekitIcon.PlaylistAdd,
+    // The queue glyph, not the playlist one: the two sit side by side on album and radio rows, and
+    // two identical squares there read as the same action offered twice.
+    icon = SidekitIcon.QueueMusic,
     onClick = onClick
 )
 

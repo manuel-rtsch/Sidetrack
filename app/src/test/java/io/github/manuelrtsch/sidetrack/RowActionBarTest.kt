@@ -130,6 +130,19 @@ class RowActionBarTest {
     }
 
     @Test
+    fun theCollectionRowSquaresDoNotRepeatAGlyph() {
+        // Play, Add to queue and Add to playlist sit side by side, and three squares are icon-only:
+        // two of them sharing a glyph makes the bar read as the same action offered twice.
+        val actions = rowActions(
+            playRowAction("A") {},
+            addToQueueRowAction("A") {},
+            addToPlaylistRowAction("A") {}
+        )
+
+        assertEquals(actions.size, actions.map { it.icon }.distinct().size)
+    }
+
+    @Test
     fun aRowActionIsLiveByDefaultAndOnlyCancelIsGrey() {
         val menu = rowActions(
             removeFromPlaylistRowAction("A") {},
