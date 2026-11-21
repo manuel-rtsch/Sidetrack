@@ -81,11 +81,11 @@ shared option budget: two labelled actions, never a third square.
   new playlist opens, empty or seeded in the order shown. A refused or failed create stays on the
   form and reports the service message; it never fails silently. Gated by
   `supportsPlaylistCreate`.
-- **Add** — a track row outside a playlist offers `Add to queue | Add to playlist`. The picker
+- **Add** — a track row outside a playlist offers `Play | Add to queue | Add to playlist`. The picker
   lists only playlists whose `canAddItems` is true. Adding appends; the writer returns the index,
   and the bar offers Undo that removes exactly that copy. Episodes are excluded because
   playlists are track-only.
-- **Remove** — a track row inside a playlist offers `Add to queue | Remove from playlist` when
+- **Remove** — a track row inside a playlist offers `Play | Add to queue | Remove from playlist` when
   `canRemoveItems` is true. Removal cannot restore the original slot, so it uses a two-step
   `Cancel | Remove` confirmation rather than Undo. The row page drops the confirmed occurrence
   and keeps the paging offset aligned.

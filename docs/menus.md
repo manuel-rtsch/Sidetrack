@@ -42,6 +42,12 @@ and tone cannot drift per screen:
 keep their label, because a contextual bar earns its space from the gesture that opened it. This
 is the one deliberate difference from the Options bar.
 
+**A row tap and a row action are two different plays.** On an album, playlist or radio page the
+tap plays the collection from that row, so the tail becomes the rest of it. Those pages therefore
+carry `Play` (`playRowAction`), which plays the row now and puts the previous item back at the head
+of the tail: the queue resumes where it was once the picked track ends. Its label stays one word
+because the square drops it; the content description says "Play <title> now".
+
 ## Known gaps
 
 - Some screens still publish no options and show the grey "No options here" button for a moment:

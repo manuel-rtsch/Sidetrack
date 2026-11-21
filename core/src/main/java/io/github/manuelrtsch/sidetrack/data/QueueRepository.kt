@@ -115,6 +115,35 @@ class QueueRepository(
         )
     }
 
+    /**
+     * Plays [item] immediately and hands the tail back to the item that was playing: the queue
+     * resumes where it was once the picked track ends, so a request to hear one song does not
+     * drop anything the user had lined up. History is untouched, because nothing was skipped.
+     *
+     * Unlike [play] this does not adopt a new context, so Repeat context still replays the album
+     * or playlist the queue came from.
+     */
+    fun playFirst(item: MediaItem): Snapshot {
+        if (!item.playable) return snapshot
+        if (item.key == snapshot.current?.key) return snapshot
+        val previous = snapshot.current
+        // The picked track is about to play, so an occurrence further down would only play twice.
+        fun withoutPicked(tail: List<MediaItem>): List<MediaItem> {
+            val at = tail.indexOfFirst { it.key == item.key }
+            return if (at < 0) tail else tail.filterIndexed { index, _ -> index != at }
+        }
+        val tail = withoutPicked(snapshot.upcoming)
+        val backup = snapshot.shuffleBackup?.let { withoutPicked(it) }
+        return commit(
+            snapshot.copy(
+                current = item,
+                upcoming = listOfNotNull(previous) + tail,
+                shuffleBackup = backup?.let { listOfNotNull(previous) + it },
+                context = snapshot.context.ifEmpty { listOf(item) }
+            )
+        )
+    }
+
     /** Stops and clears the queue. */
     fun stop(): Snapshot = commit(
         snapshot.copy(

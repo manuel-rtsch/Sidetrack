@@ -36,6 +36,11 @@ class TrackRows(
     val onSave: (Track) -> Unit,
     val onEnsureSaved: (Track) -> Unit,
     val onAddToQueue: (Track) -> Unit,
+    /**
+     * Offered on pages whose row tap plays in collection context (album, playlist, radio): plays
+     * this track now and hands the tail back to what was playing. Null hides the row action.
+     */
+    val onPlayFirst: ((Track) -> Unit)? = null,
     /** Offered where the account may append to some playlist; null hides the row action. */
     val onAddToPlaylist: ((Track) -> Unit)? = null,
     /** Offered on a playlist page; the index is the entry the user acted on. */
@@ -51,6 +56,7 @@ fun rememberTrackRows(
     onSave: (Track) -> Unit,
     onEnsureSaved: (Track) -> Unit,
     onAddToQueue: (Track) -> Unit,
+    onPlayFirst: ((Track) -> Unit)? = null,
     onAddToPlaylist: ((Track) -> Unit)? = null,
     onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null
 ): TrackRows {
@@ -64,6 +70,7 @@ fun rememberTrackRows(
         onSave,
         onEnsureSaved,
         onAddToQueue,
+        onPlayFirst,
         onAddToPlaylist,
         onRemoveFromPlaylist
     )
@@ -134,6 +141,7 @@ fun TrackRow(
                 val addToPlaylist = rows.onAddToPlaylist
                 val removeFromPlaylist = rows.onRemoveFromPlaylist
                 val actions = rowActions(
+                    rows.onPlayFirst?.let { play -> playRowAction(track.title) { play(track) } },
                     addToQueueRowAction(track.title) { rows.onAddToQueue(track) },
                     addToPlaylist?.let { add -> addToPlaylistRowAction(track.title) { add(track) } },
                     if (removeFromPlaylist != null && entryIndex != null) {

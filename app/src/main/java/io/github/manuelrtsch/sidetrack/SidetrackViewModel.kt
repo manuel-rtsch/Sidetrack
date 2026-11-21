@@ -347,6 +347,8 @@ class SidetrackViewModel(
 
     fun playNow(item: MediaItem) = driver.playNow(item)
 
+    fun playFirst(item: MediaItem) = driver.playFirst(item)
+
     fun play(items: List<MediaItem>, index: Int) = driver.play(items, index)
 
     fun playItem(item: MediaItem) = driver.playItem(item)

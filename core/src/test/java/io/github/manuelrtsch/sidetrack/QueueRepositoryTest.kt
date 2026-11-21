@@ -64,6 +64,69 @@ class QueueRepositoryTest {
         assertTrue(queue.snapshot.history.isEmpty())
     }
 
+    @Test fun `play first puts the current item back at the head of the tail`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 1)
+
+        queue.playFirst(track("z"))
+
+        assertEquals("z", queue.snapshot.current?.id)
+        assertEquals(listOf("b", "c", "d"), queue.snapshot.upcoming.map { it.id })
+        assertTrue(queue.snapshot.history.isEmpty())
+    }
+
+    @Test fun `play first keeps the context so repeat still replays the album`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 0)
+
+        queue.playFirst(track("z"))
+
+        assertEquals(listOf("a", "b", "c", "d"), queue.snapshot.context.map { it.id })
+    }
+
+    @Test fun `play first on the current item changes nothing`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 1)
+        val before = queue.snapshot
+
+        queue.playFirst(tracks[1])
+
+        assertEquals(before, queue.snapshot)
+    }
+
+    @Test fun `play first moves an occurrence already in the tail instead of playing it twice`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 0)
+
+        queue.playFirst(tracks[2])
+
+        assertEquals("c", queue.snapshot.current?.id)
+        assertEquals(listOf("a", "b", "d"), queue.snapshot.upcoming.map { it.id })
+    }
+
+    @Test fun `play first grows the pre-shuffle backup so shuffle off keeps the head`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 0)
+        queue.toggleShuffle()
+
+        queue.playFirst(track("z"))
+        queue.toggleShuffle()
+
+        assertEquals("z", queue.snapshot.current?.id)
+        assertEquals(listOf("a"), queue.snapshot.upcoming.take(1).map { it.id })
+        assertEquals(listOf("a", "b", "c", "d"), queue.snapshot.upcoming.map { it.id })
+    }
+
+    @Test fun `play first from an empty queue starts a queue of one`() {
+        val queue = QueueRepository(Random(1))
+
+        queue.playFirst(track("z"))
+
+        assertEquals("z", queue.snapshot.current?.id)
+        assertEquals(listOf("z"), queue.snapshot.context.map { it.id })
+        assertTrue(queue.snapshot.upcoming.isEmpty())
+    }
+
     @Test fun `play next moves an existing upcoming item instead of duplicating it`() {
         val queue = QueueRepository(Random(1))
         queue.play(tracks, 0)

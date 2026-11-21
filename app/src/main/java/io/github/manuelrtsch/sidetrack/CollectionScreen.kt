@@ -56,6 +56,11 @@ fun CollectionScreen(
     onArtist: () -> Unit,
     onAddToQueue: () -> Unit,
     onAddItemToQueue: (MediaItem) -> Unit,
+    /**
+     * Plays one row now and keeps the queue behind it. The row tap plays the collection from that
+     * row instead, so this is the way to hear a single track without discarding Up next.
+     */
+    onPlayItem: ((MediaItem) -> Unit)? = null,
     onSaveTrack: (Track) -> Unit,
     onEnsureSavedTrack: (Track) -> Unit,
     onNowPlaying: () -> Unit,
@@ -121,6 +126,7 @@ fun CollectionScreen(
         onSaveTrack,
         onEnsureSavedTrack,
         onAddItemToQueue,
+        onPlayFirst = onPlayItem?.let { play -> { track -> play(track) } },
         onAddToPlaylist = if (isPlaylist) null else onAddToPlaylist,
         onRemoveFromPlaylist = if (canRemoveItems) onRemoveFromPlaylist else null
     )

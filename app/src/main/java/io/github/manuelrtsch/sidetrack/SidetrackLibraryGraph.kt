@@ -245,6 +245,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 },
                 onAddToQueue = { vm.queueCollection(collection) },
                 onAddItemToQueue = vm::addToQueue,
+                onPlayItem = vm::playFirst,
                 onSaveTrack = { vm.toggleSaved(it) },
                 onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
                 onNowPlaying = { nav.openNowPlaying(vm) },

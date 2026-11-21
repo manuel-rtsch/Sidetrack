@@ -362,6 +362,23 @@ internal class PlaybackDriver(
         beginPlayback(queue.playNow(item), item)
     }
 
+    /**
+     * Plays one track from an album or playlist page without dropping the queue behind it.
+     *
+     * A row tap there plays in collection context, which throws away whatever was lined up. This
+     * is the same request read the other way round: hear this track now, then pick the queue back
+     * up where it was.
+     */
+    fun playFirst(item: MediaItem) {
+        if (!readyToPlay(item)) return
+        if (store.value.current?.id == item.id) {
+            if (!store.value.isPlaying) togglePlayPause()
+            store.update { it.copy(notice = null) }
+            return
+        }
+        beginPlayback(queue.playFirst(item), item)
+    }
+
     fun playEpisode(episode: Episode) = playItem(episode)
 
     /**

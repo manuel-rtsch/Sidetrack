@@ -60,6 +60,19 @@ data class RowAction(
  */
 fun rowActions(vararg entries: RowAction?): List<RowAction> = entries.filterNotNull().sortedBy { if (it.tone == ActionTone.Destructive) 1 else 0 }
 
+/**
+ * Plays this row now and leaves the queue behind it, for pages whose row tap plays in collection
+ * context. The label is short because the square drops it; the content description carries the
+ * whole sentence.
+ */
+fun playRowAction(title: String, onClick: () -> Unit) = RowAction(
+    key = "play",
+    label = "Play",
+    contentDescription = "Play $title now",
+    icon = SidekitIcon.PlayArrow,
+    onClick = onClick
+)
+
 fun addToQueueRowAction(
     title: String,
     label: String = "Add to queue",
