@@ -121,6 +121,50 @@ internal fun SidetrackUiState.withPlaylistTrackCount(key: MediaKey, count: Int):
     )
 }
 
+/**
+ * Patches a renamed playlist in every cached copy: the open page, the library section, a search
+ * result and the Add-to-playlist picker. The name is the only field a rename changes.
+ */
+internal fun SidetrackUiState.withPlaylistRenamed(key: MediaKey, name: String): SidetrackUiState {
+    val encoded = key.encode()
+    fun Playlist.updated(): Playlist = if (this.key.encode() == encoded && this.name != name) copy(name = name) else this
+    fun Any.updated(): Any = if (this is Playlist) this.updated() else this
+
+    val cached = collections[encoded] ?: return this
+    return copy(
+        collections = collections + (encoded to cached.copy(title = name)),
+        librarySections = librarySections.mapValues { (_, items) -> items.map { it.updated() } },
+        libraryPages = libraryPages.mapValues { (_, page) -> page.copy(items = page.items.map { it.updated() }) },
+        searchPages = searchPages.mapValues { (_, byScope) ->
+            byScope.mapValues { (_, page) -> page.copy(items = page.items.map { it.updated() }) }
+        },
+        playlistChoices = playlistChoices.map { it.updated() }
+    )
+}
+
+/**
+ * Drops a deleted playlist from every cache. Its page is removed as well, so walking back to the
+ * Playlists list and then to search cannot resurrect a row the service no longer has.
+ */
+internal fun SidetrackUiState.withPlaylistRemoved(key: MediaKey): SidetrackUiState {
+    val encoded = key.encode()
+    fun Playlist.matches(): Boolean = this.key.encode() == encoded
+    fun Any.removed(): Any? = if (this is Playlist && matches()) null else this
+
+    fun LibraryPage.cleaned(): LibraryPage = copy(items = items.mapNotNull { it.removed() })
+
+    return copy(
+        collections = collections - encoded,
+        savedCollectionKeys = savedCollectionKeys - encoded,
+        librarySections = librarySections.mapValues { (_, items) -> items.mapNotNull { it.removed() } },
+        libraryPages = libraryPages.mapValues { (_, page) -> page.cleaned() },
+        searchPages = searchPages.mapValues { (_, byScope) ->
+            byScope.mapValues { (_, page) -> page.cleaned() }
+        },
+        playlistChoices = playlistChoices.filterNot { it.matches() }
+    )
+}
+
 fun libraryItemFor(collection: Collection): Any? = when (collection.type) {
     CollectionType.Album -> Album(
         id = collection.id,

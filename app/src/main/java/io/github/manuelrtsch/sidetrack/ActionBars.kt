@@ -103,6 +103,27 @@ fun addToQueueOption(label: String = "Add to queue", onClick: () -> Unit) = Side
 fun artistRadioOption(onClick: () -> Unit) = SideAction("artistRadio", "Artist radio", SidekitIcon.Explore, tone = ActionTone.Primary, onClick = onClick)
 
 /**
+ * Rename is an ordinary edit: the page stays, only its title changes. It is a square on the
+ * playlist page because Add to queue already owns the bar's one label there — three labels plus
+ * the close square do not fit. [title] moves into the content description the label would carry.
+ */
+fun renamePlaylistOption(title: String, onClick: () -> Unit) = SideAction.square(
+    key = "renamePlaylist",
+    icon = SidekitIcon.Edit,
+    contentDescription = "Rename $title",
+    onClick = onClick
+)
+
+/** Delete belongs last and in the destructive red, like every other delete in the app. */
+fun deletePlaylistOption(title: String, onClick: () -> Unit) = SideAction.square(
+    key = "deletePlaylist",
+    icon = SidekitIcon.DeleteForever,
+    contentDescription = "Delete $title",
+    onClick = onClick,
+    tone = ActionTone.Destructive
+)
+
+/**
  * Now Playing's options are the bar's one icon-only set: the screen has no room for labels and the
  * bar reads as transport beside the five tiles below it. They are accents like every other option —
  * only their shape differs, and their content description carries the name a label would.

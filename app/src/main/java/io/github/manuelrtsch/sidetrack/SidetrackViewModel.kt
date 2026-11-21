@@ -340,6 +340,12 @@ class SidetrackViewModel(
         playlists.remove(collection, item, index)
     }
 
+    suspend fun renamePlaylist(collection: Collection, name: String): Boolean = playlists.rename(collection, name)
+
+    suspend fun deletePlaylist(collection: Collection): Boolean = playlists.delete(collection)
+
+    fun deletePlaylistInBackground(collection: Collection) = playlists.deleteInBackground(collection)
+
     fun playNow(item: MediaItem) = driver.playNow(item)
 
     fun play(items: List<MediaItem>, index: Int) = driver.play(items, index)

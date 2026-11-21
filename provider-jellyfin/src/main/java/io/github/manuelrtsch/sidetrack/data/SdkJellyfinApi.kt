@@ -44,6 +44,7 @@ import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SearchHint
 import org.jellyfin.sdk.model.api.SearchHintResult
 import org.jellyfin.sdk.model.api.SortOrder
+import org.jellyfin.sdk.model.api.UpdatePlaylistDto
 
 /**
  * The SDK-backed seam.
@@ -301,6 +302,16 @@ class SdkJellyfinApi(
         // Jellyfin removes by playlist entry id, which is not the media item id.
         val entryId = playlistEntryId(playlistId = playlistId, itemId = itemId, index = index) ?: return@call
         api.playlistApi.removeItemFromPlaylist(playlistId = playlistId, entryIds = listOf(entryId))
+        Unit
+    }
+
+    override suspend fun renamePlaylist(playlistId: String, name: String) = call {
+        api.playlistApi.updatePlaylist(uuid(playlistId), UpdatePlaylistDto(name = name))
+        Unit
+    }
+
+    override suspend fun deletePlaylist(playlistId: String) = call {
+        api.libraryApi.deleteItem(uuid(playlistId))
         Unit
     }
 

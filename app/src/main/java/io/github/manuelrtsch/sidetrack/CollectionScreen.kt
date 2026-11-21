@@ -1,14 +1,21 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,17 +24,23 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import hrln.interactive.sidekit.design.action.SideAction
 import hrln.interactive.sidekit.design.components.SidekitItemRow
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.SidekitText
+import hrln.interactive.sidekit.design.components.SidekitTextField
 import hrln.interactive.sidekit.design.components.listFade
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
+import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
 import io.github.manuelrtsch.sidetrack.ui.InlineLinkArrowSize
 import io.github.manuelrtsch.sidetrack.ui.LinkArrow
+import kotlinx.coroutines.launch
 
 @Composable
 fun CollectionScreen(
@@ -54,9 +67,51 @@ fun CollectionScreen(
     /** Generated pages such as Song radio re-use the collection body but cannot be saved. */
     showSave: Boolean = true,
     onAddToPlaylist: ((Track) -> Unit)? = null,
-    onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null
+    onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null,
+    /** Renames this collection. Null when the service or this playlist does not allow it. */
+    onRename: (suspend (String) -> Boolean)? = null,
+    /** Deletes this collection. Null when the service or this collection does not allow it. */
+    onDelete: (suspend () -> Boolean)? = null,
+    /** Deletes after the Undo window is left, so a backgrounded page still finishes the write. */
+    onDeleteInBackground: (() -> Unit)? = null,
+    onDeleted: () -> Unit = {}
 ) {
     val colors = SidekitTheme.colors
+    val scope = rememberCoroutineScope()
+    var renaming by rememberSaveable(collection.id) { mutableStateOf(false) }
+    var draft by rememberSaveable(collection.id) { mutableStateOf(collection.title) }
+    var pendingDelete by remember(collection.id) { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    val commitRename: () -> Unit = {
+        val target = onRename
+        val trimmed = draft.trim()
+        if (target == null || trimmed.isEmpty() || trimmed == collection.title) {
+            renaming = false
+        } else {
+            scope.launch {
+                if (target(trimmed)) renaming = false
+            }
+        }
+    }
+    // The delete stays local while Undo is offered. Expiry removes the playlist; leaving the page
+    // commits it through the ViewModel so the write survives the screen's disposal.
+    val deleteWindow = rememberUndoWindow {
+        val target = onDelete
+        if (pendingDelete && !deleting && target != null) {
+            deleting = true
+            pendingDelete = false
+            scope.launch {
+                if (target()) onDeleted() else deleting = false
+            }
+        }
+    }
+    UndoWindowLifecycle(deleteWindow) {
+        if (pendingDelete && !deleting) {
+            pendingDelete = false
+            deleting = true
+            onDeleteInBackground?.invoke()
+        }
+    }
     // A playlist page replaces Add to playlist with Remove from playlist: the page is already
     // the target, and the two-action row bar stays labelled instead of becoming icon-only.
     val isPlaylist = collection.type == CollectionType.Playlist
@@ -71,7 +126,7 @@ fun CollectionScreen(
     )
     val savedCollection = collection.key.encode() in saved.savedCollectionKeys
     val back = remember { sidetrackBack("Back", onBack).first() }
-    val actions = rowActionBarActions(
+    val normalActions = rowActionBarActions(
         rows.bar,
         sidetrackBar(
             chrome,
@@ -81,13 +136,62 @@ fun CollectionScreen(
             back
         )
     )
+    val undoDelete = if (pendingDelete) {
+        SideAction.undo("undoDeletePlaylist", "Undo", "Undo delete ${collection.title}") {
+            deleteWindow.cancel()
+            pendingDelete = false
+        }
+    } else {
+        null
+    }
+    val actions = if (pendingDelete) undoBar(back, undoDelete) else normalActions
     // The header keeps the three primary actions: play, artwork and save. The artist lives in the
     // metadata line below it, so collections keep the same play / image / save-or-follow layout
     // without a third Options entry.
-    val options = sidetrackOptions(
-        collection.items.firstOrNull()?.let { addToQueueOption(onClick = onAddToQueue) },
-        onNowPlaying = onNowPlaying
-    )
+    //
+    // A playlist page replaces Now playing with Rename and Delete. Both are squares because Add to
+    // queue already owns the bar's one label: three labelled options plus the close square would
+    // truncate. They are only offered when the service and the playlist's own permissions allow
+    // them, so a read-only playlist keeps a clean menu instead of two entries that can only fail.
+    val options = if (pendingDelete) {
+        // The Undo bar owns the screen until its window ends; a second delete or a rename now
+        // would replace the very action the user is being offered.
+        emptyList()
+    } else {
+        sidetrackOptions(
+            collection.items.firstOrNull()?.let { addToQueueOption(onClick = onAddToQueue) },
+            if (onRename != null) {
+                renamePlaylistOption(collection.title) {
+                    draft = collection.title
+                    renaming = true
+                }
+            } else {
+                null
+            },
+            if (onDelete != null) {
+                deletePlaylistOption(collection.title) {
+                    pendingDelete = true
+                    deleteWindow.start()
+                }
+            } else {
+                null
+            },
+            // Only a playlist page trades Now playing for Rename/Delete; albums and shows keep
+            // the destination they have always had.
+            onNowPlaying = if (isPlaylist) null else onNowPlaying
+        )
+    }
+    val header: (@Composable () -> Unit)? = if (renaming) {
+        {
+            PlaylistRenameHeader(
+                draft,
+                { typed -> draft = typed },
+                commitRename
+            )
+        }
+    } else {
+        null
+    }
     val artist = if (collection.type == CollectionType.Album) {
         collection.artistId.mediaIdOrNull()?.let { collection.subtitle.substringBefore(" · ").takeIf(String::isNotBlank) }
     } else {
@@ -95,10 +199,11 @@ fun CollectionScreen(
     }
     val details = artist?.let { collection.subtitle.removePrefix(it).trimStart(' ', '·', ' ') }.orEmpty()
     SidekitScaffold(
-        title = collection.title,
+        title = if (renaming) null else collection.title,
         modifier = Modifier.dismissRowActionsOnVerticalKey(rows.bar),
         actions = actions,
-        options = options
+        options = options,
+        header = header
     ) { padding ->
         val listState = rememberLazyListState()
         rows.bar.dismissOnScroll(listState)
@@ -220,6 +325,39 @@ fun CollectionScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * The page title as an editable field. It occupies the same header band as the static title, so
+ * the page does not jump when Rename is chosen, and the keypad's Done key (or a hardware Enter)
+ * commits the name through [onDone].
+ */
+@Composable
+private fun PlaylistRenameHeader(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onDone: () -> Unit
+) {
+    val focus = remember { FocusRequester() }
+    Box(
+        Modifier.fillMaxWidth()
+            .height(SidekitTheme.spacing.headerHeight)
+            .padding(horizontal = SidekitTheme.spacing.itemPadding)
+            .padding(top = SidekitTheme.spacing.headerPaddingTop)
+    ) {
+        SidekitTextField(
+            value,
+            onValueChange,
+            Modifier.fillMaxWidth(),
+            textStyle = SidekitTheme.typography.title,
+            placeholder = "Playlist name",
+            focusRequester = focus,
+            singleLine = true,
+            autoFocus = true,
+            imeAction = ImeAction.Done,
+            onDone = onDone
+        )
     }
 }
 

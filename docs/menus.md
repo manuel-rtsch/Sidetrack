@@ -10,9 +10,12 @@ Row gutters publish `RowAction`s into the same action bar.
 ## Rules
 
 **Shape.** A destination is a wide button with its label and glyph. An icon-only square is either
-a list-wide toggle or one of Now Playing's shortcuts, where the bar is read as transport beside
-the tiles. Sleep timer is a labelled destination on Queue and a square shortcut on Now Playing,
-because three squares and the close square leave no width for a label there.
+a list-wide toggle, one of Now Playing's shortcuts, or a playlist-page edit that has run out of
+width beside the queue destination. Sleep timer is a labelled destination on Queue and a square
+shortcut on Now Playing, because three squares and the close square leave no width for a label
+there. Rename and Delete are squares on a playlist page for the same reason: Add to queue owns the
+one label, and three labels plus the close square would truncate all of them. Their content
+descriptions still name the playlist, and Delete stays red and last.
 
 **Tone.** Accent for every live option — "an option is live wherever it leads", so tone says what
 it does, never how far it travels. Green (`Secondary`) for a toggle that is on, red

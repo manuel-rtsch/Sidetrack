@@ -37,6 +37,8 @@ interface PlexApi {
     suspend fun setRating(ratingKey: String, rating: Int)
     suspend fun addToPlaylist(playlistKey: String, ratingKey: String)
     suspend fun removeFromPlaylist(playlistKey: String, playlistItemId: String)
+    suspend fun renamePlaylist(playlistKey: String, name: String) = Unit
+    suspend fun deletePlaylist(playlistKey: String) = Unit
 
     suspend fun machineIdentifier(): String?
     suspend fun reportTimeline(ratingKey: String, state: String, timeMs: Long, durationMs: Long)
@@ -184,6 +186,14 @@ class HttpPlexApi(
 
     override suspend fun removeFromPlaylist(playlistKey: String, playlistItemId: String) {
         wire.send("DELETE", "$base/playlists/${encode(playlistKey)}/items/${encode(playlistItemId)}")
+    }
+
+    override suspend fun renamePlaylist(playlistKey: String, name: String) {
+        wire.send("PUT", "$base/playlists/${encode(playlistKey)}?title=${encode(name)}")
+    }
+
+    override suspend fun deletePlaylist(playlistKey: String) {
+        wire.send("DELETE", "$base/playlists/${encode(playlistKey)}")
     }
 
     override suspend fun machineIdentifier(): String? {

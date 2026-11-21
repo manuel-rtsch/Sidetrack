@@ -169,6 +169,16 @@ class JellyfinCatalog(
         client().removeFromPlaylist(playlist.id, item.id, index)
     }
 
+    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
+        client().renamePlaylist(playlist.id, name)
+        return true
+    }
+
+    override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
+        client().deletePlaylist(playlist.id)
+        return true
+    }
+
     override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist? {
         val client = client()
         val id = client.createPlaylist(name, seed.map { it.id }) ?: return null

@@ -130,6 +130,10 @@ class ResilientSpotifyCatalog(
         nativeWriter?.removeFromPlaylist(playlistId, uri)
     }
 
+    override suspend fun renamePlaylist(playlistId: String, name: String): Boolean = nativeWriter?.renamePlaylist(playlistId, name) == true
+
+    override suspend fun deletePlaylist(playlistId: String): Boolean = nativeWriter?.deletePlaylist(playlistId) == true
+
     /**
      * Runs the native read, and switches to [web] once when the transport says the access point is
      * unreachable. Anything else — a bad response, a deleted item — is the caller's business and is

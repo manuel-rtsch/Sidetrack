@@ -60,4 +60,7 @@ interface SpotifyNative {
 
     /** Removes [uris] from a playlist. Returns `"ok"`, or `{"error": "..."}` on refusal. */
     fun playlistItemsRemove(id: String, uris: String): String?
+
+    /** Renames a playlist. Returns `"ok"`, or `{"error": "..."}` on refusal. */
+    fun playlistRename(id: String, name: String): String? = null
 }

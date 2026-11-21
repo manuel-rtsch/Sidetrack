@@ -191,6 +191,72 @@ internal class PlaylistController(
     }
 
     /**
+     * Renames an open playlist. The title in the page header is the only field the service changes,
+     * so every cached copy is patched instead of dropping the page and refetching it.
+     */
+    suspend fun rename(collection: Collection, name: String): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) {
+            store.update { it.say("Enter a playlist name") }
+            return false
+        }
+        if (!capabilities().playlistActions(collection).canRename) {
+            store.update { it.say("This playlist cannot be renamed") }
+            return false
+        }
+        val writer = writer ?: run {
+            store.update { it.say("This service cannot rename playlists") }
+            return false
+        }
+        return try {
+            if (!writer.renamePlaylist(collection.key, trimmed)) {
+                store.update { it.say("This service cannot rename playlists") }
+                return false
+            }
+            store.update { it.withPlaylistRenamed(collection.key, trimmed).say("Renamed to $trimmed", NoticeKind.Success) }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            store.update { it.say(playbackNotice(e)) }
+            false
+        }
+    }
+
+    /**
+     * Deletes an open playlist after the caller's Undo window has passed. The page and every cached
+     * row are dropped only once the service confirms the deletion.
+     */
+    suspend fun delete(collection: Collection): Boolean {
+        if (!capabilities().playlistActions(collection).canDelete) {
+            store.update { it.say("This playlist cannot be deleted") }
+            return false
+        }
+        val writer = writer ?: run {
+            store.update { it.say("This service cannot delete playlists") }
+            return false
+        }
+        return try {
+            if (!writer.deletePlaylist(collection.key)) {
+                store.update { it.say("This service cannot delete playlists") }
+                return false
+            }
+            store.update { it.withPlaylistRemoved(collection.key).say("Deleted ${collection.title}", NoticeKind.Success) }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            store.update { it.say(playbackNotice(e)) }
+            false
+        }
+    }
+
+    /** Runs [delete] from the ViewModel's scope, for a deletion committed while leaving the page. */
+    fun deleteInBackground(collection: Collection) {
+        scope.launch { delete(collection) }
+    }
+
+    /**
      * Removes the row at [index] after the writer confirms it. The local page drops exactly that
      * occurrence; `hasMore` stays as it was, so the next page's offset is still the number of rows
      * currently loaded.

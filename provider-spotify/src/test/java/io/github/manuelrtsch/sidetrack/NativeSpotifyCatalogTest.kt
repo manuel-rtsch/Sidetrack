@@ -135,7 +135,12 @@ class NativeSpotifyCatalogTest {
 
         val playlist = catalog.library(LibraryFilter.Playlists, 0, 10).items.single() as Playlist
 
-        assertEquals(PlaylistActions.All, playlist.actions)
+        // The old payload cannot say whether rename/delete exist, so only the item directions are
+        // offered; a missing native method must not become a button that always fails.
+        assertEquals(
+            PlaylistActions(canAddItems = true, canRemoveItems = true),
+            playlist.actions
+        )
     }
 
     @Test fun `an opened playlist reports its actions for the page`() = runTest {

@@ -127,6 +127,10 @@ class SpotifyMediaLibraryWriter(
         val uri = item.uri ?: return
         writer.removeFromPlaylist(playlist.id, uri)
     }
+
+    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean = writer.renamePlaylist(playlist.id, name)
+
+    override suspend fun deletePlaylist(playlist: MediaKey): Boolean = writer.deletePlaylist(playlist.id)
 }
 
 /** Spotify's OAuth flow behind [ServiceAuth]. */

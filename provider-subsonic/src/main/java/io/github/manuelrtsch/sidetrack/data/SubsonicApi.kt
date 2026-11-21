@@ -198,6 +198,24 @@ class SubsonicApi(
         call("updatePlaylist", "playlistId" to playlistId, "songIndexToRemove" to target.toString())
     }
 
+    /** Renames a playlist the account owns. */
+    suspend fun renamePlaylist(playlistId: String, name: String) {
+        val current = playlist(playlistId)
+        if (current != null && !current.actions.canRename) {
+            throw ServiceException(ServiceFailure.NotAllowed, "This playlist belongs to another account")
+        }
+        call("updatePlaylist", "playlistId" to playlistId, "name" to name)
+    }
+
+    /** Deletes a playlist the account owns. */
+    suspend fun deletePlaylist(playlistId: String) {
+        val current = playlist(playlistId)
+        if (current != null && !current.actions.canDelete) {
+            throw ServiceException(ServiceFailure.NotAllowed, "This playlist belongs to another account")
+        }
+        call("deletePlaylist", "id" to playlistId)
+    }
+
     suspend fun streamUrl(
         songId: String,
         maxBitRateKbps: Int? = null,
@@ -415,6 +433,16 @@ class SubsonicCatalog(
 
     override suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int?) {
         client().removeFromPlaylist(playlist.id, item.id, index)
+    }
+
+    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
+        client().renamePlaylist(playlist.id, name)
+        return true
+    }
+
+    override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
+        client().deletePlaylist(playlist.id)
+        return true
     }
 
     override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist? = runCatching {

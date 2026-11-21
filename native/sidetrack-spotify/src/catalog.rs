@@ -23,7 +23,8 @@ use librespot_protocol::extended_metadata::{
 };
 use librespot_protocol::extension_kind::ExtensionKind;
 use librespot_protocol::playlist4_external::{
-    Add, Delta, Item as PlaylistItem, ItemAttributes, ListChanges, Op, Rem, SelectedListContent,
+    Add, Delta, Item as PlaylistItem, ItemAttributes, ListAttributes, ListAttributesPartialState,
+    ListChanges, Op, Rem, SelectedListContent, UpdateListAttributes,
 };
 use protobuf::{EnumOrUnknown, Message, MessageField};
 use serde::Serialize;
@@ -85,15 +86,20 @@ struct AlbumJson {
 struct PlaylistEditJson {
     can_add_items: bool,
     can_remove_items: bool,
+    can_rename: bool,
+    can_delete: bool,
 }
 
 fn playlist_edit(can_edit_items: bool, owned: bool) -> PlaylistEditJson {
     // `can_edit_items` is the service's own permission bit. A playlist the user owns is editable
-    // even when the decorated metadata omitted capabilities.
+    // even when the decorated metadata omitted capabilities. Renaming and deleting are owner-only:
+    // a collaborator may edit items without being allowed to change the playlist itself.
     let editable = can_edit_items || owned;
     PlaylistEditJson {
         can_add_items: editable,
         can_remove_items: editable,
+        can_rename: owned,
+        can_delete: owned,
     }
 }
 
@@ -1770,6 +1776,32 @@ fn playlist_remove_changes(base_revision: &[u8], indices: &[i32]) -> ListChanges
     changes
 }
 
+/// Builds the delta that renames a playlist. The new name is a list-attribute update, so the
+/// caller sends it with the current revision like any other playlist change.
+fn playlist_rename_changes(base_revision: &[u8], name: &str) -> ListChanges {
+    let mut changes = ListChanges::new();
+    changes.base_revision = Some(base_revision.to_vec());
+    let mut delta = Delta::new();
+    delta.ops.push(Op {
+        kind: Some(EnumOrUnknown::new(
+            librespot_protocol::playlist4_external::op::Kind::UPDATE_LIST_ATTRIBUTES,
+        )),
+        update_list_attributes: MessageField::some(UpdateListAttributes {
+            new_attributes: MessageField::some(ListAttributesPartialState {
+                values: MessageField::some(ListAttributes {
+                    name: Some(name.to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    changes.deltas.push(delta);
+    changes
+}
+
 /// Indices of the last occurrence of each URI, in the order the URIs were given. Undo removes
 /// the copy that was just added, not an older duplicate.
 fn playlist_item_indices(items: &[PlaylistItem], uris: &[String]) -> Vec<i32> {
@@ -1781,6 +1813,53 @@ fn playlist_item_indices(items: &[PlaylistItem], uris: &[String]) -> Vec<i32> {
                 .map(|index| index as i32)
         })
         .collect()
+}
+
+/// Renames a playlist the signed-in user owns. Re-reads the playlist for the current revision,
+/// like the item writes, so a concurrent edit cannot make the change apply to the wrong state.
+pub async fn playlist_rename(
+    session: &Session,
+    token: &str,
+    id: &str,
+    name: &str,
+) -> Result<(), String> {
+    if name.trim().is_empty() {
+        return Err("a playlist needs a name".to_string());
+    }
+    let playlist_id = id_of(&spotify_uri(id, "playlist")?);
+    let mut last_error = String::new();
+    for attempt in 0..2 {
+        let content = playlist_content(session, token, &playlist_id).await?;
+        if content.owner_username() != session.username() {
+            return Err("forbidden: only the owner can rename this playlist".to_string());
+        }
+        let changes = playlist_rename_changes(
+            content.revision.as_deref().unwrap_or_default(),
+            name.trim(),
+        );
+        let body = changes.write_to_bytes().map_err(|e| e.to_string())?;
+        match sp_request(
+            session,
+            token,
+            Method::POST,
+            &format!("/playlist/v2/playlist/{playlist_id}/changes"),
+            Some("application/x-www-form-urlencoded"),
+            &body,
+        )
+        .await
+        {
+            Ok(_) => {
+                invalidate_collection(&session.username(), &playlist_id);
+                return Ok(());
+            }
+            Err(error) if attempt == 0 && is_revision_conflict(&error) => {
+                log::warn!("playlist rename hit a revision conflict, retrying: {error}");
+                last_error = error;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(last_error)
 }
 
 /// Appends [uris] to a playlist the user can edit. Returns the index the first item landed at,

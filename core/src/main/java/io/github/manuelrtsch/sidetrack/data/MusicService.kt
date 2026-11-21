@@ -137,6 +137,18 @@ interface MediaLibraryWriter {
     suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int? = null) = Unit
 
     /**
+     * Renames [playlist] to [name]. False when the service has no rename transport; a refusal is
+     * thrown so the caller can report the service's reason.
+     */
+    suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean = false
+
+    /**
+     * Deletes [playlist] on the service. False when the service has no delete transport; a refusal
+     * is thrown so the caller can report the service's reason.
+     */
+    suspend fun deletePlaylist(playlist: MediaKey): Boolean = false
+
+    /**
      * Creates a playlist named [name], optionally seeded with [seed] in that order, and returns it.
      * Null when the service cannot create playlists (the app never creates playlists it owns on a
      * service that does not support it).

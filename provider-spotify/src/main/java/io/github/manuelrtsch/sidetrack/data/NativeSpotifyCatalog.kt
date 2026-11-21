@@ -139,6 +139,19 @@ class NativeSpotifyCatalog(
         }
     }
 
+    override suspend fun renamePlaylist(playlistId: String, name: String): Boolean = withContext(Dispatchers.IO) {
+        ensureSession()
+        playlistWrite(native.playlistRename(playlistId, name))
+        true
+    }
+
+    override suspend fun deletePlaylist(playlistId: String): Boolean {
+        // Spotify's delete is the library write it already has: the playlist leaves the account's
+        // library. The caller defers it until Undo expires, so the unfollow is the final write.
+        writePlaylist(playlistId, saved = false)
+        return true
+    }
+
     /**
      * Unwraps a native playlist write. The bridge reports a refusal as `{"error": "..."}`; a bare
      * null means the transport never answered. Permission refusals become
@@ -310,7 +323,9 @@ private fun JSONObject.playlistActions(): PlaylistActions? {
     val actions = optJSONObject("actions") ?: return null
     return PlaylistActions(
         canAddItems = actions.optBoolean("canAddItems"),
-        canRemoveItems = actions.optBoolean("canRemoveItems")
+        canRemoveItems = actions.optBoolean("canRemoveItems"),
+        canRename = actions.optBoolean("canRename"),
+        canDelete = actions.optBoolean("canDelete")
     )
 }
 

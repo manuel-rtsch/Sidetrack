@@ -69,7 +69,11 @@ class SpotifySession(
      */
     override val capabilities: ServiceCapabilities
         get() = if (writer == null) {
-            ServiceCapabilities.All.copy(supportsPlaylistEdit = false)
+            ServiceCapabilities.All.copy(
+                supportsPlaylistEdit = false,
+                supportsPlaylistRename = false,
+                supportsPlaylistDelete = false
+            )
         } else {
             ServiceCapabilities.All
         }

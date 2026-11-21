@@ -83,7 +83,7 @@ fun addToPlaylistRowAction(title: String, onClick: () -> Unit) = RowAction(
 
 fun removeFromPlaylistRowAction(title: String, onClick: () -> Unit) = RowAction(
     key = "removeFromPlaylist",
-    label = "Remove from playlist",
+    label = "Remove",
     contentDescription = "Remove $title from this playlist",
     icon = SidekitIcon.DeleteForever,
     tone = ActionTone.Destructive,

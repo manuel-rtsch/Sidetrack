@@ -264,7 +264,23 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                     { item, index -> vm.removeFromPlaylist(collection, item, index) }
                 } else {
                     null
-                }
+                },
+                onRename = if (vm.playlistActions(collection).canRename) {
+                    { name -> vm.renamePlaylist(collection, name) }
+                } else {
+                    null
+                },
+                onDelete = if (vm.playlistActions(collection).canDelete) {
+                    { vm.deletePlaylist(collection) }
+                } else {
+                    null
+                },
+                onDeleteInBackground = if (vm.playlistActions(collection).canDelete) {
+                    { vm.deletePlaylistInBackground(collection) }
+                } else {
+                    null
+                },
+                onDeleted = { nav.popBackStack() }
             )
         }
     }

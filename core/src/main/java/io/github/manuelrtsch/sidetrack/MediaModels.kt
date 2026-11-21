@@ -75,12 +75,14 @@ enum class LibrarySection { Liked, Playlists, Albums, Artists, Shows }
  *
  * This is deliberately item-level. Whether the *service* can edit playlists at all is
  * [ServiceCapabilities.supportsPlaylistEdit]; whether a *particular* playlist can be changed is
- * this type. Deleting a playlist is not modelled: no provider has a delete transport yet, and
- * Spotify only has "remove from library" (unfollow), which is the Save toggle.
+ * this type. Rename and delete are separate permissions because a service can allow one without
+ * the other (and collaborators may add items without owning the playlist).
  */
 data class PlaylistActions(
     val canAddItems: Boolean = false,
     val canRemoveItems: Boolean = false,
+    val canRename: Boolean = false,
+    val canDelete: Boolean = false,
     val unconfirmed: Boolean = false
 ) {
     val canEditItems: Boolean get() = canAddItems || canRemoveItems
@@ -89,21 +91,40 @@ data class PlaylistActions(
         /** The service says this playlist is read-only for the signed-in account. */
         val None = PlaylistActions()
 
-        /** The service says the signed-in account may add and remove items. */
-        val All = PlaylistActions(canAddItems = true, canRemoveItems = true)
+        /** The service says the signed-in account owns this playlist and may change it. */
+        val All = PlaylistActions(
+            canAddItems = true,
+            canRemoveItems = true,
+            canRename = true,
+            canDelete = true
+        )
 
-        /** The service does not report permissions; offer editing and let the server decide. */
-        val ServerDecides = PlaylistActions(canAddItems = true, canRemoveItems = true, unconfirmed = true)
+        /** The service does not report permissions; offer the actions and let the server decide. */
+        val ServerDecides = PlaylistActions(
+            canAddItems = true,
+            canRemoveItems = true,
+            canRename = true,
+            canDelete = true,
+            unconfirmed = true
+        )
     }
 }
 
 /**
- * The actions a playlist page may offer. A service that cannot edit playlists at all overrides a
- * playlist that reports itself editable, so the UI has one answer instead of two conditions.
+ * The actions a playlist page may offer. The service's own capability flags gate the per-playlist
+ * answer, so the UI has one place to ask and a service that cannot do something never offers it.
  */
-fun ServiceCapabilities.playlistActions(playlist: Playlist): PlaylistActions = if (supportsPlaylistEdit) playlist.actions else PlaylistActions.None
+fun ServiceCapabilities.playlistActions(playlist: Playlist): PlaylistActions = playlist.actions.gatedBy(this)
 
-fun ServiceCapabilities.playlistActions(collection: Collection): PlaylistActions = if (!supportsPlaylistEdit) PlaylistActions.None else collection.playlistActions ?: PlaylistActions.None
+fun ServiceCapabilities.playlistActions(collection: Collection): PlaylistActions = (collection.playlistActions ?: PlaylistActions.None).gatedBy(this)
+
+private fun PlaylistActions.gatedBy(capabilities: ServiceCapabilities) = PlaylistActions(
+    canAddItems = capabilities.supportsPlaylistEdit && canAddItems,
+    canRemoveItems = capabilities.supportsPlaylistEdit && canRemoveItems,
+    canRename = capabilities.supportsPlaylistEdit && capabilities.supportsPlaylistRename && canRename,
+    canDelete = capabilities.supportsPlaylistEdit && capabilities.supportsPlaylistDelete && canDelete,
+    unconfirmed = unconfirmed
+)
 
 /**
  * What a service can do. The UI asks these questions instead of asking which service is active.
@@ -116,6 +137,8 @@ data class ServiceCapabilities(
     val supportsFollowArtist: Boolean = false,
     val supportsPlaylistEdit: Boolean = false,
     val supportsPlaylistCreate: Boolean = false,
+    val supportsPlaylistRename: Boolean = false,
+    val supportsPlaylistDelete: Boolean = false,
     val supportsNormalization: Boolean = false,
     val supportsGapless: Boolean = false,
     val supportsQualitySelection: Boolean = false,
@@ -131,6 +154,8 @@ data class ServiceCapabilities(
             supportsRadio = true,
             supportsFollowArtist = true,
             supportsPlaylistEdit = true,
+            supportsPlaylistRename = true,
+            supportsPlaylistDelete = true,
             supportsNormalization = true,
             supportsGapless = true,
             supportsQualitySelection = true,
@@ -160,6 +185,8 @@ data class ServiceCapabilities(
             supportsRadio = true,
             supportsPlaylistEdit = true,
             supportsPlaylistCreate = true,
+            supportsPlaylistRename = true,
+            supportsPlaylistDelete = true,
             supportsNormalization = true,
             supportsQualitySelection = true,
             supportsProgressReporting = true,
@@ -189,6 +216,8 @@ data class ServiceCapabilities(
             supportsFollowArtist = true,
             supportsPlaylistEdit = true,
             supportsPlaylistCreate = true,
+            supportsPlaylistRename = true,
+            supportsPlaylistDelete = true,
             supportsQualitySelection = true,
             supportsProgressReporting = true,
             supportsScrobbling = true
@@ -215,6 +244,8 @@ data class ServiceCapabilities(
                 SearchScope.Playlists
             ),
             supportsPlaylistEdit = true,
+            supportsPlaylistRename = true,
+            supportsPlaylistDelete = true,
             supportsProgressReporting = true,
             supportsScrobbling = true
         )

@@ -11,8 +11,9 @@ import org.junit.Test
 /**
  * The Options menu is assembled in one place (`ActionBars.kt`). These tests pin the two rules in
  * `docs/menus.md`, so a later screen cannot reintroduce the drift they exist to prevent: shape
- * belongs to the entry (a destination is labelled, only a list-wide toggle and Now Playing's
- * playback shortcuts are icon-only squares) and colour belongs to what an option does
+ * belongs to the entry (a destination is labelled; only a list-wide toggle, Now Playing's
+ * playback shortcuts and a playlist edit squeezed by the queue destination are squares) and colour
+ * belongs to what an option does
  * (accent for every live option, as Sidekit's own apps paint their Options bars; green for a toggle
  * that is on; red for destroy).
  */
@@ -123,6 +124,25 @@ class OptionsBuilderTest {
         assertEquals(save.tone, shuffle.tone)
         assertEquals(SidekitIcon.Bookmark, save.icon)
         assertEquals(SidekitIcon.Shuffle, shuffle.icon)
+    }
+
+    @Test
+    fun playlistEditsAreSquaresSoTheQueueKeepsItsLabel() {
+        // Add to queue is the page's destination and keeps the bar's one label. Rename and Delete
+        // become squares: three labels alongside Sidekit's close square would truncate.
+        val options = sidetrackOptions(
+            addToQueueOption {},
+            renamePlaylistOption("Road trip") {},
+            deletePlaylistOption("Road trip") {}
+        )
+
+        assertEquals(listOf("addToQueue", "renamePlaylist", "deletePlaylist"), options.map { it.key })
+        assertFalse("Add to queue keeps its label", options[0].square)
+        assertTrue("Rename is a square", options[1].square)
+        assertTrue("Delete is a square", options[2].square)
+        assertEquals("Rename Road trip", options[1].contentDescription)
+        assertEquals("Delete Road trip", options[2].contentDescription)
+        assertEquals(ActionTone.Destructive, options[2].tone)
     }
 
     @Test

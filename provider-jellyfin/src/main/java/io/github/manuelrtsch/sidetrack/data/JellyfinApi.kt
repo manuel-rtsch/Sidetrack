@@ -32,6 +32,8 @@ interface JellyfinApi {
     suspend fun createPlaylist(name: String, itemIds: List<String> = emptyList()): String?
     suspend fun addToPlaylist(playlistId: String, itemId: String): Int
     suspend fun removeFromPlaylist(playlistId: String, itemId: String, index: Int? = null)
+    suspend fun renamePlaylist(playlistId: String, name: String) = Unit
+    suspend fun deletePlaylist(playlistId: String) = Unit
 
     suspend fun playback(itemId: String, maxStreamingBitrate: Int?): JellyfinPlaybackInfo
     fun imageUrl(id: String, tag: String?, maxHeight: Int = ARTWORK_MAX_HEIGHT): String

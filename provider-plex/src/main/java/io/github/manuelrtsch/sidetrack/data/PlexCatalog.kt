@@ -167,6 +167,16 @@ class PlexCatalog(
         client.removeFromPlaylist(playlist.id, playlistItemId)
     }
 
+    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
+        client().renamePlaylist(playlist.id, name)
+        return true
+    }
+
+    override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
+        client().deletePlaylist(playlist.id)
+        return true
+    }
+
     override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist? = null
 
     private fun <R> PlexPage.mapEntries(transform: (PlexItem) -> R): Page<R> = Page(
