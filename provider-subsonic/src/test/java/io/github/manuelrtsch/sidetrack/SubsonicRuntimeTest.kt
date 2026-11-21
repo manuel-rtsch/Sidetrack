@@ -14,6 +14,7 @@ import io.github.manuelrtsch.sidetrack.data.SubsonicProvider
 import io.github.manuelrtsch.sidetrack.data.SubsonicRuntime
 import io.github.manuelrtsch.sidetrack.storage.JsonStore
 import java.io.File
+import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -186,7 +187,7 @@ class SubsonicRuntimeTest {
         )
     }
 
-    @Test fun `clearing the audio cache removes cached artwork`() {
+    @Test fun `clearing the audio cache removes cached artwork`() = runTest {
         val artwork = File(context.cacheDir, "artwork").apply { mkdirs() }
         File(artwork, "cover").writeBytes(ByteArray(64))
 

@@ -190,7 +190,7 @@ class JellyfinRuntimeTest {
         assertNull(JellyfinCredentialStore(store).read())
     }
 
-    @Test fun `clearing the audio cache removes cached artwork`() {
+    @Test fun `clearing the audio cache removes cached artwork`() = runTest {
         val artwork = File(context.cacheDir, "artwork").apply { mkdirs() }
         File(artwork, "cover").writeBytes(ByteArray(64))
 

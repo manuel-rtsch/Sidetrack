@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A signed-in Plex account.
@@ -207,12 +208,11 @@ class PlexRuntime(
         RemoteArtwork.clear(appContext)
     }
 
-    override fun cacheSizeBytes(): Long = File(appContext.cacheDir, "artwork")
-        .walkTopDown()
-        .filter { it.isFile }
-        .sumOf { it.length() }
+    override suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) {
+        CacheDirectory.sizeBytes(CacheDirectory.artwork(appContext))
+    }
 
-    override fun clearAudioCache() = clearCaches()
+    override suspend fun clearAudioCache() = withContext(Dispatchers.IO) { clearCaches() }
 
     private fun rememberPosition(clear: Boolean = false) {
         val point = if (clear) {

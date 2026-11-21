@@ -9,6 +9,11 @@ import io.github.manuelrtsch.sidetrack.data.clearAudioCache
 import io.github.manuelrtsch.sidetrack.data.setAudioQuality
 import io.github.manuelrtsch.sidetrack.data.setGapless
 import io.github.manuelrtsch.sidetrack.data.setNormalization
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Playback preferences, cache housekeeping and the Clear history / Undo pair.
@@ -23,10 +28,14 @@ internal class SettingsController(
     private val history: HistoryRepository,
     private val queue: QueueRepository,
     private val effects: PlaybackEffects,
-    private val clearArtworkCache: () -> Unit
+    private val clearArtworkCache: () -> Unit,
+    private val scope: CoroutineScope
 ) {
 
     private var clearedHistory: List<HistoryEntry> = emptyList()
+
+    /** The in-flight size read, so a fast re-open cannot land an older number last. */
+    private var cacheSizeJob: Job? = null
 
     fun setAudioQuality(quality: AudioQuality) {
         if (quality == store.value.audioQuality) return
@@ -73,13 +82,24 @@ internal class SettingsController(
         store.update { it.copy(recent = history.items(), notice = null) }
     }
 
+    /**
+     * Both halves touch the cache directory, so they run off the main thread. The row keeps its
+     * old number until the refresh lands instead of blocking the frame on a tree walk.
+     */
     fun clearCache() {
-        clearArtworkCache()
-        session?.clearAudioCache()
-        refreshCacheSize()
+        scope.launch {
+            withContext(Dispatchers.IO) { clearArtworkCache() }
+            session?.clearAudioCache()
+            refreshCacheSize()
+        }
     }
 
+    /** Startup does not read the cache; the Settings screen asks for this when it opens. */
     fun refreshCacheSize() {
-        store.update { it.copy(cacheSizeBytes = session?.cacheSizeBytes() ?: 0L) }
+        cacheSizeJob?.cancel()
+        cacheSizeJob = scope.launch {
+            val bytes = session?.cacheSizeBytes() ?: 0L
+            store.update { it.copy(cacheSizeBytes = bytes) }
+        }
     }
 }

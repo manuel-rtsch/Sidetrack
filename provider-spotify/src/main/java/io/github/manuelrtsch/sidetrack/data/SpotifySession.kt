@@ -470,10 +470,10 @@ class SpotifySession(
     fun skipPrevious() = transport.skipPrevious()
 
     /** Drops the on-disk audio cache. librespot re-fetches anything it still needs. */
-    override fun clearAudioCache() = cache.clearAudioCache()
+    override suspend fun clearAudioCache() = withContext(Dispatchers.IO) { cache.clearAudioCache() }
 
     /** Artwork and audio bytes currently held on disk. */
-    override fun cacheSizeBytes(): Long = cache.sizeBytes()
+    override suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) { cache.sizeBytes() }
 
     /** Sign-out and the Settings action both drop artwork and audio; credentials are separate. */
     override fun clearCaches() = cache.clear()

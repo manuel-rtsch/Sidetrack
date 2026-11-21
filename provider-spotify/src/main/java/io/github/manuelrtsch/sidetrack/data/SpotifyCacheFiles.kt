@@ -11,20 +11,15 @@ internal class SpotifyCacheFiles(
 ) {
     /** librespot re-fetches anything it still needs. */
     fun clearAudioCache() {
-        audioCacheDir?.deleteRecursively()
+        CacheDirectory.clear(audioCacheDir)
     }
 
     /** Artwork and audio bytes currently held on disk. */
-    fun sizeBytes(): Long {
-        val artwork = appContext?.let { File(it.cacheDir, "artwork") }
-        return listOfNotNull(artwork, audioCacheDir).sumOf { it.sizeBytes() }
-    }
+    fun sizeBytes(): Long = CacheDirectory.sizeBytes(appContext?.let(CacheDirectory::artwork), audioCacheDir)
 
     /** Sign-out and the Settings action both drop artwork and audio; credentials are separate. */
     fun clear() {
         appContext?.let(RemoteArtwork::clear)
         clearAudioCache()
     }
-
-    private fun File.sizeBytes(): Long = walkTopDown().filter { it.isFile }.sumOf { it.length() }
 }

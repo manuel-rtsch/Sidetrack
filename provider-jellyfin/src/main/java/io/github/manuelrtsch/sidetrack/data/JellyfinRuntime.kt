@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A signed-in Jellyfin account.
@@ -225,12 +226,11 @@ class JellyfinRuntime(
         RemoteArtwork.clear(appContext)
     }
 
-    override fun cacheSizeBytes(): Long = File(appContext.cacheDir, "artwork")
-        .walkTopDown()
-        .filter { it.isFile }
-        .sumOf { it.length() }
+    override suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) {
+        CacheDirectory.sizeBytes(CacheDirectory.artwork(appContext))
+    }
 
-    override fun clearAudioCache() = clearCaches()
+    override suspend fun clearAudioCache() = withContext(Dispatchers.IO) { clearCaches() }
 
     /**
      * Tells the server this client exists (so its session list is honest) and seeds the resume

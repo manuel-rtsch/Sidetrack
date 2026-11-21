@@ -24,6 +24,8 @@ internal fun NavGraphBuilder.settingsGraph(
         val playback by vm.playbackState.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val appSession = remember(context) { AppSessions.get(context) }
+        // The cache row is the only reader of the size, so the directory walk starts when this
+        // screen opens instead of during ViewModel creation.
         LaunchedEffect(Unit) { vm.refreshCacheSize() }
         SettingsScreen(
             account,

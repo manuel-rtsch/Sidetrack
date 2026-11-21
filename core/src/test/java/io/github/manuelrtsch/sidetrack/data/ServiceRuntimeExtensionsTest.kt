@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -55,11 +56,11 @@ class ServiceRuntimeExtensionsTest {
         runtime.setGapless(enabled = false)
     }
 
-    @Test fun `a runtime without a cache reports an empty cache`() {
+    @Test fun `a runtime without a cache reports an empty cache`() = runTest {
         assertEquals(0L, fake().cacheSizeBytes())
     }
 
-    @Test fun `clearing the cache on a runtime without one is a no-op`() {
+    @Test fun `clearing the cache on a runtime without one is a no-op`() = runTest {
         fake().clearAudioCache()
     }
 
@@ -85,7 +86,7 @@ class ServiceRuntimeExtensionsTest {
         assertEquals(listOf("quality:Normal", "normalization:true", "gapless:false"), runtime.calls)
     }
 
-    @Test fun `cache answers are forwarded to the runtime`() {
+    @Test fun `cache answers are forwarded to the runtime`() = runTest {
         val runtime = CacheOnlyRuntime()
 
         assertEquals(4_096L, runtime.cacheSizeBytes())
@@ -166,9 +167,9 @@ class ServiceRuntimeExtensionsTest {
         CacheRuntime {
         var cleared = false
 
-        override fun cacheSizeBytes(): Long = 4_096L
+        override suspend fun cacheSizeBytes(): Long = 4_096L
 
-        override fun clearAudioCache() {
+        override suspend fun clearAudioCache() {
             cleared = true
         }
     }

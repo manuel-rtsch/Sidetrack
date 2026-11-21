@@ -136,7 +136,7 @@ class SpotifySessionTest {
         assertFalse(session.signedIn.value)
     }
 
-    @Test fun `sign-out clears identity queue history resume and cached files`() {
+    @Test fun `sign-out clears identity queue history resume and cached files`() = runBlocking {
         File(context.cacheDir, "artwork").apply { mkdirs() }
         File(File(context.cacheDir, "artwork"), "cover.img").writeBytes(ByteArray(32))
         File(context.cacheDir, "spotify-audio").apply { mkdirs() }
