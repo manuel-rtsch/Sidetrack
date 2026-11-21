@@ -91,6 +91,18 @@ interface ServiceAuth {
 }
 
 /**
+ * A [ServiceAuth] whose local credential state a runtime may inspect and drop.
+ *
+ * The runtime asks once at construction whether a session exists, and forgets it on sign-out.
+ * Keeping the two calls on the auth object means a device whose keystore refused the session can
+ * still be signed in for this process without pretending the credentials were stored.
+ */
+interface RuntimeAuth : ServiceAuth {
+    fun hasCredentials(): Boolean
+    fun clear()
+}
+
+/**
  * Read side of a music service, expressed in the neutral domain model. Each provider maps its
  * own catalog onto this contract; the UI never sees a provider-specific type.
  *

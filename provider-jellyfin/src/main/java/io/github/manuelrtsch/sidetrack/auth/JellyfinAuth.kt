@@ -4,8 +4,8 @@ import android.content.Context
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
 import io.github.manuelrtsch.sidetrack.data.AuthInput
+import io.github.manuelrtsch.sidetrack.data.RuntimeAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceAccount
-import io.github.manuelrtsch.sidetrack.data.ServiceAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.jellyfin.BuildConfig
@@ -204,7 +204,7 @@ class SdkJellyfinAuthenticator(private val context: Context) : JellyfinAuthentic
 class JellyfinAuth(
     private val store: JellyfinCredentialStore,
     private val authenticator: JellyfinAuthenticator
-) : ServiceAuth {
+) : RuntimeAuth {
     /**
      * The session for this process. A device that cannot persist the store still stays signed in
      * until the app closes, the same behaviour Navidrome and Spotify have.
@@ -212,7 +212,7 @@ class JellyfinAuth(
     @Volatile
     private var current: JellyfinCredentials? = null
 
-    fun hasCredentials(): Boolean = credentials() != null
+    override fun hasCredentials(): Boolean = credentials() != null
 
     fun credentials(): JellyfinCredentials? = current ?: runCatching { store.read() }.getOrNull()?.also { current = it }
 
@@ -245,7 +245,7 @@ class JellyfinAuth(
     override suspend fun signOut() = clear()
 
     /** Synchronous clear for the runtime's non-suspending sign-out path. */
-    fun clear() {
+    override fun clear() {
         current = null
         store.clear()
         ArtworkAccess.clear()

@@ -3,8 +3,8 @@ package io.github.manuelrtsch.sidetrack.auth
 import android.content.Context
 import io.github.manuelrtsch.sidetrack.data.AuthInput
 import io.github.manuelrtsch.sidetrack.data.HttpSubsonicTransport
+import io.github.manuelrtsch.sidetrack.data.RuntimeAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceAccount
-import io.github.manuelrtsch.sidetrack.data.ServiceAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.SubsonicApi
@@ -74,7 +74,7 @@ class SubsonicAuth(
     private val store: SubsonicCredentialStore,
     private val family: SubsonicFamily = SubsonicFamily.Navidrome,
     private val transport: SubsonicTransport? = null
-) : ServiceAuth {
+) : RuntimeAuth {
     /**
      * The credentials for this process. A device that cannot persist the store still keeps the
      * signed-in session until the app closes, matching the Spotify keystore-failure behaviour.
@@ -82,7 +82,7 @@ class SubsonicAuth(
     @Volatile
     private var current: SubsonicCredentials? = null
 
-    fun hasCredentials(): Boolean = credentials() != null
+    override fun hasCredentials(): Boolean = credentials() != null
 
     fun credentials(): SubsonicCredentials? = current ?: runCatching { store.read() }.getOrNull()?.also { current = it }
 
@@ -108,7 +108,7 @@ class SubsonicAuth(
     override suspend fun signOut() = clear()
 
     /** Synchronous clear for the runtime's non-suspending sign-out path. */
-    fun clear() {
+    override fun clear() {
         current = null
         store.clear()
     }

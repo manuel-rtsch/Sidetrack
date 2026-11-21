@@ -9,8 +9,8 @@ import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
 import io.github.manuelrtsch.sidetrack.data.AuthInput
 import io.github.manuelrtsch.sidetrack.data.HttpPlexApi
 import io.github.manuelrtsch.sidetrack.data.PlexApi
+import io.github.manuelrtsch.sidetrack.data.RuntimeAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceAccount
-import io.github.manuelrtsch.sidetrack.data.ServiceAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.normalizePlexServerUrl
@@ -159,11 +159,11 @@ class PlexAuth(
     private val client: PlexAccountClient = PlexAccountHttpClient(clientIdentifier),
     private val pollIntervalMs: Long = 1_500L,
     private val timeoutMs: Long = 180_000L
-) : ServiceAuth {
+) : RuntimeAuth {
     @Volatile
     private var current: PlexCredentials? = null
 
-    fun hasCredentials(): Boolean = credentials() != null
+    override fun hasCredentials(): Boolean = credentials() != null
 
     fun credentials(): PlexCredentials? = current ?: runCatching { store.read() }.getOrNull()?.also {
         current = it
@@ -196,7 +196,7 @@ class PlexAuth(
 
     override suspend fun signOut() = clear()
 
-    fun clear() {
+    override fun clear() {
         current = null
         store.clear()
         ArtworkAccess.clear()
