@@ -16,10 +16,11 @@ internal const val PODCAST_SKIP_MS = 30_000L
 internal const val EPISODE_PROGRESS_INTERVAL_MS = 5_000L
 
 /**
- * How often the seek bar advances while it is on screen. The bar animates between samples, so
- * 200 ms looks the same as 100 ms while halving the wakeups.
+ * How often the seek bar advances while it is on screen. The bar animates between samples, so a
+ * one-second step still reads as continuous while waking the main loop once a second instead of
+ * five times.
  */
-internal const val POSITION_TICK_MS = 200L
+internal const val POSITION_TICK_MS = 1_000L
 
 /**
  * A native position event this far from the UI clock is treated as a real seek from another

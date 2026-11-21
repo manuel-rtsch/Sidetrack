@@ -34,6 +34,7 @@ import hrln.interactive.sidekit.design.components.listFade
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
+import io.github.manuelrtsch.sidetrack.ui.GUTTER_DELAY_MS
 import io.github.manuelrtsch.sidetrack.ui.QueueReorderAutoScroll
 import io.github.manuelrtsch.sidetrack.ui.rememberQueueReorderState
 import io.github.manuelrtsch.sidetrack.ui.rememberSwipeRevealGroup

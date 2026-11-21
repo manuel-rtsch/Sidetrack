@@ -96,8 +96,6 @@ fun RowScope.SkipTile(
     }
 }
 
-fun repeatLabel(repeat: RepeatMode) = repeat.label
-
 @Composable
 fun PlayTile(
     playing: Boolean,
