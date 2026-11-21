@@ -481,6 +481,7 @@ fun SearchResultsScreen(
         val hasMore = scope in search.searchHasMore
         val morePending = scope in search.searchMorePending
         LoadMoreFocus(moreFocus, listState, items.size, morePending, firstItemListIndex = 1)
+        val rowKeys = remember(items) { mediaRowKeys(items) }
         SidekitList(padding, state = listState) {
             // Like the library, the category row is the first list item: it scrolls away with
             // the content and one category's list is shown at a time.
@@ -515,8 +516,8 @@ fun SearchResultsScreen(
             } else {
                 itemsIndexed(
                     items,
-                    key = { _, item -> searchItemKey(item) },
-                    contentType = { _, item -> searchItemKey(item).take(1) }
+                    key = { index, _ -> rowKeys[index] },
+                    contentType = { _, item -> mediaContentType(item) }
                 ) { index, item ->
                     // Every result row carries its own focus target, so the load-more requester
                     // travels with a row requester instead of riding a wrapper that has no
@@ -531,7 +532,7 @@ fun SearchResultsScreen(
                         .then(if (index == 0) viewport.firstRowModifier else Modifier)
                     when (item) {
                         is Track -> TrackRow(
-                            searchItemKey(item),
+                            rowKeys[index],
                             item,
                             rows,
                             modifier,
@@ -540,7 +541,7 @@ fun SearchResultsScreen(
                         ) { onTrack(item) }
 
                         is Artist -> ArtistGutterRow(
-                            searchItemKey(item),
+                            rowKeys[index],
                             item,
                             searchGutters,
                             rows.bar,
@@ -553,7 +554,7 @@ fun SearchResultsScreen(
                         )
 
                         is Album -> AlbumGutterRow(
-                            searchItemKey(item),
+                            rowKeys[index],
                             item,
                             searchGutters,
                             rows.bar,
@@ -565,7 +566,7 @@ fun SearchResultsScreen(
                         )
 
                         is Playlist -> PlaylistGutterRow(
-                            searchItemKey(item),
+                            rowKeys[index],
                             item,
                             searchGutters,
                             rows.bar,
@@ -577,7 +578,7 @@ fun SearchResultsScreen(
                         )
 
                         is Show -> ShowGutterRow(
-                            searchItemKey(item),
+                            rowKeys[index],
                             item,
                             searchGutters,
                             rows.bar,
@@ -617,15 +618,6 @@ internal fun SearchResults.itemsFor(scope: SearchScope): List<Any> = when (scope
 }
 
 internal fun SearchResults.sizeFor(scope: SearchScope): Int = itemsFor(scope).size
-
-private fun searchItemKey(item: Any): String = when (item) {
-    is Track -> "t${item.id}"
-    is Artist -> "r${item.id}"
-    is Album -> "a${item.id}"
-    is Playlist -> "p${item.id}"
-    is Show -> "s${item.id}"
-    else -> item.toString()
-}
 
 private val SearchScope.icon: SidekitIcon
     get() = when (this) {

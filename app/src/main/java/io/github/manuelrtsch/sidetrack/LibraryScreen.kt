@@ -168,6 +168,7 @@ fun LibraryScreen(
                 library.libraryMorePending,
                 firstItemListIndex = 1
             )
+            val rowKeys = remember(items) { mediaRowKeys(items) }
             SidekitList(padding, state = listState) {
                 item(key = "filters") {
                     LibraryFilterRow(
@@ -187,8 +188,8 @@ fun LibraryScreen(
                 val base = rowIndex
                 itemsIndexed(
                     items,
-                    key = { index, item -> "$index:${libraryKey(item)}" },
-                    contentType = { _, item -> libraryKey(item).take(1) }
+                    key = { index, _ -> rowKeys[index] },
+                    contentType = { _, item -> mediaContentType(item) }
                 ) { index, item ->
                     var modifier: Modifier = Modifier.listFade(listState, base + index)
                     if (index == 0) modifier = modifier.then(firstRowModifier)

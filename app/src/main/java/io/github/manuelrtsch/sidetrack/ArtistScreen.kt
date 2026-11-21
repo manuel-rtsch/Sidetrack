@@ -90,6 +90,8 @@ fun ArtistScreen(
         }
         LoadMoreFocus(tracksFocus, listState, tracks.size, loadingMore, firstItemListIndex = tracksBase)
         LoadMoreFocus(albumsFocus, listState, albums.size, loadingMore, firstItemListIndex = albumsBase)
+        val trackKeys = remember(tracks) { mediaRowKeys(tracks) }
+        val albumKeys = remember(albums) { mediaRowKeys(albums) }
         SidekitList(padding, state = listState) {
             var rowIndex = 0
             item(key = "tiles") {
@@ -126,11 +128,11 @@ fun ArtistScreen(
             rowIndex += 1
             itemsIndexed(
                 tracks,
-                key = { index, track -> "$index:${track.id}" },
+                key = { index, _ -> trackKeys[index] },
                 contentType = { _, _ -> "track" }
             ) { index, track ->
                 TrackRow(
-                    "$index:${track.id}",
+                    trackKeys[index],
                     track,
                     rows,
                     Modifier.listFade(listState, tracksBase + index),
@@ -160,7 +162,7 @@ fun ArtistScreen(
             rowIndex += 1
             itemsIndexed(
                 albums,
-                key = { index, album -> "$index:${album.id}" },
+                key = { index, _ -> albumKeys[index] },
                 contentType = { _, _ -> "album" }
             ) { index, album ->
                 LibraryRow(

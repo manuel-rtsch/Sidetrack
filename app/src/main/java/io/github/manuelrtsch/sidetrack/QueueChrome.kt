@@ -18,16 +18,6 @@ internal fun QueueSectionHeader(count: Int, shuffled: Boolean, modifier: Modifie
     SectionLabel(label, modifier.fillMaxWidth())
 }
 
-/** Stable keys for the upcoming list: track identity plus an occurrence rank for duplicates. */
-internal fun entryKeys(items: List<MediaItem>): List<String> {
-    val seen = HashMap<String, Int>(items.size)
-    return items.map { item ->
-        val rank = seen[item.id] ?: 0
-        seen[item.id] = rank + 1
-        "u${item.id}#$rank"
-    }
-}
-
 /** What the bar's Undo will put back. */
 internal sealed interface QueueUndo {
     class Cleared(val items: List<MediaItem>) : QueueUndo

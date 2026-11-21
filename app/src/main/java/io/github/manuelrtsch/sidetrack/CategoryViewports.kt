@@ -38,7 +38,7 @@ internal fun rememberLastFocusedRowKey(rows: TrackRows, gutters: RowGutterState)
 }
 
 /** Index of [key] among a category's rows, or -1 when the row is not in this category any more. */
-internal fun List<Any>.indexOfRowKey(key: String?): Int = if (key == null) -1 else indexOfFirst { libraryRowFocusKey(it) == key }
+internal fun List<Any>.indexOfRowKey(key: String?): Int = if (key == null) -1 else indexOfFirst { mediaRowKey(it) == key }
 
 /**
  * Records the category being left and returns the position the next one resumes at.

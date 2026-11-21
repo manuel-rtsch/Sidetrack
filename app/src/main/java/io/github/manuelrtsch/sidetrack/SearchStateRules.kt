@@ -54,7 +54,7 @@ internal fun SidetrackUiState.withSearchMorePage(
 ): SidetrackUiState {
     val existing = searchPagesForQuery[scope] ?: return this
     val merged = existing.copy(
-        items = (existing.items + next).distinctBy { libraryItemKey(it) },
+        items = (existing.items + next).distinctBy { mediaRowKey(it) },
         hasMore = hasMore,
         fetchedAt = fetchedAt
     )

@@ -94,7 +94,7 @@ fun QueueScreen(
     // Keys are the track's identity, not its position: a row that moves keeps its node, so it
     // keeps focus and never blinks out and back in. Duplicates get an occurrence suffix because
     // the queue may legitimately hold the same track twice.
-    val upcomingKeys = remember(visibleUpcoming) { entryKeys(visibleUpcoming) }
+    val upcomingKeys = remember(visibleUpcoming) { mediaRowKeys(visibleUpcoming) }
     // Focus state is keyed, not indexed: a shuffle or a move can change every index while the
     // row under the focus ring stays the same. This is what used to let a gutter land on the
     // wrong track after shuffle.
