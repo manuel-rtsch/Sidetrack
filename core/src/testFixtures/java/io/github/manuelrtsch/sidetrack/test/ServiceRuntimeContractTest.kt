@@ -132,8 +132,10 @@ abstract class ServiceRuntimeContractTest {
         assertEquals(listOf("one"), runtime().history.items().map { it.id })
     }
 
+    // Test fixtures are dexed into the app's androidTest APK, and D8 refuses a member name that
+    // carries an apostrophe, so the backticked names here stay free of punctuation.
     @Test
-    fun `the resume point is read from this account's own file`() {
+    fun `the resume point is read from its own account file`() {
         FilePositionStore(stateFile("resume")).write(ResumePoint(MediaKey(service, MediaType.Track, "one"), 42_000L))
 
         val runtime = runtime()
