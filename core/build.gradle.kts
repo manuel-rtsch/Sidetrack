@@ -27,6 +27,11 @@ android {
             isReturnDefaultValues = true
         }
     }
+    // Fixtures both :app's unit tests and its instrumented tests use, so they cannot live in one
+    // module's test source set. See docs/codebase-duplication-audit.md.
+    testFixtures {
+        enable = true
+    }
 }
 
 dependencies {
