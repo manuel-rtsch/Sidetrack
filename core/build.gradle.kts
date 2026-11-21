@@ -3,7 +3,6 @@ import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
 
