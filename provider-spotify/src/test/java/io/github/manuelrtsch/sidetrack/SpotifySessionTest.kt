@@ -230,10 +230,6 @@ class SpotifySessionTest {
     @Test fun `without credentials playback fails as an expired session`() = runBlocking {
         val session = session(ctx = null)
 
-        val connect = runCatching { session.ensurePlaybackConnected() }.exceptionOrNull()
-            as SpotifyGatewayException
-        assertEquals(SpotifyFailure.AuthenticationExpired, connect.failure)
-
         val play = runCatching { session.play(track("a").key, "spotify:track:a") }.exceptionOrNull()
             as SpotifyGatewayException
         assertEquals(SpotifyFailure.AuthenticationExpired, play.failure)

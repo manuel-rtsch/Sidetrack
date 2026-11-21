@@ -281,12 +281,6 @@ class SpotifySession(
         _signedIn.value = false
     }
 
-    /**
-     * Connects librespot with the current access token, creating the one player on first use.
-     * Returns true when the native session had to be rebuilt, which discards the loaded track.
-     */
-    suspend fun ensurePlaybackConnected(): Boolean = nativeGateway.ensureConnected()
-
     /** Bounded so a stalled access-point handshake cannot leave the play button stuck forever. */
     private suspend fun connectForPlayback(forceReconnect: Boolean = false): Boolean {
         val rebuilt = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { nativeGateway.ensureConnected(forceReconnect) }
