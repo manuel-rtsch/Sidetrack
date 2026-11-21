@@ -153,11 +153,11 @@ class SubsonicIntegrationTest {
     }
 
     /**
-     * The defect recorded in `docs/release-readiness-jellyfin-navidrome.md` §1.4: removal resolved
-     * the row with `indexOfFirst { it.id == songId }`, so with `[A, B, C, A]` removing the last `A`
-     * deleted index 0. Size is preserved, contents rotate — which is why the test above asserts
-     * contents. `removeFromPlaylist` now takes the last match when no row is named, so this passes;
-     * the case with a named row is pinned offline in `SubsonicApiTest`.
+     * Removal used to resolve the row with `indexOfFirst { it.id == songId }`, so with
+     * `[A, B, C, A]` removing the last `A` deleted index 0: size is preserved, contents rotate —
+     * which is why the test above asserts contents. `removeFromPlaylist` now takes the last match
+     * when no row is named, so this passes; the case with a named row is pinned offline in
+     * `SubsonicApiTest`.
      */
     @Test fun `removing a duplicated track leaves the other entries in place`() = runTest {
         requireServer()

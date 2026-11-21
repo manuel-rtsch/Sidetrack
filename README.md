@@ -135,6 +135,17 @@ the public Spotify Web API, which currently rate-limits the desktop client ID. B
 `-PsidetrackNative=true` still support the Subsonic family, Jellyfin and Plex, but a release build
 refuses to package without the bridge — see [docs/releasing.md](docs/releasing.md).
 
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — module graph, contracts and how to add a provider.
+- [docs/provider-capabilities.md](docs/provider-capabilities.md) — what each service supports.
+- [docs/testing.md](docs/testing.md) — suites, coverage floors and where tests live.
+- [docs/releasing.md](docs/releasing.md) — tags, gates, secrets and publishing.
+- [docs/plex-integration.md](docs/plex-integration.md) and
+  [docs/jellyfin-integration.md](docs/jellyfin-integration.md) — wire decisions per service.
+- [docs/menus.md](docs/menus.md) — Options bar and row action rules.
+- [maestro/README.md](maestro/README.md) — UI flows, recordings and the demo build.
+
 ## License
 
 MIT. Sidetrack also links librespot; its license and notice ship with the native build.

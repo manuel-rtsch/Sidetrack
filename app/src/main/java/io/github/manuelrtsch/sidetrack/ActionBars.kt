@@ -50,9 +50,9 @@ fun sidetrackBar(
  * The screen's Options menu, built in one place.
  *
  * Options are the screen's destinations and its list-wide controls. Every menu is assembled here so
- * a shared entry cannot drift in wording, glyph, shape or colour from one screen to the next; the
- * audit in `docs/options-menu-audit.md` found the same Sleep timer, Now playing and queue entries
- * all doing exactly that.
+ * a shared entry cannot drift in wording, glyph, shape or colour from one screen to the next. The
+ * same Sleep timer, Now playing and queue entries used to do exactly that; the rules live in
+ * `docs/menus.md`.
  *
  * Two rules, and neither is decided by the screen:
  *

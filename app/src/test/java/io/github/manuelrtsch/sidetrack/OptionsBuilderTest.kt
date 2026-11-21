@@ -9,10 +9,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The Options menu is assembled in one place (`ActionBars.kt`). These tests pin the two rules the
- * audit in `docs/options-menu-audit.md` settled on, so a later screen cannot reintroduce the drift
- * it found: shape belongs to the entry (a destination is labelled, only a list-wide toggle and Now
- * Playing's playback shortcuts are icon-only squares) and colour belongs to what an option does
+ * The Options menu is assembled in one place (`ActionBars.kt`). These tests pin the two rules in
+ * `docs/menus.md`, so a later screen cannot reintroduce the drift they exist to prevent: shape
+ * belongs to the entry (a destination is labelled, only a list-wide toggle and Now Playing's
+ * playback shortcuts are icon-only squares) and colour belongs to what an option does
  * (accent for every live option, as Sidekit's own apps paint their Options bars; green for a toggle
  * that is on; red for destroy).
  */

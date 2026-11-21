@@ -43,7 +43,7 @@ dependencies {
 }
 
 // Coverage ratchet for this module's own tests. The floor is the level measured when Kover was
-// introduced (docs/test-coverage-audit.md); it only ever moves up. Note this measures what this
+// introduced (docs/testing.md); it only ever moves up. Note this measures what this
 // module's tests cover, not what the whole suite covers -- the product-wide gate lives in :app,
 // which is the merging module.
 kover {

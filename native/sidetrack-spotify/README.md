@@ -5,9 +5,9 @@ The Sidetrack native bridge. It links librespot 0.8.0 and exposes the JNI surfac
 
 ## Toolchain
 
-- Rust stable. The first working build used 1.99.1.
+- Rust stable.
 - Android targets: `aarch64-linux-android`, `x86_64-linux-android`.
-- `cargo-ndk` 4.1.2.
+- `cargo-ndk`.
 - Android NDK 27.1.12297006 (the version pinned by the app module).
 
 ## Build

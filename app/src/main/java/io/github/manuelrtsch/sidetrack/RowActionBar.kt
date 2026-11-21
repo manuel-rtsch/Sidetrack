@@ -29,7 +29,7 @@ import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
  * One action offered by the contextual row bar.
  *
  * A row action is a live action, so it wears the theme accent like every option in the Options bar
- * (see `docs/options-menu-audit.md`); [ActionTone.Destructive] marks a removal, and
+ * (see `docs/menus.md`); [ActionTone.Destructive] marks a removal, and
  * [ActionTone.Muted] is left to Cancel. Build the list with [rowActions] rather than by hand.
  */
 data class RowAction(
