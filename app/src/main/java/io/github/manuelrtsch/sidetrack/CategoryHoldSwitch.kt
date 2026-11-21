@@ -15,8 +15,8 @@ import hrln.interactive.sidekit.design.input.HoldToAct
 import hrln.interactive.sidekit.design.input.KeypadTiming
 
 // The held-arrow category switch: a tap keeps its old gutter meaning, a hold steps one category.
-// The gate lives with the modifier so every screen that owns the row swallows the repeats the
-// same way.
+// Library and Search both grew this machine; it lives here once so the two screens swallow the
+// repeats the same way. The category type is the caller's enum, the walk order its ordinal order.
 
 /** One category step per physical hold, even if the key repeats faster than the composable. */
 internal class CategoryHoldGate {
@@ -43,20 +43,25 @@ internal fun Modifier.consumeCategoryHoldRepeats(gate: CategoryHoldGate): Modifi
 }
 
 /**
- * A held Left/Right on a library row body steps to the adjacent category. A tap keeps its old
- * meaning (into the gutter on Right, back out on Left), so the press is held back until release
- * or the shared keypad long-press threshold fires.
+ * A held Left/Right on a row body steps to the adjacent category. A tap keeps its old meaning
+ * (into the gutter on Right, back out on Left), so the press is held back until release or the
+ * shared keypad long-press threshold fires.
+ *
+ * Steps skip categories that are not in [supported]: one the user switched off, or one the service
+ * cannot answer, is never a destination. [entries] is the caller's category order — the library's
+ * filters, the search scopes — and [current] must be one of them.
  */
 @Composable
-internal fun Modifier.libraryCategoryHoldSwitch(
-    filter: LibraryFilter,
-    supportedFilters: Set<LibraryFilter>,
+internal fun <T> Modifier.categoryHoldSwitch(
+    current: T,
+    entries: List<T>,
+    supported: Set<T>,
     enabled: Boolean,
     gate: CategoryHoldGate,
-    onSwitch: (LibraryFilter) -> Unit
+    onSwitch: (T) -> Unit
 ): Modifier {
-    val currentFilter by rememberUpdatedState(filter)
-    val currentSupported by rememberUpdatedState(supportedFilters)
+    val currentCategory by rememberUpdatedState(current)
+    val currentSupported by rememberUpdatedState(supported)
     val currentEnabled by rememberUpdatedState(enabled)
     val currentOnSwitch by rememberUpdatedState(onSwitch)
     val focusManager = LocalFocusManager.current
@@ -68,7 +73,7 @@ internal fun Modifier.libraryCategoryHoldSwitch(
                 KeyEvent.KEYCODE_DPAD_RIGHT -> 1
                 else -> return@HoldToAct
             }
-            val next = adjacentLibraryFilter(currentFilter, step, currentSupported) ?: return@HoldToAct
+            val next = adjacentEntry(entries, currentCategory, step, currentSupported) ?: return@HoldToAct
             gate.switched = true
             currentOnSwitch(next)
         })
@@ -121,16 +126,16 @@ internal fun Modifier.libraryCategoryHoldSwitch(
     }
 }
 
-/** The next category in [step] order that the service can fill, skipping empty slots. */
-private fun adjacentLibraryFilter(
-    from: LibraryFilter,
+/** The next entry in [step] order that is supported, skipping the slots that are not. */
+internal fun <T> adjacentEntry(
+    entries: List<T>,
+    from: T,
     step: Int,
-    supported: Set<LibraryFilter>
-): LibraryFilter? {
-    val filters = LibraryFilter.entries
-    var index = from.ordinal + step
-    while (index in filters.indices) {
-        val candidate = filters[index]
+    supported: Set<T>
+): T? {
+    var index = entries.indexOf(from) + step
+    while (index in entries.indices) {
+        val candidate = entries[index]
         if (candidate in supported) return candidate
         index += step
     }
