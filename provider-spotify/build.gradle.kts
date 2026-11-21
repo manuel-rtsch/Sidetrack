@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // ApplicationProvider and AndroidJUnit4 in the session, auth and cache tests.

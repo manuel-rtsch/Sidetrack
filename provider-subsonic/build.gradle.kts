@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // NavidromeApiTest launches under Robolectric and needs ApplicationProvider.

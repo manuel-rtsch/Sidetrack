@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // The Jellyfin SDK logs through kotlin-logging, whose JVM binding needs an slf4j provider.

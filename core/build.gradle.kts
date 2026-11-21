@@ -41,6 +41,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
+    // Fixtures other modules' tests extend, so their dependencies are theirs to see too.
+    testFixturesApi(libs.junit)
+    testFixturesApi(libs.androidx.junit)
+    testFixturesImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // ApplicationProvider and the JUnit4 runner used by the store and progress tests.
