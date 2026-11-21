@@ -58,11 +58,13 @@ kover {
     reports {
         variant("debug") {
             verify {
+                // Measures 71.88% line / 44.44% branch after the runtime contract moved into
+                // :core's fixtures and both families were held to it.
                 rule("line coverage") {
-                    minBound(68)
+                    minBound(70)
                 }
                 rule("branch coverage") {
-                    minBound(41, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(42, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

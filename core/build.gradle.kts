@@ -63,12 +63,14 @@ kover {
             verify {
                 // Phase 2 slice 1 (audio focus and the runtime contract seams) raised the
                 // module from 35.8% / 29.0% to 46.5% / 34.0%. Slice 6 moved the controller's
-                // own contract into this module with a fake engine: 64.02% / 50.69%.
+                // own contract into this module with a fake engine: 64.02% / 50.69%. The module
+                // measures 62.95% / 51.23% now; the line floor stays where it was because the
+                // dead-code removal took out as much covered as uncovered code.
                 rule("line coverage") {
                     minBound(63)
                 }
                 rule("branch coverage") {
-                    minBound(49, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(51, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

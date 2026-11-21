@@ -126,12 +126,28 @@ Floors are a ratchet and track the suite that ran:
 
 | Gate | Line | Branch |
 |---|---:|---:|
-| `:app` product, default | 58 | 39 |
+| `:app` product, default | 62 | 42 |
 | `:app` product, full | 71 | 45 |
-| `:core` | 63 | 49 |
-| `:provider-spotify` | 76 | 60 |
-| `:provider-jellyfin` | 91 | 60 |
-| `:provider-subsonic` | 68 | 41 |
+| `:core` | 63 | 51 |
+| `:provider-spotify` | 77 | 61 |
+| `:provider-jellyfin` | 92 | 62 |
+| `:provider-subsonic` | 70 | 42 |
+| `:provider-plex` | 64 | 36 |
+
+Re-measured after `docs/codebase-duplication-audit.md`, default suite (808 tests):
+
+| Module | Line | Branch |
+|---|---:|---:|
+| `:app` / product merged | 64.84% | 44.10% |
+| `:core` | 62.95% | 51.23% |
+| `:provider-jellyfin` | 93.87% | 63.79% |
+| `:provider-spotify` | 78.71% | 62.56% |
+| `:provider-subsonic` | 71.88% | 44.44% |
+| `:provider-plex` | 66.61% | 38.22% |
+
+`:core`'s line floor stays at 63 because it measures 62.95: removing the unreferenced
+declarations took out as much covered code as uncovered code. Every other floor moved up,
+including `:provider-plex`, whose 55% rule had never been wired into `./gradlew coverage`.
 
 The full suite's extra coverage comes almost entirely from the screenshot tests; that is
 why the default and full product floors differ. The floor is the gate, not the target.

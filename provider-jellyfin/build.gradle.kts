@@ -73,11 +73,12 @@ kover {
     reports {
         variant("debug") {
             verify {
+                // Measures 93.87% line / 63.79% branch.
                 rule("line coverage") {
-                    minBound(91)
+                    minBound(92)
                 }
                 rule("branch coverage") {
-                    minBound(60, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(62, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

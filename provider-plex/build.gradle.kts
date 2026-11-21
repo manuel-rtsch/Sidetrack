@@ -57,17 +57,17 @@ dependencies {
     testImplementation(libs.androidx.junit)
 }
 
-// Coverage ratchet for this module's own tests. The floor starts below the first measured value;
-// it only ever moves up as the adapter gains tests.
+// Coverage ratchet for this module's own tests. The floor sits two points under what the module
+// measures today (66.61% line / 38.22% branch) and only ever moves up.
 kover {
     reports {
         variant("debug") {
             verify {
                 rule("line coverage") {
-                    minBound(55)
+                    minBound(64)
                 }
                 rule("branch coverage") {
-                    minBound(35, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(36, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }
