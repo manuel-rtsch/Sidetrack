@@ -16,7 +16,6 @@ import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.normalizePlexServerUrl
 import io.github.manuelrtsch.sidetrack.data.stringOrNull
 import io.github.manuelrtsch.sidetrack.plex.BuildConfig
-import io.github.manuelrtsch.sidetrack.storage.EncryptedStoreException
 import io.github.manuelrtsch.sidetrack.storage.GuardedEncryptedStore
 import io.github.manuelrtsch.sidetrack.storage.JsonStore
 import java.io.IOException
@@ -51,43 +50,28 @@ data class PlexCredentials(
  * other providers' sessions. The Plex password never reaches Sidetrack: sign-in is a PIN exchange
  * with plex.tv.
  */
-class PlexCredentialStore(private val store: JsonStore) {
+class PlexCredentialStore(store: JsonStore) : EncryptedJsonCredentialStore<PlexCredentials>(store) {
     constructor(context: Context, name: String = "sidetracks_plex") :
         this(GuardedEncryptedStore(context, name))
 
-    fun read(): PlexCredentials? {
-        val value = runCatching { store.read() }.getOrDefault(JSONObject())
-        val server = value.optString(KEY_SERVER).takeIf { it.isNotEmpty() } ?: return null
-        val token = value.optString(KEY_TOKEN).takeIf { it.isNotEmpty() } ?: return null
-        val client = value.optString(KEY_CLIENT).takeIf { it.isNotEmpty() } ?: return null
-        val user = value.optString(KEY_USER).takeIf { it.isNotEmpty() }.orEmpty()
+    override fun encode(value: PlexCredentials): JSONObject = JSONObject()
+        .put(KEY_SERVER, value.serverUrl)
+        .put(KEY_TOKEN, value.token)
+        .put(KEY_CLIENT, value.clientIdentifier)
+        .put(KEY_USER, value.userName)
+        .put(KEY_MACHINE, value.machineIdentifier.orEmpty())
+
+    override fun decode(json: JSONObject): PlexCredentials? {
+        val server = json.readString(KEY_SERVER) ?: return null
+        val token = json.readString(KEY_TOKEN) ?: return null
+        val client = json.readString(KEY_CLIENT) ?: return null
         return PlexCredentials(
             serverUrl = server,
             token = token,
             clientIdentifier = client,
-            userName = user,
-            machineIdentifier = value.optString(KEY_MACHINE).takeIf { it.isNotEmpty() }
+            userName = json.optString(KEY_USER),
+            machineIdentifier = json.readString(KEY_MACHINE)
         )
-    }
-
-    fun save(credentials: PlexCredentials) {
-        val value = JSONObject()
-            .put(KEY_SERVER, credentials.serverUrl)
-            .put(KEY_TOKEN, credentials.token)
-            .put(KEY_CLIENT, credentials.clientIdentifier)
-            .put(KEY_USER, credentials.userName)
-            .put(KEY_MACHINE, credentials.machineIdentifier.orEmpty())
-        try {
-            store.write(value)
-        } catch (e: EncryptedStoreException) {
-            throw CredentialPersistenceException(SAVE_FAILED, e)
-        } catch (e: Exception) {
-            throw CredentialPersistenceException(SAVE_FAILED, e)
-        }
-    }
-
-    fun clear() {
-        runCatching { store.clear() }
     }
 
     private companion object {
@@ -96,10 +80,6 @@ class PlexCredentialStore(private val store: JsonStore) {
         const val KEY_CLIENT = "client_identifier"
         const val KEY_USER = "user_name"
         const val KEY_MACHINE = "machine_identifier"
-
-        const val SAVE_FAILED =
-            "Signed in, but this device could not store the session securely. " +
-                "You will need to sign in again next time."
     }
 }
 

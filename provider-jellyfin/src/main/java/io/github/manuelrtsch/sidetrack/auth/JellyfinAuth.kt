@@ -9,7 +9,6 @@ import io.github.manuelrtsch.sidetrack.data.ServiceAccount
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.jellyfin.BuildConfig
-import io.github.manuelrtsch.sidetrack.storage.EncryptedStoreException
 import io.github.manuelrtsch.sidetrack.storage.GuardedEncryptedStore
 import io.github.manuelrtsch.sidetrack.storage.JsonStore
 import java.io.IOException
@@ -79,38 +78,25 @@ private const val DEFAULT_HTTP_PORT = 8096
  * needs the password for every request. So the store holds the token — never the password — in
  * the same encrypted, write-through store as the other providers' sessions.
  */
-class JellyfinCredentialStore(private val store: JsonStore) {
+class JellyfinCredentialStore(store: JsonStore) : EncryptedJsonCredentialStore<JellyfinCredentials>(store) {
     /** Production wiring: the encrypted, write-through store under a provider-specific name. */
     constructor(context: Context, name: String = "sidetracks_jellyfin") :
         this(GuardedEncryptedStore(context, name))
-    fun read(): JellyfinCredentials? {
-        val value = runCatching { store.read() }.getOrDefault(JSONObject())
-        val server = value.optString(KEY_SERVER).takeIf { it.isNotEmpty() } ?: return null
-        val token = value.optString(KEY_TOKEN).takeIf { it.isNotEmpty() } ?: return null
-        val header = value.optString(KEY_HEADER).takeIf { it.isNotEmpty() } ?: return null
-        val userId = value.optString(KEY_USER_ID).takeIf { it.isNotEmpty() } ?: return null
-        val userName = value.optString(KEY_USER_NAME).takeIf { it.isNotEmpty() } ?: return null
+
+    override fun encode(value: JellyfinCredentials): JSONObject = JSONObject()
+        .put(KEY_SERVER, value.serverUrl)
+        .put(KEY_TOKEN, value.accessToken)
+        .put(KEY_HEADER, value.authorizationHeader)
+        .put(KEY_USER_ID, value.userId)
+        .put(KEY_USER_NAME, value.userName)
+
+    override fun decode(json: JSONObject): JellyfinCredentials? {
+        val server = json.readString(KEY_SERVER) ?: return null
+        val token = json.readString(KEY_TOKEN) ?: return null
+        val header = json.readString(KEY_HEADER) ?: return null
+        val userId = json.readString(KEY_USER_ID) ?: return null
+        val userName = json.readString(KEY_USER_NAME) ?: return null
         return JellyfinCredentials(server, token, header, userId, userName)
-    }
-
-    fun save(credentials: JellyfinCredentials) {
-        val value = JSONObject()
-            .put(KEY_SERVER, credentials.serverUrl)
-            .put(KEY_TOKEN, credentials.accessToken)
-            .put(KEY_HEADER, credentials.authorizationHeader)
-            .put(KEY_USER_ID, credentials.userId)
-            .put(KEY_USER_NAME, credentials.userName)
-        try {
-            store.write(value)
-        } catch (e: EncryptedStoreException) {
-            throw CredentialPersistenceException(SAVE_FAILED, e)
-        } catch (e: Exception) {
-            throw CredentialPersistenceException(SAVE_FAILED, e)
-        }
-    }
-
-    fun clear() {
-        runCatching { store.clear() }
     }
 
     private companion object {
@@ -119,10 +105,6 @@ class JellyfinCredentialStore(private val store: JsonStore) {
         const val KEY_HEADER = "authorization_header"
         const val KEY_USER_ID = "user_id"
         const val KEY_USER_NAME = "user_name"
-
-        const val SAVE_FAILED =
-            "Signed in, but this device could not store the session securely. " +
-                "You will need to sign in again next time."
     }
 }
 
