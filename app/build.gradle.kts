@@ -68,7 +68,9 @@ android {
     ndkVersion = "27.1.12297006"
     namespace = "io.github.manuelrtsch.sidetrack"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
 
     defaultConfig {

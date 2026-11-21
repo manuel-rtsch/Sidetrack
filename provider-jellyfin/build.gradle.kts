@@ -31,7 +31,9 @@ android {
     // Unique per module; :app owns io.github.manuelrtsch.sidetrack. Sources keep their packages.
     namespace = "io.github.manuelrtsch.sidetrack.jellyfin"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
     defaultConfig {
         minSdk = 31

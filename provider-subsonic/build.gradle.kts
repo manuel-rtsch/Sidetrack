@@ -15,7 +15,9 @@ android {
     // io.github.manuelrtsch.sidetrack.* packages; this namespace only drives generated code.
     namespace = "io.github.manuelrtsch.sidetrack.subsonic"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
     defaultConfig {
         minSdk = 31

@@ -13,7 +13,9 @@ android {
     // and core has neither (its R/buildConfig usage stays with the app, where the resources live).
     namespace = "io.github.manuelrtsch.sidetrack.core"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
     defaultConfig {
         minSdk = 31
