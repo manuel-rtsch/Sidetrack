@@ -25,13 +25,14 @@ fun HistoryScreen(
     onRemove: (MediaItem) -> (() -> Unit)?,
     onNowPlaying: () -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val baseActions = remember { listOf(sidetrackBack("Home", onBack).first()) }
     val rowActions = rememberRowActionBarState()
     val actions = rowActionBarActions(
         rowActions,
-        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     )
     SidekitScaffold(
         title = "History",

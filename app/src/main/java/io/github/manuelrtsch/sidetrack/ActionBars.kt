@@ -6,8 +6,33 @@ import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 
 /**
- * The screen's action bar, with the transient now-playing confirmation taking precedence over the
- * normal actions. A real notice (an error or confirmation) wins over the now-playing confirmation.
+ * The bar while a replaced queue can still be taken back: what happened, then Undo.
+ *
+ * The label is grey and dismisses the offer, the way every notice's text does, so the only live
+ * entry in the bar is the Undo square itself.
+ */
+fun queueReplacedActions(onDismiss: () -> Unit, onUndo: () -> Unit): List<SideAction> = undoBar(
+    continueWith = SideAction(
+        key = "queueReplaced",
+        label = "Queue replaced",
+        icon = SidekitIcon.QueueMusic,
+        tone = ActionTone.Muted,
+        contentDescription = "Queue replaced. Dismiss",
+        onClick = onDismiss
+    ),
+    undo = SideAction.undo(
+        key = "undoQueueReplace",
+        label = "Undo",
+        contentDescription = "Put the replaced queue back",
+        onClick = onUndo
+    )
+)
+
+/**
+ * The screen's action bar, with the transient confirmations taking precedence over the normal
+ * actions. A real notice (an error or confirmation) wins over the queue-replaced offer, which in
+ * turn wins over the now-playing confirmation: the offer has a deadline and the confirmation is
+ * decoration.
  */
 fun sidetrackActions(
     chrome: ChromeUiState,
@@ -15,10 +40,13 @@ fun sidetrackActions(
     onOpenNowPlaying: () -> Unit,
     onDismissNowPlaying: () -> Unit,
     actions: List<SideAction>,
+    onUndoQueueReplace: () -> Unit,
     showNowPlayingNotice: Boolean = true
 ): List<SideAction> = when {
     chrome.notice != null ->
         withNotice(chrome.notice, onDismissNotice, actions, chrome.noticeKind)
+
+    chrome.queueReplaced -> queueReplacedActions(onDismissNotice, onUndoQueueReplace)
 
     showNowPlayingNotice && chrome.nowPlayingNotice != null ->
         nowPlayingNoticeActions(chrome.nowPlayingNotice, onOpenNowPlaying, onDismissNowPlaying)
@@ -36,6 +64,7 @@ fun sidetrackBar(
     onDismissNowPlaying: () -> Unit,
     continueWith: SideAction,
     extra: List<SideAction> = emptyList(),
+    onUndoQueueReplace: () -> Unit,
     showNowPlayingNotice: Boolean = true
 ): List<SideAction> = sidetrackActions(
     chrome,
@@ -43,6 +72,7 @@ fun sidetrackBar(
     onOpenNowPlaying,
     onDismissNowPlaying,
     listOf(continueWith) + extra,
+    onUndoQueueReplace,
     showNowPlayingNotice
 )
 

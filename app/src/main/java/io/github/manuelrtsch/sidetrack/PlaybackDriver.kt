@@ -53,6 +53,20 @@ internal class PlaybackDriver(
 
     private var autoplayJob: Job? = null
 
+    /**
+     * The queue a collection tap replaced, while the bar still offers it back.
+     *
+     * [playingId] is the item that tap started. The offer only stands while that item is still the
+     * one playing, so a stale snapshot can never undo a newer choice.
+     */
+    private data class ReplacedQueue(
+        val snapshot: QueueRepository.Snapshot,
+        val positionMs: Long,
+        val playingId: String
+    )
+
+    private var replacedQueue: ReplacedQueue? = null
+
     private fun playbackNotice(error: Exception): String = serviceMessage(error, session?.isOnline != false)
 
     fun play(items: List<MediaItem>, index: Int) {
@@ -64,7 +78,51 @@ internal class PlaybackDriver(
             store.update { it.copy(notice = null) }
             return
         }
-        beginPlayback(queue.play(items, index), item)
+        // A tap on a collection page is the only gesture in the app that throws away a queue the
+        // user lined up. Keep the outgoing queue for a few seconds so the bar can offer it back; a
+        // tail that is already empty has nothing to lose and leaves the bar alone.
+        clearReplacedQueue()
+        val before = queue.snapshot
+        val lost = before.upcoming.isNotEmpty()
+        if (lost) {
+            replacedQueue = ReplacedQueue(before, clock.value, item.id)
+            effects.showQueueReplaced { replacedQueue = null }
+        }
+        beginPlayback(queue.play(items, index), item, notify = !lost)
+    }
+
+    private fun clearReplacedQueue() {
+        if (replacedQueue == null) return
+        replacedQueue = null
+        effects.dismissQueueReplaced()
+    }
+
+    /** Withdraws the queue-replaced offer without putting anything back. */
+    fun discardQueueReplaceOffer() = clearReplacedQueue()
+
+    /**
+     * Puts back the queue the last collection tap replaced and resumes the item that was playing.
+     *
+     * The album track stays in the history it earned, so the undo restores the queue the user
+     * built without rewriting what they listened to. Nothing happens once something else has
+     * started: the offer is withdrawn then, and a snapshot restored late would cut off a choice
+     * the user made on purpose.
+     */
+    fun undoQueueReplaced() {
+        val replaced = replacedQueue ?: return
+        if (store.value.current?.id != replaced.playingId) {
+            clearReplacedQueue()
+            return
+        }
+        clearReplacedQueue()
+        val restored = queue.restore(replaced.snapshot)
+        val previous = restored.current
+        if (previous == null) {
+            effects.applyQueue(restored, positionMs = 0L, playing = false)
+            return
+        }
+        effects.applyQueue(restored, positionMs = replaced.positionMs, playing = true)
+        startRemote(previous, replaced.positionMs, resuming = replaced.positionMs > 0L)
     }
 
     /**
@@ -83,12 +141,12 @@ internal class PlaybackDriver(
         return true
     }
 
-    fun beginPlayback(snapshot: QueueRepository.Snapshot, item: MediaItem) {
+    fun beginPlayback(snapshot: QueueRepository.Snapshot, item: MediaItem, notify: Boolean = true) {
         if (item is Track) ensureTrackSaved(item.id)
         val resume = effects.itemStartPosition(item)
         effects.applyQueue(snapshot, positionMs = resume, playing = true)
         store.update { it.copy(notice = null) }
-        effects.showNowPlayingNotice(item)
+        if (notify) effects.showNowPlayingNotice(item)
         startRemote(item, resume, resuming = resume > 0L)
     }
 
@@ -127,6 +185,7 @@ internal class PlaybackDriver(
     }
 
     fun next() {
+        clearReplacedQueue()
         val before = store.value.current
         val snapshot = queue.next(auto = false)
         if (snapshot.current !== before) {
@@ -138,6 +197,7 @@ internal class PlaybackDriver(
     }
 
     fun previous() {
+        clearReplacedQueue()
         val s = store.value
         if (s.current == null) return
         // A podcast's Previous means the previous episode. Rewinding belongs to the ±30 s
@@ -192,6 +252,7 @@ internal class PlaybackDriver(
     }
 
     fun jumpTo(index: Int) {
+        clearReplacedQueue()
         val s = store.value
         val snapshot = queue.jumpTo(index)
         if (snapshot.current !== s.current) {
@@ -281,6 +342,9 @@ internal class PlaybackDriver(
     }
 
     fun advance(auto: Boolean, forceContextLoop: Boolean) {
+        // Playback moved on by itself, so the queue the last collection tap replaced is no longer
+        // the thing the bar is talking about.
+        clearReplacedQueue()
         val s = store.value
         val current = s.current ?: return
         if (auto) effects.markEpisodeFinished(current)
@@ -384,6 +448,7 @@ internal class PlaybackDriver(
      */
     fun playNow(item: MediaItem) {
         if (!readyToPlay(item)) return
+        clearReplacedQueue()
         if (store.value.current?.id == item.id) {
             if (!store.value.isPlaying) togglePlayPause()
             store.update { it.copy(notice = null) }
@@ -401,6 +466,7 @@ internal class PlaybackDriver(
      */
     fun playFirst(item: MediaItem) {
         if (!readyToPlay(item)) return
+        clearReplacedQueue()
         if (store.value.current?.id == item.id) {
             if (!store.value.isPlaying) togglePlayPause()
             store.update { it.copy(notice = null) }

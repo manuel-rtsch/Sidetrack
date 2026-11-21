@@ -81,7 +81,8 @@ fun SearchScreen(
     onRestoreHistory: (List<String>) -> Unit = {},
     focusDismissed: Boolean = false,
     onDismissFocus: () -> Unit = {},
-    onRestoreFocus: () -> Unit = {}
+    onRestoreFocus: () -> Unit = {},
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val field = rememberTextFieldState(search.query)
     val typed = field.text.toString()
@@ -127,8 +128,9 @@ fun SearchScreen(
         leftOutScopes.size == 1 -> "All but " + leftOutScopes.single().label
         else -> pickedScopes.joinToString(", ") { it.label }
     }
-    // A notice owns the bar; Clear is part of the screen's own bar and steps aside with it.
-    val notice = chrome.notice != null || chrome.nowPlayingNotice != null
+    // A notice or the queue-replaced offer owns the bar; Clear is part of the screen's own bar and
+    // steps aside with it.
+    val notice = chrome.notice != null || chrome.nowPlayingNotice != null || chrome.queueReplaced
     val clearHistory = if (typed.isEmpty() && !keyboardVisible && !notice && search.searchHistory.isNotEmpty()) {
         SideAction(
             "clearHistory",
@@ -188,7 +190,8 @@ fun SearchScreen(
 
                     clearHistory != null -> add(clearHistory)
                 }
-            }
+            },
+            onUndoQueueReplace = onUndoQueueReplace
         )
     }
     // One row may be swiped open at a time, like the queue: opening a history row's Remove closes
@@ -376,7 +379,8 @@ fun SearchResultsScreen(
     onArtistRadio: (Artist) -> Unit = {},
     onQueueAlbum: (Album) -> Unit = {},
     onQueuePlaylist: (Playlist) -> Unit = {},
-    onAddLatestShowToQueue: (Show) -> Unit = {}
+    onAddLatestShowToQueue: (Show) -> Unit = {},
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val results = search.searchResults
     val rows = rememberTrackRows(
@@ -389,7 +393,7 @@ fun SearchResultsScreen(
     val baseActions = listOf(sidetrackBack("Back", onBack).first())
     val actions = rowActionBarActions(
         rows.bar,
-        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     )
     val filterFocus = remember { SearchScope.entries.associateWith { FocusRequester() } }
     val moreFocus = rememberLoadMoreFocus()
@@ -649,10 +653,11 @@ fun SearchScopesScreen(
     onToggleScope: (SearchScope) -> Unit,
     onNowPlaying: () -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val baseActions = remember { listOf(sidetrackBack("Search", onBack).first()) }
-    val actions = sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+    val actions = sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     SidekitScaffold(
         title = "Search in",
         actions = actions,

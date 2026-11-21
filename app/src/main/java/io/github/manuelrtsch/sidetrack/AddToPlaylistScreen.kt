@@ -38,7 +38,8 @@ fun AddToPlaylistScreen(
     onAdd: suspend (Playlist) -> Int?,
     onUndoAdd: suspend (Playlist, Int) -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val bar = rememberRowActionBarState()
@@ -50,6 +51,7 @@ fun AddToPlaylistScreen(
             onDismissNotice,
             onOpenNowPlaying = {},
             onDismissNowPlaying = onDismissNowPlaying,
+            onUndoQueueReplace = onUndoQueueReplace,
             actions = baseActions
         )
     )

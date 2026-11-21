@@ -80,7 +80,8 @@ fun ShowScreen(
     onShowNotes: () -> Unit,
     onEpisodeNotes: (Episode) -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val colors = SidekitTheme.colors
     val savedCollection = collection.key.encode() in saved.savedCollectionKeys
@@ -93,7 +94,8 @@ fun ShowScreen(
             onDismissNotice,
             onNowPlaying,
             onDismissNowPlaying,
-            back
+            back,
+            onUndoQueueReplace = onUndoQueueReplace
         )
     )
     val showNotes = remember(collection.description) { plainPodcastText(collection.description) }

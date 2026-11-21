@@ -80,7 +80,8 @@ fun NowPlayingScreen(
     onArtist: () -> Unit,
     onSleepTimer: () -> Unit,
     onEpisodeNotes: () -> Unit,
-    onDismissNotice: () -> Unit
+    onDismissNotice: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val current = playback.current
     val savedCurrent = current?.let { it.key.encode() in saved.savedTrackIds } ?: false
@@ -107,6 +108,7 @@ fun NowPlayingScreen(
         onDismissNotice,
         onOpenNowPlaying = {},
         onDismissNowPlaying = {},
+        onUndoQueueReplace = onUndoQueueReplace,
         continueWith = back,
         extra = listOfNotNull(save),
         showNowPlayingNotice = false

@@ -58,7 +58,8 @@ fun QueueScreen(
     onShuffle: () -> Unit,
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
-    onKeypadBackOverride: ((() -> Boolean)?) -> Unit = {}
+    onKeypadBackOverride: ((() -> Boolean)?) -> Unit = {},
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     var pendingUndo by remember { mutableStateOf<QueueUndo?>(null) }
     // Removing from the queue offers the same five visible seconds as every other Undo in the app.
@@ -273,6 +274,7 @@ fun QueueScreen(
         onNowPlaying,
         onDismissNowPlaying,
         listOfNotNull(back, shuffleAction),
+        onUndoQueueReplace,
         showNowPlayingNotice = false
     )
     val undo = when (val pending = pendingUndo) {

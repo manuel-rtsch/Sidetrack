@@ -60,7 +60,8 @@ fun LibraryScreen(
     onAddLatestShowToQueue: (Show) -> Unit = {},
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
-    onAddToPlaylist: ((Track) -> Unit)? = null
+    onAddToPlaylist: ((Track) -> Unit)? = null,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val rows = rememberTrackRows(
         saved,
@@ -77,7 +78,7 @@ fun LibraryScreen(
     }
     val actions = rowActionBarActions(
         rows.bar,
-        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     )
     // The gate outlives any one row: after a hold switches category, the list may rebuild and move
     // focus before the physical key comes up. The screen root uses the same gate to swallow the

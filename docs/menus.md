@@ -53,6 +53,16 @@ carry `Play` (`playRowAction`), which plays the row now and puts the previous it
 of the tail: the queue resumes where it was once the picked track ends. Its label stays one word
 because the square drops it; the content description says "Play <title> now".
 
+**A replaced queue is offered back.** The collection tap is the one gesture that can throw away a
+queue the user lined up, so `PlaybackDriver.play` keeps the outgoing queue for
+`QUEUE_REPLACED_UNDO_MS` and the bar shows `Queue replaced | Undo` (`queueReplacedActions`). Undo
+puts the snapshot back and resumes the item that was playing at the offset it left off; the album
+track stays in the history it earned. The offer outranks the now-playing confirmation, because it
+expires and the confirmation is decoration, and a notice still outranks it both. It is withdrawn
+by any other play, by dismissing the bar, or when its timer runs out, so a stale snapshot can
+never undo a newer choice. A tap whose queue had nothing upcoming has lost nothing and leaves the
+bar alone.
+
 ## Known gaps
 
 - Some screens still publish no options and show the grey "No options here" button for a moment:

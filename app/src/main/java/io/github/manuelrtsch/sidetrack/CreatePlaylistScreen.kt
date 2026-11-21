@@ -45,7 +45,8 @@ fun CreatePlaylistScreen(
     onBack: () -> Unit,
     onSubmit: (String, List<MediaKey>) -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     // Keys, not indices: the recent list can change while the form is open, and a key is what the
@@ -67,6 +68,7 @@ fun CreatePlaylistScreen(
         onDismissNotice,
         onOpenNowPlaying = {},
         onDismissNowPlaying = onDismissNowPlaying,
+        onUndoQueueReplace = onUndoQueueReplace,
         actions = buildList {
             add(SideAction.back("back", "Library", onBack))
             if (canCreate) add(SideAction.forward("create", "Create", submit))

@@ -310,13 +310,23 @@ class SidetrackViewModel(
         session?.playback?.clearSleepTimer()
     }
 
-    fun dismissNotice() = notifier.dismiss()
+    /**
+     * Dismisses whatever transient message owns the bar. The queue-replaced offer is one of them,
+     * so dismissing the bar also withdraws it instead of leaving an Undo nothing can reach.
+     */
+    fun dismissNotice() {
+        notifier.dismiss()
+        driver.discardQueueReplaceOffer()
+    }
 
     /** Shows a transient bar message; [kind] decides how long it stays. */
     fun notice(text: String, kind: NoticeKind = NoticeKind.Other) = notifier.say(text, kind)
 
     /** Dismisses the transient now-playing confirmation and returns the normal action bar. */
     fun dismissNowPlayingNotice() = effects.dismissNowPlayingNotice()
+
+    /** Puts back the queue the last collection tap replaced, and resumes what was playing. */
+    fun undoQueueReplace() = driver.undoQueueReplaced()
 
     /**
      * Creates a playlist named [name], optionally seeded with [seed], on the active service and

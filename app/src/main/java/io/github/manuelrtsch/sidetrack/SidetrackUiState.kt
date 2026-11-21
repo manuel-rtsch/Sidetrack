@@ -62,6 +62,11 @@ data class SidetrackUiState(
     val noticeKind: NoticeKind = NoticeKind.Other,
     /** The item that just started, shown briefly in the action bar as a now-playing confirmation. */
     val nowPlayingNotice: MediaItem? = null,
+    /**
+     * A collection tap just replaced the queue, and the bar is offering it back for a few seconds.
+     * The queue itself lives in the playback driver; this is only the offer's deadline.
+     */
+    val queueReplaced: Boolean = false,
     /** The station built from the current track, shown by the Song radio screen. */
     val radio: Collection? = null,
     /** Which track seeded [radio], so revisiting the same song does not refetch it. */

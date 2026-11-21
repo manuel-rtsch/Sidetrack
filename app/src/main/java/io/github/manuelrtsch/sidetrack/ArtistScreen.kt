@@ -45,7 +45,8 @@ fun ArtistScreen(
     onDismissNowPlaying: () -> Unit,
     canFollow: Boolean = true,
     canRadio: Boolean = true,
-    onAddToPlaylist: ((Track) -> Unit)? = null
+    onAddToPlaylist: ((Track) -> Unit)? = null,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val followed = artist.key.encode() in saved.followedArtistIds
     val rows = rememberTrackRows(
@@ -63,7 +64,8 @@ fun ArtistScreen(
             onDismissNotice,
             onNowPlaying,
             onDismissNowPlaying,
-            back
+            back,
+            onUndoQueueReplace = onUndoQueueReplace
         )
     )
     SidekitScaffold(

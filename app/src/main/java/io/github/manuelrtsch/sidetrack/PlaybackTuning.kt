@@ -9,6 +9,13 @@ package io.github.manuelrtsch.sidetrack
 /** How long the now-playing confirmation owns the action bar before the normal actions return. */
 const val NOW_PLAYING_NOTICE_MS = 4_000L
 
+/**
+ * How long the bar offers to put back a queue a collection tap replaced. Longer than the
+ * now-playing confirmation: reading "Queue replaced" and deciding to undo it is a decision, not a
+ * glance, and the tap that caused it did not announce itself the way a row action does.
+ */
+internal const val QUEUE_REPLACED_UNDO_MS = 8_000L
+
 /** The podcast transport's rewind and fast-forward step. */
 internal const val PODCAST_SKIP_MS = 30_000L
 

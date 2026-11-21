@@ -79,7 +79,8 @@ fun CollectionScreen(
     onDelete: (suspend () -> Boolean)? = null,
     /** Deletes after the Undo window is left, so a backgrounded page still finishes the write. */
     onDeleteInBackground: (() -> Unit)? = null,
-    onDeleted: () -> Unit = {}
+    onDeleted: () -> Unit = {},
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val colors = SidekitTheme.colors
     val scope = rememberCoroutineScope()
@@ -139,7 +140,8 @@ fun CollectionScreen(
             onDismissNotice,
             onNowPlaying,
             onDismissNowPlaying,
-            back
+            back,
+            onUndoQueueReplace = onUndoQueueReplace
         )
     )
     val undoDelete = if (pendingDelete) {
