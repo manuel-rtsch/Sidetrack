@@ -216,6 +216,51 @@ class SubsonicApiTest {
         assertEquals(PlaylistActions.All, playlist.actions)
     }
 
+    @Test fun `renamePlaylist sends the new name for an owned playlist`() = runTest {
+        val transport = FakeTransport { url ->
+            when {
+                url.contains("getPlaylist") -> ok(
+                    """{"status":"ok","playlist":{"id":"p1","name":"Mix","owner":"joe","songCount":1,"entry":[{"id":"s1"}]}}"""
+                )
+
+                else -> ok("""{"status":"ok"}""")
+            }
+        }
+        val api = SubsonicApi(
+            SubsonicCredentials("http://nas.local", "joe", "sesame"),
+            transport = transport,
+            salt = { "salt" }
+        )
+
+        api.renamePlaylist("p1", "Mix Two")
+
+        val update = transport.urls.single { it.contains("updatePlaylist") }
+        assertTrue(update.contains("playlistId=p1"))
+        assertTrue(update.contains("name=Mix+Two"))
+    }
+
+    @Test fun `deletePlaylist sends the id for an owned playlist`() = runTest {
+        val transport = FakeTransport { url ->
+            when {
+                url.contains("getPlaylist") -> ok(
+                    """{"status":"ok","playlist":{"id":"p1","name":"Mix","owner":"joe","songCount":1,"entry":[{"id":"s1"}]}}"""
+                )
+
+                else -> ok("""{"status":"ok"}""")
+            }
+        }
+        val api = SubsonicApi(
+            SubsonicCredentials("http://nas.local", "joe", "sesame"),
+            transport = transport,
+            salt = { "salt" }
+        )
+
+        api.deletePlaylist("p1")
+
+        val delete = transport.urls.single { it.contains("deletePlaylist") }
+        assertTrue(delete.contains("id=p1"))
+    }
+
     @Test fun `a playlist owned by another account is read-only`() = runTest {
         val transport = FakeTransport { url ->
             when {
@@ -243,7 +288,14 @@ class SubsonicApiTest {
 
         val remove = runCatching { api.removeFromPlaylist("p1", "s1") }.exceptionOrNull()
         assertEquals(ServiceFailure.NotAllowed, (remove as ServiceException).failure)
+
+        val rename = runCatching { api.renamePlaylist("p1", "Mix Two") }.exceptionOrNull()
+        assertEquals(ServiceFailure.NotAllowed, (rename as ServiceException).failure)
+
+        val delete = runCatching { api.deletePlaylist("p1") }.exceptionOrNull()
+        assertEquals(ServiceFailure.NotAllowed, (delete as ServiceException).failure)
         assertFalse(transport.urls.any { it.contains("updatePlaylist") })
+        assertFalse(transport.urls.any { it.contains("deletePlaylist") })
     }
 
     @Test fun `a playlist without an owner is offered for editing and the server decides`() = runTest {
