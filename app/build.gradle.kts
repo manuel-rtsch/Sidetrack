@@ -9,25 +9,10 @@ plugins {
     alias(libs.plugins.kover)
 }
 
-val fallbackVersionName = "0.1.0"
-val fallbackVersionCode = 1
-
-fun git(vararg args: String) = providers.exec {
-    commandLine("git", *args)
-    workingDir = rootDir
-    isIgnoreExitValue = true
-}.standardOutput.asText.map(String::trim)
-
-val gitVersionName = git("describe", "--tags", "--match", "v[0-9]*", "--dirty")
-    .map { described ->
-        val name = described.removePrefix("v")
-        if (name.isBlank() || !name.first().isDigit()) fallbackVersionName else name
-    }
-val gitVersionCode = git("rev-list", "--count", "HEAD")
-    .map { it.toIntOrNull() ?: fallbackVersionCode }
-
-fun versionCodeFromGit() = runCatching { gitVersionCode.get() }.getOrDefault(fallbackVersionCode)
-fun versionNameFromGit() = runCatching { gitVersionName.get() }.getOrDefault(fallbackVersionName)
+// The version the git checkout describes; see buildSrc/GitVersion.kt. Overridable so a CI run
+// can stamp a build without a tag.
+val gitVersionName = providers.gradleProperty("sidetrackVersionName").getOrElse(GitVersion.nameFrom(project))
+val gitVersionCode = providers.gradleProperty("sidetrackVersionCode").map(String::toInt).getOrElse(GitVersion.codeFrom(project))
 
 // Release signing is configured locally: keystore.properties is gitignored and points at the
 // dedicated Sidetrack release certificate. Without it, release stays unsigned so CI can sign.
@@ -77,11 +62,8 @@ android {
         applicationId = "io.github.manuelrtsch.sidetrack"
         minSdk = 31
         targetSdk = 36
-        versionCode = providers.gradleProperty("sidetrackVersionCode")
-            .map(String::toInt)
-            .getOrElse(versionCodeFromGit())
-        versionName = providers.gradleProperty("sidetrackVersionName")
-            .getOrElse(versionNameFromGit())
+        versionCode = gitVersionCode
+        versionName = gitVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -445,6 +427,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
+    androidTestImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
@@ -500,12 +484,13 @@ kover {
                 // Spotify session, Jellyfin SDK seam) to 57.74% / 38.12%; slice 5 (native playback)
                 // to 59.11% / 39.75%; slice 6 (controller session and deferred engine rebuilds) to
                 // 59.51% / 40.17%. Phase 2 targets: 70% / 45% with the full suite; the full-suite
-                // line is at 71.87%. Raise, never lower.
+                // line is at 71.87%. The default suite measures 64.84% / 44.10% after the gutter
+                // and category machinery moved into shared helpers. Raise, never lower.
                 rule("product line coverage") {
-                    minBound(if (runScreenshotTests) 71 else 58)
+                    minBound(if (runScreenshotTests) 71 else 62)
                 }
                 rule("product branch coverage") {
-                    minBound(if (runScreenshotTests) 45 else 39, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(if (runScreenshotTests) 45 else 42, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

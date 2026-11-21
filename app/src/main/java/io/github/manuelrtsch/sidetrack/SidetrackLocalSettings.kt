@@ -21,8 +21,6 @@ internal class SidetrackLocalSettings(context: Context) {
             prefs.edit { putString(KEY_INPUT_MODE, value.name) }
         }
 
-    fun observeInputMode(onChange: () -> Unit): () -> Unit = observe(KEY_INPUT_MODE, onChange)
-
     /**
      * The song Now Playing screen draws its artwork behind the controls. Off by default, because it
      * changes how one screen reads rather than how the app looks overall.

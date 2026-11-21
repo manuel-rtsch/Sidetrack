@@ -1,19 +1,11 @@
 package io.github.manuelrtsch.sidetrack
 
-import android.os.Looper
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.github.manuelrtsch.sidetrack.ui.RowGutterState
-import io.github.manuelrtsch.sidetrack.ui.rememberRowGutterState
-import java.time.Duration
 import org.junit.Assert.assertEquals
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -24,63 +16,24 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(shadows = [RecordingHapticShadow::class])
-class ArtistGutterTest {
-    @get:Rule val compose = createComposeRule()
-
+class ArtistGutterTest : GutterTestBase() {
     private val artist = MockSpotifyDataSource.artists.first()
-    private val key = artist.key.encode()
     private val actions = "Actions for ${artist.name}"
+
+    override var key: String = artist.key.encode()
 
     private fun showRow(
         canRadio: Boolean = true,
         onRadio: () -> Unit = {},
         onOpen: () -> Unit = {}
-    ): Pair<() -> RowGutterState, () -> RowActionBarState> {
-        compose.mainClock.autoAdvance = false
-        var gutter: RowGutterState? = null
-        var bar: RowActionBarState? = null
-        compose.setContent {
-            SidekitPreviewFrame {
-                val gutterState = rememberRowGutterState()
-                val barState = rememberRowActionBarState()
-                gutter = gutterState
-                bar = barState
-                LazyColumn {
-                    item(key = key) {
-                        ArtistGutterRow(
-                            key,
-                            artist,
-                            gutterState,
-                            barState,
-                            canRadio = canRadio,
-                            onRadio = onRadio,
-                            onClick = onOpen
-                        )
-                    }
-                }
-            }
-        }
-        compose.mainClock.advanceTimeByFrame()
-        return { requireNotNull(gutter) } to { requireNotNull(bar) }
-    }
-
-    private fun settle() {
-        repeat(4) {
-            compose.mainClock.advanceTimeBy(120)
-            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(120))
-            compose.waitForIdle()
-        }
-    }
-
-    private fun openGutter(state: () -> RowGutterState) {
-        compose.runOnIdle { state().rowFocused(key) }
-        settle()
+    ) = showGutterRow { gutter, bar ->
+        ArtistGutterRow(key, artist, gutter, bar, canRadio = canRadio, onRadio = onRadio, onClick = onOpen)
     }
 
     @Test
     fun gutterCarriesOneMeatballSquare() {
-        val (state, _) = showRow()
-        openGutter(state)
+        showRow()
+        openGutter()
         compose.onNodeWithContentDescription(actions).assertExists()
         compose.onNodeWithContentDescription("Follow ${artist.name}").assertDoesNotExist()
         compose.onNodeWithContentDescription("Artist radio for ${artist.name}").assertDoesNotExist()
@@ -88,13 +41,13 @@ class ArtistGutterTest {
 
     @Test
     fun optionsOfferRadioOnly() {
-        val (state, bar) = showRow()
-        openGutter(state)
+        showRow()
+        openGutter()
         compose.onNodeWithContentDescription(actions).performClick()
         compose.runOnIdle {
             assertEquals(
                 listOf("Artist radio for ${artist.name}"),
-                bar().selection?.actions?.map { it.contentDescription }
+                barState().selection?.actions?.map { it.contentDescription }
             )
         }
     }
@@ -103,14 +56,11 @@ class ArtistGutterTest {
     fun radioStartsWithoutOpeningTheArtist() {
         var radios = 0
         var opens = 0
-        val (state, bar) = showRow(
-            onRadio = { radios++ },
-            onOpen = { opens++ }
-        )
-        openGutter(state)
+        showRow(onRadio = { radios++ }, onOpen = { opens++ })
+        openGutter()
         compose.onNodeWithContentDescription(actions).performClick()
         compose.runOnIdle {
-            bar().selection?.actions?.first { it.key == "artistRadio" }?.onClick?.invoke()
+            barState().selection?.actions?.first { it.key == "artistRadio" }?.onClick?.invoke()
         }
         assertEquals(1, radios)
         assertEquals(0, opens)
@@ -118,8 +68,8 @@ class ArtistGutterTest {
 
     @Test
     fun noGutterWhenTheServiceHasNoRadio() {
-        val (state, _) = showRow(canRadio = false)
-        openGutter(state)
+        showRow(canRadio = false)
+        openGutter()
         compose.onNodeWithContentDescription(actions).assertDoesNotExist()
     }
 }

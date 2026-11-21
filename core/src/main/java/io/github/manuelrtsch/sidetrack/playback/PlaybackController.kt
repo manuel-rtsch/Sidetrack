@@ -148,7 +148,7 @@ class PlaybackController(
         onStop = { scope.launch { runCatching { stop() } } }
     )
 
-    private val noisy = NoisyAudioGuard(context) { pause() }
+    private val noisy = NoisyAudioGuard(context) { onAudioBecomingNoisy() }
 
     /**
      * The last play/pause intent. librespot events can arrive out of order after rapid taps;

@@ -3,7 +3,6 @@ import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
 
@@ -46,6 +45,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // NavidromeApiTest launches under Robolectric and needs ApplicationProvider.
@@ -60,11 +60,13 @@ kover {
     reports {
         variant("debug") {
             verify {
+                // Measures 71.88% line / 44.44% branch after the runtime contract moved into
+                // :core's fixtures and both families were held to it.
                 rule("line coverage") {
-                    minBound(68)
+                    minBound(70)
                 }
                 rule("branch coverage") {
-                    minBound(41, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(42, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

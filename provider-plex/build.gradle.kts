@@ -1,27 +1,13 @@
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
-val fallbackVersionName = "0.1.0"
-
-// Mirrors :app's git-derived version so Plex sees the same client version the app reports.
-fun git(vararg args: String) = providers.exec {
-    commandLine("git", *args)
-    workingDir = rootDir
-    isIgnoreExitValue = true
-}.standardOutput.asText.map(String::trim)
-
-val gitVersionName = git("describe", "--tags", "--match", "v[0-9]*", "--dirty")
-    .map { described ->
-        val name = described.removePrefix("v")
-        if (name.isBlank() || !name.first().isDigit()) fallbackVersionName else name
-    }
-fun versionNameFromGit() = runCatching { gitVersionName.get() }.getOrDefault(fallbackVersionName)
-
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
+
+// The version this client reports to its server; see buildSrc/GitVersion.kt.
+val clientVersionName = GitVersion.nameFrom(project)
 
 // `*IntegrationTest` classes need a live server; opt in with -PsidetrackIntegration.
 val runIntegrationTests = providers.gradleProperty("sidetrackIntegration").isPresent
@@ -38,7 +24,7 @@ android {
         minSdk = 31
         // PlexAuth reports the client version to plex.tv through BuildConfig.VERSION_NAME. The
         // library plugin does not drive versionName, so mirror the app's git-derived version.
-        buildConfigField("String", "VERSION_NAME", "\"${versionNameFromGit()}\"")
+        buildConfigField("String", "VERSION_NAME", "\"${clientVersionName}\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -67,22 +53,23 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.junit)
 }
 
-// Coverage ratchet for this module's own tests. The floor starts below the first measured value;
-// it only ever moves up as the adapter gains tests.
+// Coverage ratchet for this module's own tests. The floor sits two points under what the module
+// measures today (66.61% line / 38.22% branch) and only ever moves up.
 kover {
     reports {
         variant("debug") {
             verify {
                 rule("line coverage") {
-                    minBound(55)
+                    minBound(64)
                 }
                 rule("branch coverage") {
-                    minBound(35, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(36, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

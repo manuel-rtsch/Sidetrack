@@ -81,8 +81,6 @@ data class SidetrackUiState(
     val playlistChoicesHasMore: Boolean = false,
     val playlistChoicesError: String? = null
 ) {
-    val savedCurrent: Boolean get() = current?.let { it.key.encode() in savedTrackIds } ?: false
-
     // The open category is a projection of [libraryPages]: the cache is the only copy of the rows,
     // so a page that arrives for a category the user has left is still worth keeping.
     val libraryItems: List<Any> get() = libraryPages[filter]?.items.orEmpty()

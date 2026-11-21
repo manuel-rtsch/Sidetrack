@@ -5,13 +5,14 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.manuelrtsch.sidetrack.data.SpotifySession
 import java.io.File
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class SpotifySessionCacheTest {
-    @Test fun `cache size counts artwork and audio and clear removes both`() {
+    @Test fun `cache size counts artwork and audio and clear removes both`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val artwork = File(context.cacheDir, "artwork").apply { mkdirs() }
         File(artwork, "cover.img").writeBytes(ByteArray(128))

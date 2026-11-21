@@ -127,14 +127,6 @@ class QueueRepositoryTest {
         assertTrue(queue.snapshot.upcoming.isEmpty())
     }
 
-    @Test fun `play next moves an existing upcoming item instead of duplicating it`() {
-        val queue = QueueRepository(Random(1))
-        queue.play(tracks, 0)
-        queue.playNext(tracks[2])
-
-        assertEquals(listOf("c", "b", "d"), queue.snapshot.upcoming.map { it.id })
-    }
-
     @Test fun `restore adopts a process-wide snapshot`() {
         val queue = QueueRepository(Random(1))
         val snapshot = queue.play(tracks, 1)
@@ -364,15 +356,6 @@ class QueueRepositoryTest {
 
         queue.restoreRemovedUpcoming(1, track("b"))
         assertEquals(listOf("b", "b", "c"), queue.snapshot.upcoming.map { it.id })
-    }
-
-    @Test fun `play next moves one duplicate and keeps the other`() {
-        val queue = QueueRepository(Random(1))
-        queue.play(listOf(track("a"), track("c"), track("b"), track("d"), track("b")), 0)
-
-        queue.playNext(track("b"))
-
-        assertEquals(listOf("b", "c", "d", "b"), queue.snapshot.upcoming.map { it.id })
     }
 
     @Test fun `jumping to one duplicate uses the occurrence index`() {

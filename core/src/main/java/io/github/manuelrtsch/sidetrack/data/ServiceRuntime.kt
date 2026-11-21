@@ -69,10 +69,15 @@ interface QualitySettingsRuntime {
     fun setGapless(enabled: Boolean)
 }
 
-/** A runtime with a local audio cache. */
+/**
+ * A runtime with a local audio cache.
+ *
+ * Both calls walk a directory tree of thousands of files, so they are `suspend` and the
+ * implementation dispatches to `Dispatchers.IO`. The UI must never wait on them synchronously.
+ */
 interface CacheRuntime {
-    fun cacheSizeBytes(): Long
-    fun clearAudioCache()
+    suspend fun cacheSizeBytes(): Long
+    suspend fun clearAudioCache()
 }
 
 // The UI asks the runtime these questions without caring which optional interface it implements.
@@ -102,8 +107,8 @@ fun ServiceRuntime.setGapless(enabled: Boolean) {
     (this as? QualitySettingsRuntime)?.setGapless(enabled)
 }
 
-fun ServiceRuntime.cacheSizeBytes(): Long = (this as? CacheRuntime)?.cacheSizeBytes() ?: 0L
+suspend fun ServiceRuntime.cacheSizeBytes(): Long = (this as? CacheRuntime)?.cacheSizeBytes() ?: 0L
 
-fun ServiceRuntime.clearAudioCache() {
+suspend fun ServiceRuntime.clearAudioCache() {
     (this as? CacheRuntime)?.clearAudioCache()
 }

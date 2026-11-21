@@ -60,20 +60,18 @@ class EpisodeProgressTest {
         assertEquals(200_000L, repository.resumePosition("lw5"))
     }
 
-    @Test fun `marking played and unplayed round-trips through storage`() {
+    @Test fun `a finished flag round-trips through storage`() {
         val file = tempFile("episode-progress-played")
         val store = FileEpisodeProgressStore(file)
         val repository = EpisodeProgressRepository(load = store::read, save = store::write, now = { 1_000L })
-        repository.record("lw5", 400_000L, 2_529_000L)
-        repository.setCompleted("lw5", true)
+        repository.record("lw5", 400_000L, 2_529_000L, completed = true)
 
         val reloaded = FileEpisodeProgressStore(file).read()
         assertEquals(true, reloaded["lw5"]?.completed)
-        assertEquals(false, repository.get("lw5")?.completed?.not())
-
-        repository.setCompleted("lw5", false)
-        assertEquals(false, repository.get("lw5")?.completed)
         assertEquals(0L, repository.resumePosition("lw5"))
+
+        repository.record("lw5", 0L, 2_529_000L, completed = false)
+        assertEquals(false, repository.get("lw5")?.completed)
     }
 
     @Test fun `a corrupt progress file starts empty`() {

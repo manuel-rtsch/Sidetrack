@@ -62,6 +62,7 @@ fun SidetrackHomeScreen(
     ) { padding ->
         val listState = rememberLazyListState()
         rowActions.DismissOnScroll(listState)
+        val rowKeys = remember(recent) { mediaRowKeys(recent) }
         SidekitList(padding, state = listState) {
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, 0)) {
@@ -81,10 +82,10 @@ fun SidetrackHomeScreen(
             } else {
                 itemsIndexed(
                     recent,
-                    key = { index, item -> "$index:${item.id}" },
+                    key = { index, _ -> rowKeys[index] },
                     contentType = { _, item -> mediaContentType(item) }
                 ) { index, item ->
-                    val key = "$index:${item.id}"
+                    val key = rowKeys[index]
                     HistoryRow(
                         key,
                         item,

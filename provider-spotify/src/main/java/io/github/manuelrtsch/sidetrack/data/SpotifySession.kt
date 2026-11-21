@@ -285,12 +285,6 @@ class SpotifySession(
         _signedIn.value = false
     }
 
-    /**
-     * Connects librespot with the current access token, creating the one player on first use.
-     * Returns true when the native session had to be rebuilt, which discards the loaded track.
-     */
-    suspend fun ensurePlaybackConnected(): Boolean = nativeGateway.ensureConnected()
-
     /** Bounded so a stalled access-point handshake cannot leave the play button stuck forever. */
     private suspend fun connectForPlayback(forceReconnect: Boolean = false): Boolean {
         val rebuilt = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { nativeGateway.ensureConnected(forceReconnect) }
@@ -474,10 +468,10 @@ class SpotifySession(
     fun skipPrevious() = transport.skipPrevious()
 
     /** Drops the on-disk audio cache. librespot re-fetches anything it still needs. */
-    override fun clearAudioCache() = cache.clearAudioCache()
+    override suspend fun clearAudioCache() = withContext(Dispatchers.IO) { cache.clearAudioCache() }
 
     /** Artwork and audio bytes currently held on disk. */
-    override fun cacheSizeBytes(): Long = cache.sizeBytes()
+    override suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) { cache.sizeBytes() }
 
     /** Sign-out and the Settings action both drop artwork and audio; credentials are separate. */
     override fun clearCaches() = cache.clear()

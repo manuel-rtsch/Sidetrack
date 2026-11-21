@@ -136,7 +136,7 @@ class SpotifySessionTest {
         assertFalse(session.signedIn.value)
     }
 
-    @Test fun `sign-out clears identity queue history resume and cached files`() {
+    @Test fun `sign-out clears identity queue history resume and cached files`() = runBlocking {
         File(context.cacheDir, "artwork").apply { mkdirs() }
         File(File(context.cacheDir, "artwork"), "cover.img").writeBytes(ByteArray(32))
         File(context.cacheDir, "spotify-audio").apply { mkdirs() }
@@ -229,10 +229,6 @@ class SpotifySessionTest {
 
     @Test fun `without credentials playback fails as an expired session`() = runBlocking {
         val session = session(ctx = null)
-
-        val connect = runCatching { session.ensurePlaybackConnected() }.exceptionOrNull()
-            as SpotifyGatewayException
-        assertEquals(SpotifyFailure.AuthenticationExpired, connect.failure)
 
         val play = runCatching { session.play(track("a").key, "spotify:track:a") }.exceptionOrNull()
             as SpotifyGatewayException

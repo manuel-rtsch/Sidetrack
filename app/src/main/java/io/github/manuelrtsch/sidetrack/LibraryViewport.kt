@@ -25,15 +25,6 @@ internal fun LazyListState.captureViewport(focusedRowKey: String?): LibraryViewp
     focusedRowKey = focusedRowKey
 )
 
-internal fun libraryRowFocusKey(item: Any): String = when (item) {
-    is Track -> item.id
-    is Album -> item.key.encode()
-    is Playlist -> item.key.encode()
-    is Artist -> item.key.encode()
-    is Show -> item.key.encode()
-    else -> item.toString()
-}
-
 /** Saves the five viewports as a flat list of strings, so a process restart keeps the cache. */
 internal val LibraryViewportsSaver: Saver<MutableMap<LibraryFilter, LibraryViewport>, List<String>> = Saver(
     save = { viewports ->

@@ -227,6 +227,7 @@ fun CollectionScreen(
             loadingMore,
             firstItemListIndex = 2
         )
+        val rowKeys = remember(collection.items) { mediaRowKeys(collection.items) }
         SidekitList(padding, state = listState) {
             var rowIndex = 0
             item(key = "tiles") {
@@ -283,10 +284,10 @@ fun CollectionScreen(
             val showTrackArt = collection.type == CollectionType.Playlist
             itemsIndexed(
                 collection.items,
-                key = { index, item -> "$index:${item.id}" },
+                key = { index, _ -> rowKeys[index] },
                 contentType = { _, item -> mediaContentType(item) }
             ) { index, item ->
-                val key = "$index:${item.id}"
+                val key = rowKeys[index]
                 val modifier = Modifier.listFade(listState, base + index)
                 if (item is Track) {
                     TrackRow(

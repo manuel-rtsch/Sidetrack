@@ -28,13 +28,3 @@ internal fun libraryItemId(item: Any): String? = when (item) {
     is Show -> item.id
     else -> null
 }
-
-/** A row identity that stays unique across the item types a library section can hold. */
-internal fun libraryItemKey(item: Any): String = when (item) {
-    is Track -> "t${item.id}"
-    is Playlist -> "p${item.id}"
-    is Album -> "a${item.id}"
-    is Artist -> "r${item.id}"
-    is Show -> "s${item.id}"
-    else -> item.toString()
-}

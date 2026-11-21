@@ -55,13 +55,13 @@ the screenshot tests carry a large share of UI coverage.
 
 | Gate | Line | Branch |
 |---|---:|---:|
-| `:app` product, default | 58 | 39 |
+| `:app` product, default | 62 | 42 |
 | `:app` product, full (`-PsidetrackScreenshots`) | 71 | 45 |
-| `:core` | 63 | 49 |
-| `:provider-spotify` | 76 | 60 |
-| `:provider-jellyfin` | 91 | 60 |
-| `:provider-subsonic` | 68 | 41 |
-| `:provider-plex` | 55 | 35 |
+| `:core` | 63 | 51 |
+| `:provider-spotify` | 77 | 61 |
+| `:provider-jellyfin` | 92 | 62 |
+| `:provider-subsonic` | 70 | 42 |
+| `:provider-plex` | 64 | 36 |
 
 The floor is the gate, not the target. Re-measure after a suite change and raise the floor; never
 lower one to absorb a regression.

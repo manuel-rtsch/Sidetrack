@@ -519,7 +519,7 @@ internal class LibraryController(
                 store.update {
                     val current = it.libraryPages[filter]
                         ?: return@update it.copy(libraryMorePendingPages = it.libraryMorePendingPages - filter)
-                    val merged = (current.items + next.items).distinctBy(::libraryItemKey)
+                    val merged = (current.items + next.items).distinctBy(::mediaRowKey)
                     it.withLibrarySaved(filter, merged, mediaKeys).copy(
                         libraryPages = it.libraryPages + (filter to current.copy(items = merged, hasMore = next.hasMore)),
                         libraryMorePendingPages = it.libraryMorePendingPages - filter

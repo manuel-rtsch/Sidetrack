@@ -7,9 +7,6 @@ package io.github.manuelrtsch.sidetrack
 // five result lists coherent (a toggle must not collapse a list the user has paged into, a load
 // more must only ever extend its own category) are testable on their own.
 
-/** How long a fetched search page counts as current within its query. */
-const val SEARCH_CACHE_FRESH_FOR_MS = 60_000L
-
 /** Turns a query's per-category pages into the flat result set the search screen renders. */
 internal fun searchResultsFor(pages: Map<SearchScope, LibraryPage>): SearchResults = SearchResults(
     tracks = pages[SearchScope.Tracks]?.items?.filterIsInstance<Track>().orEmpty(),
@@ -54,7 +51,7 @@ internal fun SidetrackUiState.withSearchMorePage(
 ): SidetrackUiState {
     val existing = searchPagesForQuery[scope] ?: return this
     val merged = existing.copy(
-        items = (existing.items + next).distinctBy { libraryItemKey(it) },
+        items = (existing.items + next).distinctBy { mediaRowKey(it) },
         hasMore = hasMore,
         fetchedAt = fetchedAt
     )

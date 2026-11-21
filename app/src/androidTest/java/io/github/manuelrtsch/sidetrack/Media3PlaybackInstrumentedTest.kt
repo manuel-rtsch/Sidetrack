@@ -7,6 +7,7 @@ import io.github.manuelrtsch.sidetrack.playback.ExoPlayerMedia3Player
 import io.github.manuelrtsch.sidetrack.playback.Media3PlaybackEngine
 import io.github.manuelrtsch.sidetrack.playback.MediaSessionRegistry
 import io.github.manuelrtsch.sidetrack.playback.PlaybackController
+import io.github.manuelrtsch.sidetrack.test.TestAudioStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,7 +26,7 @@ import org.junit.runner.RunWith
 class Media3PlaybackInstrumentedTest {
     @Test
     fun httpStreamPlaysThroughTheSharedController() = runBlocking {
-        TestHttpStream().use { stream ->
+        TestAudioStream().use { stream ->
             val context = ApplicationProvider.getApplicationContext<Context>()
             val player = withContext(Dispatchers.Main) { ExoPlayerMedia3Player(context) }
             val engine = Media3PlaybackEngine { player }

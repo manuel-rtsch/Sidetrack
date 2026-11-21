@@ -252,19 +252,6 @@ class QueueRepository(
         )
     }
 
-    /**
-     * Puts one occurrence directly after the current item. An existing occurrence is moved, not
-     * duplicated; the first match is enough because the queue UI has no id-based Play next.
-     */
-    fun playNext(item: MediaItem): Snapshot {
-        if (item.key == snapshot.current?.key) return snapshot
-        val upcoming = snapshot.upcoming.toMutableList()
-        val at = upcoming.indexOfFirst { it.key == item.key }
-        if (at >= 0) upcoming.removeAt(at)
-        upcoming.add(0, item)
-        return commit(snapshot.copy(upcoming = upcoming))
-    }
-
     fun addToQueue(item: MediaItem): Snapshot = addToQueue(listOf(item))
 
     /**

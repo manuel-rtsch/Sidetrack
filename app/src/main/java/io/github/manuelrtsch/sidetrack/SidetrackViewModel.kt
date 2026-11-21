@@ -160,7 +160,8 @@ class SidetrackViewModel(
         history = history,
         queue = queue,
         effects = effects,
-        clearArtworkCache = clearArtworkCache
+        clearArtworkCache = clearArtworkCache,
+        scope = viewModelScope
     )
 
     private val driver = PlaybackDriver(
@@ -288,7 +289,8 @@ class SidetrackViewModel(
     init {
         sessionWiring?.install()
         driver.restore()
-        refreshCacheSize()
+        // Cache size is read when Settings opens, not here: it walks thousands of files and no
+        // other screen shows it.
         PlaybackTicker(viewModelScope, session, store, clock, driver, uiVisible, simulatePlayback).start()
     }
 
@@ -427,10 +429,7 @@ class SidetrackViewModel(
 
     fun signIn(serverUrl: String, username: String, password: String) = account.signIn(serverUrl, username, password)
 
-    fun signOut() {
-        account.signOut()
-        refreshCacheSize()
-    }
+    fun signOut() = account.signOut()
 
     fun toggleShuffle() = effects.applyQueue(queue.toggleShuffle(), syncNowPlaying = false)
 

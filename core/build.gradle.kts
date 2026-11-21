@@ -3,7 +3,6 @@ import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
 
@@ -30,6 +29,11 @@ android {
             isReturnDefaultValues = true
         }
     }
+    // Fixtures both :app's unit tests and its instrumented tests use, so they cannot live in one
+    // module's test source set. See docs/codebase-duplication-audit.md.
+    testFixtures {
+        enable = true
+    }
 }
 
 dependencies {
@@ -39,6 +43,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
+    // Fixtures other modules' tests extend, so their dependencies are theirs to see too.
+    testFixturesApi(libs.junit)
+    testFixturesApi(libs.androidx.junit)
+    testFixturesImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // ApplicationProvider and the JUnit4 runner used by the store and progress tests.
@@ -57,12 +65,14 @@ kover {
             verify {
                 // Phase 2 slice 1 (audio focus and the runtime contract seams) raised the
                 // module from 35.8% / 29.0% to 46.5% / 34.0%. Slice 6 moved the controller's
-                // own contract into this module with a fake engine: 64.02% / 50.69%.
+                // own contract into this module with a fake engine: 64.02% / 50.69%. The module
+                // measures 62.95% / 51.23% now; the line floor stays where it was because the
+                // dead-code removal took out as much covered as uncovered code.
                 rule("line coverage") {
                     minBound(63)
                 }
                 rule("branch coverage") {
-                    minBound(49, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(51, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

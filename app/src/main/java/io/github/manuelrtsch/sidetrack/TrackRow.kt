@@ -103,20 +103,7 @@ fun TrackRow(
     GutterRow(key, rows.focus, squares = 1, modifier = modifier, content = { gutterVisible ->
         MediaRow(
             track,
-            Modifier
-                .focusRequester(rowFocus)
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .then(bodyModifier)
-                .onFocusChanged { state ->
-                    if (state.isFocused) rows.focus.rowFocused(key) else rows.focus.rowUnfocused(key)
-                }
-                .then(
-                    if (selected) {
-                        Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                    } else {
-                        Modifier
-                    }
-                ),
+            gutterRowModifier(key, selected, rows.focus, rowFocus, focusRequester, bodyModifier),
             index = index,
             showArt = showArt,
             secondary = secondary,

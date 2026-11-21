@@ -3,8 +3,8 @@ package io.github.manuelrtsch.sidetrack.auth
 import android.content.Context
 import io.github.manuelrtsch.sidetrack.data.AuthInput
 import io.github.manuelrtsch.sidetrack.data.HttpSubsonicTransport
+import io.github.manuelrtsch.sidetrack.data.RuntimeAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceAccount
-import io.github.manuelrtsch.sidetrack.data.ServiceAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.SubsonicApi
@@ -12,7 +12,6 @@ import io.github.manuelrtsch.sidetrack.data.SubsonicCredentials
 import io.github.manuelrtsch.sidetrack.data.SubsonicFamily
 import io.github.manuelrtsch.sidetrack.data.SubsonicTransport
 import io.github.manuelrtsch.sidetrack.data.normalized
-import io.github.manuelrtsch.sidetrack.storage.EncryptedStoreException
 import io.github.manuelrtsch.sidetrack.storage.GuardedEncryptedStore
 import io.github.manuelrtsch.sidetrack.storage.JsonStore
 import org.json.JSONObject
@@ -25,42 +24,24 @@ import org.json.JSONObject
 class SubsonicCredentialStore(
     context: Context,
     name: String = SubsonicFamily.Navidrome.credentialStoreName,
-    private val store: JsonStore = GuardedEncryptedStore(context, name)
-) {
-    fun read(): SubsonicCredentials? {
-        val value = runCatching { store.read() }.getOrDefault(JSONObject())
-        val server = value.optString(KEY_SERVER).takeIf { it.isNotEmpty() } ?: return null
-        val username = value.optString(KEY_USERNAME).takeIf { it.isNotEmpty() } ?: return null
-        val password = value.optString(KEY_PASSWORD).takeIf { it.isNotEmpty() } ?: return null
+    store: JsonStore = GuardedEncryptedStore(context, name)
+) : EncryptedJsonCredentialStore<SubsonicCredentials>(store) {
+    override fun encode(value: SubsonicCredentials): JSONObject = JSONObject()
+        .put(KEY_SERVER, value.serverUrl)
+        .put(KEY_USERNAME, value.username)
+        .put(KEY_PASSWORD, value.password)
+
+    override fun decode(json: JSONObject): SubsonicCredentials? {
+        val server = json.readString(KEY_SERVER) ?: return null
+        val username = json.readString(KEY_USERNAME) ?: return null
+        val password = json.readString(KEY_PASSWORD) ?: return null
         return SubsonicCredentials(server, username, password)
-    }
-
-    fun save(credentials: SubsonicCredentials) {
-        val value = JSONObject()
-            .put(KEY_SERVER, credentials.serverUrl)
-            .put(KEY_USERNAME, credentials.username)
-            .put(KEY_PASSWORD, credentials.password)
-        try {
-            store.write(value)
-        } catch (e: EncryptedStoreException) {
-            throw CredentialPersistenceException(SAVE_FAILED, e)
-        } catch (e: Exception) {
-            throw CredentialPersistenceException(SAVE_FAILED, e)
-        }
-    }
-
-    fun clear() {
-        runCatching { store.clear() }
     }
 
     private companion object {
         const val KEY_SERVER = "server_url"
         const val KEY_USERNAME = "username"
         const val KEY_PASSWORD = "password"
-
-        const val SAVE_FAILED =
-            "Signed in, but this device could not store the session securely. " +
-                "You will need to sign in again next time."
     }
 }
 
@@ -74,7 +55,7 @@ class SubsonicAuth(
     private val store: SubsonicCredentialStore,
     private val family: SubsonicFamily = SubsonicFamily.Navidrome,
     private val transport: SubsonicTransport? = null
-) : ServiceAuth {
+) : RuntimeAuth {
     /**
      * The credentials for this process. A device that cannot persist the store still keeps the
      * signed-in session until the app closes, matching the Spotify keystore-failure behaviour.
@@ -82,7 +63,7 @@ class SubsonicAuth(
     @Volatile
     private var current: SubsonicCredentials? = null
 
-    fun hasCredentials(): Boolean = credentials() != null
+    override fun hasCredentials(): Boolean = credentials() != null
 
     fun credentials(): SubsonicCredentials? = current ?: runCatching { store.read() }.getOrNull()?.also { current = it }
 
@@ -108,7 +89,7 @@ class SubsonicAuth(
     override suspend fun signOut() = clear()
 
     /** Synchronous clear for the runtime's non-suspending sign-out path. */
-    fun clear() {
+    override fun clear() {
         current = null
         store.clear()
     }

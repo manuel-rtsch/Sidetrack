@@ -274,7 +274,6 @@ private fun EpisodeRow(
     onClick: () -> Unit
 ) {
     val colors = SidekitTheme.colors
-    val squareFocus = Modifier.gutterSquareFocus(key, focus)
     val notes = remember(episode.description) { plainPodcastText(episode.description) }
     val resume = progress?.takeIf { !it.completed }
     val selected = bar.selection?.key == key
@@ -284,20 +283,7 @@ private fun EpisodeRow(
         // Free-height card rather than SidekitTile: a podcast row needs the title, its identity,
         // full-width notes and a progress line, which cannot fit the fixed single-item height.
         Box(
-            Modifier
-                .fillMaxWidth()
-                .focusRequester(rowFocus)
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .onFocusChanged { state ->
-                    if (state.isFocused) focus.rowFocused(key) else focus.rowUnfocused(key)
-                }
-                .then(
-                    if (selected) {
-                        Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                    } else {
-                        Modifier
-                    }
-                )
+            gutterRowModifier(key, selected, focus, rowFocus, focusRequester, Modifier.fillMaxWidth())
                 .clip(SidekitTheme.shapes.item)
                 .background(if (episode.playable) colors.surfaceA3 else colors.surfaceA2)
                 .clickable(
@@ -367,25 +353,16 @@ private fun EpisodeRow(
             }
         }
     }) {
-        RowActionSquare(
-            color = SidekitTheme.colors.surfaceA4,
-            label = "Actions for ${episode.title}",
-            content = { MeatballIcon() },
-            modifier = squareFocus,
-            onClick = {
-                focus.touchDismissed(key)
-                bar.show(
-                    RowActionSelection(
-                        key = key,
-                        title = episode.title,
-                        focusRequester = rowFocus,
-                        actions = rowActions(
-                            addToQueueRowAction(episode.title) { onAddToQueue(episode) },
-                            if (notes.isNotBlank()) episodeNotesRowAction(episode.title, onNotes) else null
-                        )
-                    )
-                )
-            }
+        GutterMeatball(
+            key,
+            episode.title,
+            focus,
+            bar,
+            rowFocus,
+            rowActions(
+                addToQueueRowAction(episode.title) { onAddToQueue(episode) },
+                if (notes.isNotBlank()) episodeNotesRowAction(episode.title, onNotes) else null
+            )
         )
     }
 }

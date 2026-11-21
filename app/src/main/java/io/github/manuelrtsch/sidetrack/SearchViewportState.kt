@@ -8,20 +8,13 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import io.github.manuelrtsch.sidetrack.ui.RowGutterState
 
-// The search page's reading-position rules mirror the library's: where each category was left,
-// which row takes focus when a held arrow brings it back, and how a category switch is recorded.
-// Kept out of SearchScreen's body so the composition reads as layout rather than focus choreography.
+// The search page's reading-position rules mirror the library's, and share its choreography in
+// CategoryViewports. What is local here is the search policy: positions are dropped when the query
+// changes, and the selection is corrected when a category has nothing to show.
 
 /**
  * What [rememberSearchViewport] hands back to the screen: the category-row switch, the held-arrow
@@ -62,7 +55,7 @@ internal fun rememberSearchViewport(
     gate: CategoryHoldGate
 ): SearchViewportState {
     val viewports = remember(query) { mutableStateMapOf<SearchScope, LibraryViewport>() }
-    var lastFocusedRowKey by remember { mutableStateOf<String?>(null) }
+    val lastFocusedRowKey = rememberLastFocusedRowKey(rows, searchGutters)
     var pendingViewport by remember { mutableStateOf<LibraryViewport?>(null) }
     var restoreListFocus by remember { mutableStateOf(true) }
     var restoreFocusIndex by remember { mutableStateOf<Int?>(null) }
@@ -72,28 +65,20 @@ internal fun rememberSearchViewport(
     var entryFocusPending by remember { mutableStateOf(true) }
     val restoreFocus = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        snapshotFlow { rows.focus.focusedKey ?: searchGutters.focusedKey }.collect { key ->
-            if (key != null) lastFocusedRowKey = key.toString()
-        }
-    }
-
     val items = results.itemsFor(scope)
     val branch = when {
         !showFilters || failed -> "top"
         items.isEmpty() -> "empty"
         else -> "list"
     }
-    // A row that has settled under the cursor is a reading position: record it so a held arrow can
-    // bring that category back to where it was.
-    val settledRowKey = rows.focus.openKey ?: searchGutters.openKey
-    LaunchedEffect(settledRowKey, scope) {
-        val settled = settledRowKey ?: return@LaunchedEffect
-        if (branch != "list") return@LaunchedEffect
-        val itemIndex = items.indexOfFirst { libraryRowFocusKey(it) == settled.toString() }
-        if (itemIndex < 0) return@LaunchedEffect
-        viewports[scope] = listState.captureViewport(settled.toString())
-    }
+    SettledViewportEffect(
+        settledKey = (rows.focus.openKey ?: searchGutters.openKey)?.toString(),
+        category = scope,
+        branch = branch,
+        items = items,
+        listState = listState,
+        record = { viewports[scope] = it }
+    )
 
     // A query may return nothing in the selected category, and toggling categories can remove the
     // selected one entirely. Move the selection rather than letting the row and the list disagree;
@@ -117,28 +102,29 @@ internal fun rememberSearchViewport(
 
     val switchScope: (SearchScope, Boolean) -> Unit = { next, fromRow ->
         if (next != scope) {
-            val focusedKey = (rows.focus.focusedKey ?: searchGutters.focusedKey)?.toString() ?: lastFocusedRowKey
-            val focusedIndex = focusedKey?.let { key ->
-                items.indexOfFirst { libraryRowFocusKey(it) == key }
-            } ?: -1
-            val focusedVisible = focusedIndex >= 0 &&
-                listState.layoutInfo.visibleItemsInfo.any { it.index == focusedIndex + 1 }
-            // A quick switch from the list records the exact position; a switch from the category
-            // row keeps the last settled viewport instead of the temporary top it climbed through.
-            if (focusedVisible || viewports[scope] == null) {
-                viewports[scope] = listState.captureViewport(focusedKey)
-            }
-            pendingViewport = viewports[next]
+            // The live focus decides whether this was a switch from the list; the remembered row
+            // is only a fallback for the position that gets recorded.
+            val liveKey = (rows.focus.focusedKey ?: searchGutters.focusedKey)?.toString()
+            pendingViewport = recordCategorySwitch(
+                viewports = viewports,
+                from = scope,
+                to = next,
+                listState = listState,
+                focusedKey = liveKey ?: lastFocusedRowKey.value,
+                focusedIndex = items.indexOfRowKey(liveKey),
+                lastFocusedRowKey = lastFocusedRowKey.value
+            )
             restoreListFocus = !fromRow
             restoreFocusIndex = null
-            lastFocusedRowKey = null
+            lastFocusedRowKey.value = null
             setScope(next)
         }
     }
 
-    val holdSwitch = Modifier.searchCategoryHoldSwitch(
-        scope = scope,
-        includedScopes = includedScopes,
+    val holdSwitch = Modifier.categoryHoldSwitch(
+        current = scope,
+        entries = SearchScope.entries,
+        supported = includedScopes,
         enabled = rows.bar.selection == null,
         gate = gate,
         onSwitch = { switchScope(it, false) }
@@ -158,55 +144,21 @@ internal fun rememberSearchViewport(
             focusFilterRow = true
             return@LaunchedEffect
         }
-        listState.scrollToItem(
-            viewport.index.coerceIn(0, items.size),
-            viewport.offset.coerceAtLeast(0)
-        )
-        val focusedIndex = viewport.focusedRowKey?.let { key ->
-            items.indexOfFirst { libraryRowFocusKey(it) == key }.takeIf { it >= 0 }
-        }
-        restoreFocusIndex = focusedIndex
-            ?: (viewport.index - 1).coerceIn(0, items.lastIndex)
+        restoreFocusIndex = listState.restoreViewport(viewport, items)
     }
 
-    LaunchedEffect(restoreFocusIndex) {
-        if (restoreFocusIndex == null) return@LaunchedEffect
-        // The scroll above composes the restored row. Give that frame a chance to attach the
-        // requester before asking it to take the cursor.
-        repeat(3) {
-            withFrameNanos { }
-            if (runCatching { restoreFocus.requestFocus() }.isSuccess) {
-                restoreFocusIndex = null
-                return@LaunchedEffect
-            }
-        }
-        restoreFocusIndex = null
-    }
+    RestoreRowFocusEffect(restoreFocusIndex, restoreFocus) { restoreFocusIndex = null }
 
     // Up from the first result returns to the category row rather than letting focus search pick
-    // the geometrically nearest button. The row can sit outside the composed window when the first
-    // item is at the top, so scroll it back in and retry its requester across a few frames.
-    LaunchedEffect(focusFilterRow) {
-        if (!focusFilterRow) return@LaunchedEffect
-        listState.scrollToItem(0)
-        repeat(3) {
-            withFrameNanos { }
-            if (runCatching { scopeFocus.getValue(scope).requestFocus() }.isSuccess) {
-                focusFilterRow = false
-                return@LaunchedEffect
-            }
-        }
-        focusFilterRow = false
-    }
+    // the geometrically nearest button.
+    CategoryRowFocusEffect(
+        pending = focusFilterRow,
+        listState = listState,
+        requester = { scopeFocus.getValue(scope) },
+        onSettled = { focusFilterRow = false }
+    )
 
-    val firstRowModifier = Modifier.onPreviewKeyEvent { event ->
-        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
-            focusFilterRow = true
-            true
-        } else {
-            false
-        }
-    }
+    val firstRowModifier = Modifier.returnToCategoryRow { focusFilterRow = true }
 
     return SearchViewportState(
         restoreFocusIndex = restoreFocusIndex,
