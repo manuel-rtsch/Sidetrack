@@ -17,8 +17,13 @@ set -euo pipefail
 
 version=${1:?usage: release.sh <version, e.g. 0.4.1>}
 version=${version#v}
-[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] ||
-  printf 'release: %s is not a version like 0.4.1\n' "$version" >&2 && exit 1
+# Spelled as an `if`, not `[[ ... ]] || printf ... && exit 1`: `||` and `&&` share precedence and
+# bind left to right, so the one-line form exits 1 when the version is *valid*. A release run then
+# dies silently before it prints anything.
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  printf 'release: %s is not a version like 0.4.1\n' "$version" >&2
+  exit 1
+fi
 
 cd "$(dirname "$0")/.."
 readonly repo_root=$PWD
