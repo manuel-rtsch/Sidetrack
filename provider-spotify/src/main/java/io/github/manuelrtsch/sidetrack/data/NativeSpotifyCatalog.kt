@@ -14,6 +14,7 @@ import io.github.manuelrtsch.sidetrack.SearchResults
 import io.github.manuelrtsch.sidetrack.SearchScope
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Show
+import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.Station
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
@@ -331,6 +332,15 @@ private fun JSONObject.playlistActions(): PlaylistActions? {
 
 private fun trackFromNative(json: JSONObject): Track? {
     val id = json.optString("id").mediaIdOrNull() ?: return null
+    // The native catalog flags a track from Spotify's restriction list; log the row so a dark,
+    // unplayable entry in the UI can be traced back to the catalog that produced it. The
+    // restriction detail itself is logged by the native side.
+    if (!json.optBoolean("playable", true)) {
+        SidetrackDebug.log(
+            "catalog: native track unplayable id=$id title=${json.optString("title")} " +
+                "artist=${json.optString("artist")}"
+        )
+    }
     return Track(
         id = id,
         title = json.optString("title", "Unknown track"),

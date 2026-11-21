@@ -127,6 +127,7 @@ class QueueRepository(
         if (!item.playable) return snapshot
         if (item.key == snapshot.current?.key) return snapshot
         val previous = snapshot.current
+
         // The picked track is about to play, so an occurrence further down would only play twice.
         fun withoutPicked(tail: List<MediaItem>): List<MediaItem> {
             val at = tail.indexOfFirst { it.key == item.key }

@@ -45,7 +45,8 @@ internal class PlaybackDriver(
         effects = effects,
         store = store,
         matchesCurrent = ::matchesCurrent,
-        onEnded = ::onPlaybackEnded
+        onEnded = ::onPlaybackEnded,
+        onUnavailable = ::onPlaybackUnavailable
     )
 
     private val service: ServiceId get() = session?.service ?: ServiceId.Local
@@ -66,8 +67,16 @@ internal class PlaybackDriver(
         beginPlayback(queue.play(items, index), item)
     }
 
+    /**
+     * The catalog decides this, before any transport is involved, so the refusal is logged here:
+     * the announcement alone left no trace of which row the user tried to play.
+     */
     fun readyToPlay(item: MediaItem): Boolean {
         if (!item.playable) {
+            SidetrackDebug.log(
+                "play refused: playable=false service=${item.service} id=${item.id} " +
+                    "title=${item.title} creator=${item.creator} uri=${item.uri}"
+            )
             notifier.say("Not available on this account")
             return false
         }
@@ -219,6 +228,27 @@ internal class PlaybackDriver(
             startRemote(current, 0L)
         } else {
             advance(auto = true, forceContextLoop = snapshot.repeat == RepeatMode.Context)
+        }
+    }
+
+    /**
+     * The service refused this item, so it is not playable at all — Spotify answers a regional or
+     * removed track this way. Treat it like a finished track and move on, autoplay included, which
+     * is also what librespot does internally.
+     *
+     * Retrying is never useful here: the previous behaviour let the stall detector treat the
+     * rejection as a dead connection, rebuilding the session and reloading the same item until
+     * playback gave up. Repeat-track deliberately does not apply — a refused track must not loop.
+     */
+    fun onPlaybackUnavailable() {
+        val skipped = store.value.current
+        SidetrackDebug.log("unavailable: skipping on from ${skipped?.key?.encode()}")
+        advance(auto = true, forceContextLoop = false)
+        // Announced after the advance, which clears the notice on its way in, and only when the
+        // queue really moved: running out of queue or asking for similar tracks has its own
+        // message, and this one must not overwrite it.
+        if (store.value.current !== skipped) {
+            store.update { it.say("Skipped — this track isn't available") }
         }
     }
 

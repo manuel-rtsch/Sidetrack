@@ -192,7 +192,7 @@ internal fun NavGraphBuilder.playbackGraph(
                     onArtist = {},
                     onAddToQueue = { vm.queueCollection(radio) },
                     onAddItemToQueue = vm::addToQueue,
-                onPlayItem = vm::playFirst,
+                    onPlayItem = vm::playFirst,
                     onSaveTrack = { vm.toggleSaved(it) },
                     onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
                     onNowPlaying = { nav.openNowPlaying(vm) },

@@ -16,6 +16,7 @@ use librespot_core::spclient::SpClientError;
 use librespot_core::Session;
 use librespot_core::SpotifyUri;
 use librespot_metadata::image::Images;
+use librespot_metadata::restriction::Restrictions;
 use librespot_metadata::{Album, Artist, Episode, Metadata, Playlist, Show, Track};
 use librespot_protocol::context::Context;
 use librespot_protocol::extended_metadata::{
@@ -241,8 +242,55 @@ fn artist_name_and_id(artist: Option<&librespot_metadata::Artist>) -> (String, S
     }
 }
 
+/// Any restriction means the track cannot be played, including one that carries nothing but
+/// `type = STREAMING` and an empty `countries_allowed`.
+///
+/// An empty allow-list is not "unconstrained": it means no market is allowed. "Temperature x
+/// Memories" arrives exactly like that, and librespot's own loader agrees with the flag — "Track
+/// should be available, but no alternatives found" — so reading the entry as harmless attempted a
+/// track that cannot start, stalled the drain for 15 s and rebuilt the session for nothing.
+fn is_playable(track: &Track) -> bool {
+    track.restrictions.is_empty()
+}
+
+/// Logged whenever [is_playable] turns a row dark: the raw entries are the only way to tell which
+/// market or catalogue Spotify excluded, and an empty allow-list reads like absence at a glance.
+fn describe_restrictions(restrictions: &Restrictions) -> String {
+    restrictions
+        .iter()
+        .map(|restriction| {
+            let catalogues = if restriction.catalogue_strs.is_empty() {
+                "none".to_string()
+            } else {
+                restriction.catalogue_strs.join(",")
+            };
+            let countries = match (&restriction.countries_allowed, &restriction.countries_forbidden)
+            {
+                (Some(allowed), _) if allowed.is_empty() => "allowed=[]".to_string(),
+                (Some(allowed), _) => format!("allowed={}", allowed.join(",")),
+                (_, Some(forbidden)) if forbidden.is_empty() => "forbidden=[]".to_string(),
+                (_, Some(forbidden)) => format!("forbidden={}", forbidden.join(",")),
+                _ => "countries=any".to_string(),
+            };
+            format!(
+                "{{catalogue=[{catalogues}] type={:?} {countries}}}",
+                restriction.restriction_type
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 fn track_json(track: &Track) -> TrackJson {
     let (artist, artist_id) = artist_name_and_id(track.artists.first());
+    let playable = is_playable(track);
+    if !playable {
+        log::warn!(
+            "catalog: track {} flagged unplayable, restrictions: {}",
+            id_of(&track.id),
+            describe_restrictions(&track.restrictions)
+        );
+    }
     TrackJson {
         id: id_of(&track.id),
         title: track.name.clone(),
@@ -252,7 +300,7 @@ fn track_json(track: &Track) -> TrackJson {
         art_res: 0,
         duration_ms: track.duration as i64,
         explicit: track.is_explicit,
-        playable: track.restrictions.is_empty(),
+        playable,
         uri: uri_of(&id_of(&track.id), "track"),
         art_url: image_url(&track.album.covers),
     }
@@ -2391,14 +2439,55 @@ pub async fn top_tracks(
 #[cfg(test)]
 mod tests {
     use super::{
-        library_page, owner_display, percent_decode, playlist_add_changes, playlist_id_of,
-        playlist_item_indices, playlist_remove_changes, radio_playlist_uri, radio_track_uris,
-        rootlist_folder_name, sort_newest_first, wants_scope, CollectionItem,
+        describe_restrictions, library_page, owner_display, percent_decode, playlist_add_changes,
+        playlist_id_of, playlist_item_indices, playlist_remove_changes, radio_playlist_uri,
+        radio_track_uris, rootlist_folder_name, sort_newest_first, wants_scope, CollectionItem,
     };
     use librespot_core::SpotifyUri;
+    use librespot_metadata::restriction::{
+        Restriction, RestrictionCatalogues, Restrictions, RestrictionType,
+    };
     use librespot_protocol::playlist4_external::Item as PlaylistItem;
     use protobuf::Message;
     use serde_json::json;
+
+    fn restriction(
+        catalogue_strs: &[&str],
+        countries_allowed: Option<&[&str]>,
+        countries_forbidden: Option<&[&str]>,
+    ) -> Restriction {
+        Restriction {
+            catalogues: RestrictionCatalogues(Vec::new()),
+            restriction_type: RestrictionType::STREAMING,
+            catalogue_strs: catalogue_strs.iter().map(|value| value.to_string()).collect(),
+            countries_allowed: countries_allowed
+                .map(|list| list.iter().map(|value| value.to_string()).collect()),
+            countries_forbidden: countries_forbidden
+                .map(|list| list.iter().map(|value| value.to_string()).collect()),
+        }
+    }
+
+    /// The shape Spotify sent for "Temperature x Memories": an empty `countries_allowed` reads like
+    /// "no country excluded", so the log has to spell the difference out.
+    #[test]
+    fn an_empty_allow_list_reads_as_empty_not_absent() {
+        let restrictions = Restrictions(vec![restriction(&[], Some(&[]), None)]);
+        let described = describe_restrictions(&restrictions);
+        assert!(described.contains("catalogue=[none]"), "{described}");
+        assert!(described.contains("allowed=[]"), "{described}");
+        assert!(!described.contains("countries=any"), "{described}");
+    }
+
+    #[test]
+    fn a_named_restriction_reads_as_its_countries_and_catalogues() {
+        let restricted = Restrictions(vec![restriction(&["premium"], None, Some(&["US", "CA"]))]);
+        let described = describe_restrictions(&restricted);
+        assert!(described.contains("catalogue=[premium]"), "{described}");
+        assert!(described.contains("forbidden=US,CA"), "{described}");
+
+        let unrestricted = Restrictions(vec![restriction(&[], None, None)]);
+        assert!(describe_restrictions(&unrestricted).contains("countries=any"));
+    }
 
     #[test]
     fn wants_scope_never_treats_an_empty_list_as_everything() {

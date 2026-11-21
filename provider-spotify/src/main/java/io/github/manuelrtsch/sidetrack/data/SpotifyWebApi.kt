@@ -14,6 +14,7 @@ import io.github.manuelrtsch.sidetrack.SearchResults
 import io.github.manuelrtsch.sidetrack.SearchScope
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Show
+import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.mediaIdOrNull
 import java.io.IOException
@@ -249,6 +250,14 @@ class SpotifyWebApi(
 
     private fun track(json: JSONObject): Track? {
         val id = json.optString("id").mediaIdOrNull() ?: return null
+        // `is_playable` is Spotify's own answer for the request's market, so a false here is a
+        // real restriction. Log it to tell this transport apart from a native restriction flag.
+        if (json.has("is_playable") && !json.optBoolean("is_playable", true)) {
+            SidetrackDebug.log(
+                "catalog: web track unplayable id=$id title=${json.optString("name")} " +
+                    "restrictions=${json.optJSONArray("restrictions")}"
+            )
+        }
         val album = json.optJSONObject("album")
         val artist = json.optJSONArray("artists")?.optJSONObject(0)
         return Track(

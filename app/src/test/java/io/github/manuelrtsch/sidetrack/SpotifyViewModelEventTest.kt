@@ -54,15 +54,19 @@ class SpotifyViewModelEventTest {
         assertFalse(vm.state.value.isPlaying)
     }
 
-    @Test fun `unavailable event pauses and explains`() = runTest(dispatcher) {
+    /**
+     * The service rejected the item, so nothing can be gained by staying on it: the queue has to
+     * move on, or the stall detector recovers a track that can never load.
+     */
+    @Test fun `unavailable event skips to the next queued track`() = runTest(dispatcher) {
         val vm = viewModel()
-        val track = MockSpotifyDataSource.recentlyPlayed.first()
-        vm.playItem(track)
+        val items = MockSpotifyDataSource.recentlyPlayed.take(2)
+        vm.play(items, 0)
 
         vm.handlePlaybackEvent(event("""{"type":"unavailable"}"""))
 
-        assertFalse(vm.state.value.isPlaying)
-        assertEquals("This track isn't available", vm.state.value.notice)
+        assertEquals(items[1].id, vm.state.value.current?.id)
+        assertEquals("Skipped — this track isn't available", vm.state.value.notice)
     }
 
     @Test fun `an episode resumes at its saved local offset`() = runTest(dispatcher) {

@@ -20,7 +20,8 @@ internal class PlaybackEvents(
     private val effects: PlaybackEffects,
     private val store: UiStateStore,
     private val matchesCurrent: (String?) -> Boolean,
-    private val onEnded: () -> Unit
+    private val onEnded: () -> Unit,
+    private val onUnavailable: () -> Unit
 ) {
     fun handle(event: PlaybackEvent) {
         val position = when (event) {
@@ -160,10 +161,14 @@ internal class PlaybackEvents(
                 )
             }
 
+            // librespot refuses the item and moves on internally. Leaving the queue where it is
+            // made the drain see 15 s of silence, "recover" the same track with a fresh session
+            // and retry a load that can never succeed, so the queue has to advance here.
             is PlaybackEvent.Unavailable -> if (matchesCurrent(event.uri)) {
                 clock.endStart()
                 clock.clearSeek()
-                store.update { it.copy(isPlaying = false).say("This track isn't available") }
+                store.update { it.copy(isPlaying = false) }
+                onUnavailable()
             }
 
             is PlaybackEvent.Unknown -> Unit
