@@ -1,27 +1,13 @@
-import java.util.Properties
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
-
-val fallbackVersionName = "0.1.0"
-
-// Mirrors :app's git-derived version so the Jellyfin client reports the same version the app does.
-fun git(vararg args: String) = providers.exec {
-    commandLine("git", *args)
-    workingDir = rootDir
-    isIgnoreExitValue = true
-}.standardOutput.asText.map(String::trim)
-
-val gitVersionName = git("describe", "--tags", "--match", "v[0-9]*", "--dirty")
-    .map { described ->
-        val name = described.removePrefix("v")
-        if (name.isBlank() || !name.first().isDigit()) fallbackVersionName else name
-    }
-fun versionNameFromGit() = runCatching { gitVersionName.get() }.getOrDefault(fallbackVersionName)
 
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kover)
 }
+
+// The version this client reports to its server; see buildSrc/GitVersion.kt.
+val clientVersionName = GitVersion.nameFrom(project)
 
 // `*IntegrationTest` classes need a live server; opt in with -PsidetrackIntegration.
 val runIntegrationTests = providers.gradleProperty("sidetrackIntegration").isPresent
@@ -37,7 +23,7 @@ android {
         // JellyfinAuth reports the client version to the server through BuildConfig.VERSION_NAME.
         // The library plugin does not drive versionName, so the value is mirrored from the app's
         // git-derived version to keep the two reporting the same client version.
-        buildConfigField("String", "VERSION_NAME", "\"${versionNameFromGit()}\"")
+        buildConfigField("String", "VERSION_NAME", "\"${clientVersionName}\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

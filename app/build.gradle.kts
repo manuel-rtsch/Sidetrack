@@ -9,25 +9,10 @@ plugins {
     alias(libs.plugins.kover)
 }
 
-val fallbackVersionName = "0.1.0"
-val fallbackVersionCode = 1
-
-fun git(vararg args: String) = providers.exec {
-    commandLine("git", *args)
-    workingDir = rootDir
-    isIgnoreExitValue = true
-}.standardOutput.asText.map(String::trim)
-
-val gitVersionName = git("describe", "--tags", "--match", "v[0-9]*", "--dirty")
-    .map { described ->
-        val name = described.removePrefix("v")
-        if (name.isBlank() || !name.first().isDigit()) fallbackVersionName else name
-    }
-val gitVersionCode = git("rev-list", "--count", "HEAD")
-    .map { it.toIntOrNull() ?: fallbackVersionCode }
-
-fun versionCodeFromGit() = runCatching { gitVersionCode.get() }.getOrDefault(fallbackVersionCode)
-fun versionNameFromGit() = runCatching { gitVersionName.get() }.getOrDefault(fallbackVersionName)
+// The version the git checkout describes; see buildSrc/GitVersion.kt. Overridable so a CI run
+// can stamp a build without a tag.
+val gitVersionName = providers.gradleProperty("sidetrackVersionName").getOrElse(GitVersion.nameFrom(project))
+val gitVersionCode = providers.gradleProperty("sidetrackVersionCode").map(String::toInt).getOrElse(GitVersion.codeFrom(project))
 
 // Release signing is configured locally: keystore.properties is gitignored and points at the
 // dedicated Sidetrack release certificate. Without it, release stays unsigned so CI can sign.
@@ -75,11 +60,8 @@ android {
         applicationId = "io.github.manuelrtsch.sidetrack"
         minSdk = 31
         targetSdk = 36
-        versionCode = providers.gradleProperty("sidetrackVersionCode")
-            .map(String::toInt)
-            .getOrElse(versionCodeFromGit())
-        versionName = providers.gradleProperty("sidetrackVersionName")
-            .getOrElse(versionNameFromGit())
+        versionCode = gitVersionCode
+        versionName = gitVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
