@@ -45,7 +45,8 @@ fun ArtistScreen(
     onDismissNowPlaying: () -> Unit,
     canFollow: Boolean = true,
     canRadio: Boolean = true,
-    onAddToPlaylist: ((Track) -> Unit)? = null
+    onAddToPlaylist: ((Track) -> Unit)? = null,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val followed = artist.key.encode() in saved.followedArtistIds
     val rows = rememberTrackRows(
@@ -63,7 +64,8 @@ fun ArtistScreen(
             onDismissNotice,
             onNowPlaying,
             onDismissNowPlaying,
-            back
+            back,
+            onUndoQueueReplace = onUndoQueueReplace
         )
     )
     SidekitScaffold(
@@ -76,7 +78,7 @@ fun ArtistScreen(
         )
     ) { padding ->
         val listState = rememberLazyListState()
-        rows.bar.dismissOnScroll(listState)
+        rows.bar.DismissOnScroll(listState)
         val playIds = remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
         val tracksFocus = rememberLoadMoreFocus()
         val albumsFocus = rememberLoadMoreFocus()
@@ -90,6 +92,8 @@ fun ArtistScreen(
         }
         LoadMoreFocus(tracksFocus, listState, tracks.size, loadingMore, firstItemListIndex = tracksBase)
         LoadMoreFocus(albumsFocus, listState, albums.size, loadingMore, firstItemListIndex = albumsBase)
+        val trackKeys = remember(tracks) { mediaRowKeys(tracks) }
+        val albumKeys = remember(albums) { mediaRowKeys(albums) }
         SidekitList(padding, state = listState) {
             var rowIndex = 0
             item(key = "tiles") {
@@ -126,11 +130,11 @@ fun ArtistScreen(
             rowIndex += 1
             itemsIndexed(
                 tracks,
-                key = { index, track -> "$index:${track.id}" },
+                key = { index, _ -> trackKeys[index] },
                 contentType = { _, _ -> "track" }
             ) { index, track ->
                 TrackRow(
-                    "$index:${track.id}",
+                    trackKeys[index],
                     track,
                     rows,
                     Modifier.listFade(listState, tracksBase + index),
@@ -160,7 +164,7 @@ fun ArtistScreen(
             rowIndex += 1
             itemsIndexed(
                 albums,
-                key = { index, album -> "$index:${album.id}" },
+                key = { index, _ -> albumKeys[index] },
                 contentType = { _, _ -> "album" }
             ) { index, album ->
                 LibraryRow(
@@ -168,7 +172,7 @@ fun ArtistScreen(
                     album.title,
                     "${album.year}" + if (album.trackCount > 0) " · ${album.trackCount} tracks" else "",
                     Modifier.listFade(listState, albumsBase + index)
-                        .then(albumsFocus.rowModifier(index)),
+                        .rowFocusTarget(albumsFocus, index),
                     artUrl = album.artUrl
                 ) { onAlbum(album) }
             }

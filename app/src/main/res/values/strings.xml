@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- The launcher label every build type falls back to through the appLabel manifest
+         placeholder; debug, dev and the standalone demo replace it with a literal. -->
     <string name="app_name">Sidetrack</string>
     <string name="keypad_service_label">Sidetrack keypad</string>
     <string name="keypad_service_description">Turns the Sidephone keypad\'s top-left key into Back system-wide.</string>

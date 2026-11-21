@@ -44,6 +44,7 @@ import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SearchHint
 import org.jellyfin.sdk.model.api.SearchHintResult
 import org.jellyfin.sdk.model.api.SortOrder
+import org.jellyfin.sdk.model.api.UpdatePlaylistDto
 
 /**
  * The SDK-backed seam.
@@ -119,9 +120,11 @@ class SdkJellyfinApi(
     }
 
     override suspend fun favoriteArtists(offset: Int, limit: Int): JellyfinPage = call {
-        api.artistApi.getArtists(
+        api.libraryApi.getItems(
             userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
             isFavorite = true,
+            recursive = true,
             startIndex = offset,
             limit = limit,
             sortBy = listOf(ItemSortBy.SORT_NAME),
@@ -268,12 +271,13 @@ class SdkJellyfinApi(
         Unit
     }
 
-    override suspend fun createPlaylist(name: String): String? = call {
-        // The server owns the id; the caller then resolves the playlist like any other.
+    override suspend fun createPlaylist(name: String, itemIds: List<String>): String? = call {
+        // The server owns the id; the caller then resolves the playlist like any other. The seed
+        // ids land in the playlist in the order given.
         val created = api.playlistApi.createPlaylist(
             CreatePlaylistDto(
                 name = name,
-                ids = emptyList(),
+                ids = itemIds.map(::uuid),
                 userId = userId,
                 mediaType = JellyfinMediaType.AUDIO,
                 users = emptyList(),
@@ -303,6 +307,16 @@ class SdkJellyfinApi(
         Unit
     }
 
+    override suspend fun renamePlaylist(playlistId: String, name: String) = call {
+        api.playlistApi.updatePlaylist(uuid(playlistId), UpdatePlaylistDto(name = name))
+        Unit
+    }
+
+    override suspend fun deletePlaylist(playlistId: String) = call {
+        api.libraryApi.deleteItem(uuid(playlistId))
+        Unit
+    }
+
     /** The id the server removes this entry by, or null when the item is no longer there. */
     private suspend fun playlistEntryId(playlistId: String, itemId: String, index: Int?): String? {
         val playlist = uuid(playlistId)
@@ -313,7 +327,7 @@ class SdkJellyfinApi(
                 startIndex = start,
                 limit = limit,
                 fields = listOf(ItemFields.PARENT_ID)
-            ).content.items.map { PlaylistEntry(entryId = it.playlistItemId, itemId = it.id?.toString()) }
+            ).content.items.map { PlaylistEntry(entryId = it.playlistItemId, itemId = it.id.toString()) }
         }
     }
 

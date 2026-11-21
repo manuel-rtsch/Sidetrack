@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.components.SidekitText
 import hrln.interactive.sidekit.design.theme.SidekitTheme
@@ -193,7 +194,7 @@ fun Seek(
             // crowding the track; the block height is unchanged, so the artwork does not shrink.
             Modifier
                 .fillMaxWidth()
-                .offset(y = if (sliding) (-8).dp else (-4).dp)
+                .offset { IntOffset(0, if (sliding) (-8).dp.roundToPx() else (-4).dp.roundToPx()) }
                 .padding(horizontal = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {

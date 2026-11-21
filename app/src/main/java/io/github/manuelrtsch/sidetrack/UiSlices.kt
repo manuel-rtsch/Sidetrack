@@ -66,6 +66,7 @@ data class SearchUiState(
     val searchHasMore: Set<SearchScope> = emptySet(),
     val searchMorePending: Set<SearchScope> = emptySet(),
     val searchScopes: Set<SearchScope> = SearchScope.entries.toSet(),
+    val searchHistory: List<String> = emptyList(),
     val query: String = ""
 )
 
@@ -86,16 +87,19 @@ data class SavedUiState(
 )
 
 /**
- * The transient action-bar state: a notice or the now-playing confirmation.
+ * The transient action-bar state: a notice, the queue-replaced offer, or the now-playing
+ * confirmation.
  *
  * [noticeKind] decides how long the notice owns the bar. It travels with [notice] rather than
  * living in the screen, so the bar's timer is the same on every screen and a later success cannot
- * inherit an earlier error's duration.
+ * inherit an earlier error's duration. [queueReplaced] outranks the now-playing confirmation: a
+ * queue that can still be taken back is news, the confirmation is decoration.
  */
 data class ChromeUiState(
     val notice: String? = null,
     val noticeKind: NoticeKind = NoticeKind.Other,
-    val nowPlayingNotice: MediaItem? = null
+    val nowPlayingNotice: MediaItem? = null,
+    val queueReplaced: Boolean = false
 )
 
 data class PlaylistUiState(
@@ -152,6 +156,7 @@ val SidetrackUiState.search: SearchUiState
         searchHasMore = searchHasMore,
         searchMorePending = searchMorePending,
         searchScopes = searchScopes,
+        searchHistory = searchHistory,
         query = query
     )
 
@@ -170,7 +175,7 @@ val SidetrackUiState.saved: SavedUiState
     get() = SavedUiState(savedTrackIds, savedCollectionKeys, followedArtistIds)
 
 val SidetrackUiState.chrome: ChromeUiState
-    get() = ChromeUiState(notice, noticeKind, nowPlayingNotice)
+    get() = ChromeUiState(notice, noticeKind, nowPlayingNotice, queueReplaced)
 
 val SidetrackUiState.playlistSlice: PlaylistUiState
     get() = PlaylistUiState(

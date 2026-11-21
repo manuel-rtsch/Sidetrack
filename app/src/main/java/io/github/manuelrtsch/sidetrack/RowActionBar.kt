@@ -29,7 +29,7 @@ import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
  * One action offered by the contextual row bar.
  *
  * A row action is a live action, so it wears the theme accent like every option in the Options bar
- * (see `docs/options-menu-audit.md`); [ActionTone.Destructive] marks a removal, and
+ * (see `docs/menus.md`); [ActionTone.Destructive] marks a removal, and
  * [ActionTone.Muted] is left to Cancel. Build the list with [rowActions] rather than by hand.
  */
 data class RowAction(
@@ -60,6 +60,19 @@ data class RowAction(
  */
 fun rowActions(vararg entries: RowAction?): List<RowAction> = entries.filterNotNull().sortedBy { if (it.tone == ActionTone.Destructive) 1 else 0 }
 
+/**
+ * Plays this row now and leaves the queue behind it, for pages whose row tap plays in collection
+ * context. The label is short because the square drops it; the content description carries the
+ * whole sentence.
+ */
+fun playRowAction(title: String, onClick: () -> Unit) = RowAction(
+    key = "play",
+    label = "Play",
+    contentDescription = "Play $title now",
+    icon = SidekitIcon.PlayArrow,
+    onClick = onClick
+)
+
 fun addToQueueRowAction(
     title: String,
     label: String = "Add to queue",
@@ -68,7 +81,9 @@ fun addToQueueRowAction(
     key = "addToQueue",
     label = label,
     contentDescription = "Add $title to queue",
-    icon = SidekitIcon.PlaylistAdd,
+    // The queue glyph, not the playlist one: the two sit side by side on album and radio rows, and
+    // two identical squares there read as the same action offered twice.
+    icon = SidekitIcon.QueueMusic,
     onClick = onClick
 )
 
@@ -83,7 +98,7 @@ fun addToPlaylistRowAction(title: String, onClick: () -> Unit) = RowAction(
 
 fun removeFromPlaylistRowAction(title: String, onClick: () -> Unit) = RowAction(
     key = "removeFromPlaylist",
-    label = "Remove from playlist",
+    label = "Remove",
     contentDescription = "Remove $title from this playlist",
     icon = SidekitIcon.DeleteForever,
     tone = ActionTone.Destructive,
@@ -338,7 +353,7 @@ fun CloseRowActionsWhenDisposed(selected: Boolean, state: RowActionBarState) {
  * bar's own doing, so treating it as a dismissal closed the bar in the same frame it opened.
  */
 @Composable
-fun RowActionBarState.dismissOnScroll(listState: LazyListState) {
+fun RowActionBarState.DismissOnScroll(listState: LazyListState) {
     val dragged by listState.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(dragged) {
         if (dragged) close(restoreFocus = false)

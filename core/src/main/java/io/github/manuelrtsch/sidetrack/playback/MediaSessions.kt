@@ -51,11 +51,6 @@ open class MediaSessionRegistry {
         owners += owner
     }
 
-    fun unregister(owner: MediaSessionOwner) {
-        owners -= owner
-        if (active === owner) active = null
-    }
-
     /**
      * Makes [owner] the active session. Every other owner that is playing is paused first, so
      * starting one provider stops the other rather than mixing them.

@@ -6,6 +6,7 @@ import io.github.manuelrtsch.sidetrack.data.consumeHaltStop
 import io.github.manuelrtsch.sidetrack.data.halting
 import io.github.manuelrtsch.sidetrack.data.notePlayRequest
 import io.github.manuelrtsch.sidetrack.playback.PlaybackEvent
+import io.github.manuelrtsch.sidetrack.playback.debugName
 import kotlin.math.abs
 
 /**
@@ -19,7 +20,8 @@ internal class PlaybackEvents(
     private val effects: PlaybackEffects,
     private val store: UiStateStore,
     private val matchesCurrent: (String?) -> Boolean,
-    private val onEnded: () -> Unit
+    private val onEnded: () -> Unit,
+    private val onUnavailable: () -> Unit
 ) {
     fun handle(event: PlaybackEvent) {
         val position = when (event) {
@@ -33,7 +35,7 @@ internal class PlaybackEvents(
         } ?: clock.value
         session?.notePlayRequest(event.playRequestId, event.uri)
         SidetrackDebug.log(
-            "event type=${event::class.simpleName} uri=${event.uri.orEmpty()} positionMs=$position"
+            "event type=${event.debugName} uri=${event.uri.orEmpty()} positionMs=$position"
         )
         when (event) {
             is PlaybackEvent.Loading -> if (matchesCurrent(event.uri) && !clock.staleResumeEvent(position)) {
@@ -159,10 +161,14 @@ internal class PlaybackEvents(
                 )
             }
 
+            // librespot refuses the item and moves on internally. Leaving the queue where it is
+            // made the drain see 15 s of silence, "recover" the same track with a fresh session
+            // and retry a load that can never succeed, so the queue has to advance here.
             is PlaybackEvent.Unavailable -> if (matchesCurrent(event.uri)) {
                 clock.endStart()
                 clock.clearSeek()
-                store.update { it.copy(isPlaying = false).say("This track isn't available") }
+                store.update { it.copy(isPlaying = false) }
+                onUnavailable()
             }
 
             is PlaybackEvent.Unknown -> Unit

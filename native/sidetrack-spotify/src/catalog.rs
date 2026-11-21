@@ -16,6 +16,7 @@ use librespot_core::spclient::SpClientError;
 use librespot_core::Session;
 use librespot_core::SpotifyUri;
 use librespot_metadata::image::Images;
+use librespot_metadata::restriction::Restrictions;
 use librespot_metadata::{Album, Artist, Episode, Metadata, Playlist, Show, Track};
 use librespot_protocol::context::Context;
 use librespot_protocol::extended_metadata::{
@@ -23,7 +24,8 @@ use librespot_protocol::extended_metadata::{
 };
 use librespot_protocol::extension_kind::ExtensionKind;
 use librespot_protocol::playlist4_external::{
-    Add, Delta, Item as PlaylistItem, ItemAttributes, ListChanges, Op, Rem, SelectedListContent,
+    Add, Delta, Item as PlaylistItem, ItemAttributes, ListAttributes, ListAttributesPartialState,
+    ListChanges, Op, Rem, SelectedListContent, UpdateListAttributes,
 };
 use protobuf::{EnumOrUnknown, Message, MessageField};
 use serde::Serialize;
@@ -85,15 +87,20 @@ struct AlbumJson {
 struct PlaylistEditJson {
     can_add_items: bool,
     can_remove_items: bool,
+    can_rename: bool,
+    can_delete: bool,
 }
 
 fn playlist_edit(can_edit_items: bool, owned: bool) -> PlaylistEditJson {
     // `can_edit_items` is the service's own permission bit. A playlist the user owns is editable
-    // even when the decorated metadata omitted capabilities.
+    // even when the decorated metadata omitted capabilities. Renaming and deleting are owner-only:
+    // a collaborator may edit items without being allowed to change the playlist itself.
     let editable = can_edit_items || owned;
     PlaylistEditJson {
         can_add_items: editable,
         can_remove_items: editable,
+        can_rename: owned,
+        can_delete: owned,
     }
 }
 
@@ -235,8 +242,55 @@ fn artist_name_and_id(artist: Option<&librespot_metadata::Artist>) -> (String, S
     }
 }
 
+/// Any restriction means the track cannot be played, including one that carries nothing but
+/// `type = STREAMING` and an empty `countries_allowed`.
+///
+/// An empty allow-list is not "unconstrained": it means no market is allowed. "Temperature x
+/// Memories" arrives exactly like that, and librespot's own loader agrees with the flag — "Track
+/// should be available, but no alternatives found" — so reading the entry as harmless attempted a
+/// track that cannot start, stalled the drain for 15 s and rebuilt the session for nothing.
+fn is_playable(track: &Track) -> bool {
+    track.restrictions.is_empty()
+}
+
+/// Logged whenever [is_playable] turns a row dark: the raw entries are the only way to tell which
+/// market or catalogue Spotify excluded, and an empty allow-list reads like absence at a glance.
+fn describe_restrictions(restrictions: &Restrictions) -> String {
+    restrictions
+        .iter()
+        .map(|restriction| {
+            let catalogues = if restriction.catalogue_strs.is_empty() {
+                "none".to_string()
+            } else {
+                restriction.catalogue_strs.join(",")
+            };
+            let countries = match (&restriction.countries_allowed, &restriction.countries_forbidden)
+            {
+                (Some(allowed), _) if allowed.is_empty() => "allowed=[]".to_string(),
+                (Some(allowed), _) => format!("allowed={}", allowed.join(",")),
+                (_, Some(forbidden)) if forbidden.is_empty() => "forbidden=[]".to_string(),
+                (_, Some(forbidden)) => format!("forbidden={}", forbidden.join(",")),
+                _ => "countries=any".to_string(),
+            };
+            format!(
+                "{{catalogue=[{catalogues}] type={:?} {countries}}}",
+                restriction.restriction_type
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 fn track_json(track: &Track) -> TrackJson {
     let (artist, artist_id) = artist_name_and_id(track.artists.first());
+    let playable = is_playable(track);
+    if !playable {
+        log::warn!(
+            "catalog: track {} flagged unplayable, restrictions: {}",
+            id_of(&track.id),
+            describe_restrictions(&track.restrictions)
+        );
+    }
     TrackJson {
         id: id_of(&track.id),
         title: track.name.clone(),
@@ -246,7 +300,7 @@ fn track_json(track: &Track) -> TrackJson {
         art_res: 0,
         duration_ms: track.duration as i64,
         explicit: track.is_explicit,
-        playable: track.restrictions.is_empty(),
+        playable,
         uri: uri_of(&id_of(&track.id), "track"),
         art_url: image_url(&track.album.covers),
     }
@@ -1770,6 +1824,32 @@ fn playlist_remove_changes(base_revision: &[u8], indices: &[i32]) -> ListChanges
     changes
 }
 
+/// Builds the delta that renames a playlist. The new name is a list-attribute update, so the
+/// caller sends it with the current revision like any other playlist change.
+fn playlist_rename_changes(base_revision: &[u8], name: &str) -> ListChanges {
+    let mut changes = ListChanges::new();
+    changes.base_revision = Some(base_revision.to_vec());
+    let mut delta = Delta::new();
+    delta.ops.push(Op {
+        kind: Some(EnumOrUnknown::new(
+            librespot_protocol::playlist4_external::op::Kind::UPDATE_LIST_ATTRIBUTES,
+        )),
+        update_list_attributes: MessageField::some(UpdateListAttributes {
+            new_attributes: MessageField::some(ListAttributesPartialState {
+                values: MessageField::some(ListAttributes {
+                    name: Some(name.to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    changes.deltas.push(delta);
+    changes
+}
+
 /// Indices of the last occurrence of each URI, in the order the URIs were given. Undo removes
 /// the copy that was just added, not an older duplicate.
 fn playlist_item_indices(items: &[PlaylistItem], uris: &[String]) -> Vec<i32> {
@@ -1781,6 +1861,53 @@ fn playlist_item_indices(items: &[PlaylistItem], uris: &[String]) -> Vec<i32> {
                 .map(|index| index as i32)
         })
         .collect()
+}
+
+/// Renames a playlist the signed-in user owns. Re-reads the playlist for the current revision,
+/// like the item writes, so a concurrent edit cannot make the change apply to the wrong state.
+pub async fn playlist_rename(
+    session: &Session,
+    token: &str,
+    id: &str,
+    name: &str,
+) -> Result<(), String> {
+    if name.trim().is_empty() {
+        return Err("a playlist needs a name".to_string());
+    }
+    let playlist_id = id_of(&spotify_uri(id, "playlist")?);
+    let mut last_error = String::new();
+    for attempt in 0..2 {
+        let content = playlist_content(session, token, &playlist_id).await?;
+        if content.owner_username() != session.username() {
+            return Err("forbidden: only the owner can rename this playlist".to_string());
+        }
+        let changes = playlist_rename_changes(
+            content.revision.as_deref().unwrap_or_default(),
+            name.trim(),
+        );
+        let body = changes.write_to_bytes().map_err(|e| e.to_string())?;
+        match sp_request(
+            session,
+            token,
+            Method::POST,
+            &format!("/playlist/v2/playlist/{playlist_id}/changes"),
+            Some("application/x-www-form-urlencoded"),
+            &body,
+        )
+        .await
+        {
+            Ok(_) => {
+                invalidate_collection(&session.username(), &playlist_id);
+                return Ok(());
+            }
+            Err(error) if attempt == 0 && is_revision_conflict(&error) => {
+                log::warn!("playlist rename hit a revision conflict, retrying: {error}");
+                last_error = error;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(last_error)
 }
 
 /// Appends [uris] to a playlist the user can edit. Returns the index the first item landed at,
@@ -2312,14 +2439,55 @@ pub async fn top_tracks(
 #[cfg(test)]
 mod tests {
     use super::{
-        library_page, owner_display, percent_decode, playlist_add_changes, playlist_id_of,
-        playlist_item_indices, playlist_remove_changes, radio_playlist_uri, radio_track_uris,
-        rootlist_folder_name, sort_newest_first, wants_scope, CollectionItem,
+        describe_restrictions, library_page, owner_display, percent_decode, playlist_add_changes,
+        playlist_id_of, playlist_item_indices, playlist_remove_changes, radio_playlist_uri,
+        radio_track_uris, rootlist_folder_name, sort_newest_first, wants_scope, CollectionItem,
     };
     use librespot_core::SpotifyUri;
+    use librespot_metadata::restriction::{
+        Restriction, RestrictionCatalogues, Restrictions, RestrictionType,
+    };
     use librespot_protocol::playlist4_external::Item as PlaylistItem;
     use protobuf::Message;
     use serde_json::json;
+
+    fn restriction(
+        catalogue_strs: &[&str],
+        countries_allowed: Option<&[&str]>,
+        countries_forbidden: Option<&[&str]>,
+    ) -> Restriction {
+        Restriction {
+            catalogues: RestrictionCatalogues(Vec::new()),
+            restriction_type: RestrictionType::STREAMING,
+            catalogue_strs: catalogue_strs.iter().map(|value| value.to_string()).collect(),
+            countries_allowed: countries_allowed
+                .map(|list| list.iter().map(|value| value.to_string()).collect()),
+            countries_forbidden: countries_forbidden
+                .map(|list| list.iter().map(|value| value.to_string()).collect()),
+        }
+    }
+
+    /// The shape Spotify sent for "Temperature x Memories": an empty `countries_allowed` reads like
+    /// "no country excluded", so the log has to spell the difference out.
+    #[test]
+    fn an_empty_allow_list_reads_as_empty_not_absent() {
+        let restrictions = Restrictions(vec![restriction(&[], Some(&[]), None)]);
+        let described = describe_restrictions(&restrictions);
+        assert!(described.contains("catalogue=[none]"), "{described}");
+        assert!(described.contains("allowed=[]"), "{described}");
+        assert!(!described.contains("countries=any"), "{described}");
+    }
+
+    #[test]
+    fn a_named_restriction_reads_as_its_countries_and_catalogues() {
+        let restricted = Restrictions(vec![restriction(&["premium"], None, Some(&["US", "CA"]))]);
+        let described = describe_restrictions(&restricted);
+        assert!(described.contains("catalogue=[premium]"), "{described}");
+        assert!(described.contains("forbidden=US,CA"), "{described}");
+
+        let unrestricted = Restrictions(vec![restriction(&[], None, None)]);
+        assert!(describe_restrictions(&unrestricted).contains("countries=any"));
+    }
 
     #[test]
     fn wants_scope_never_treats_an_empty_list_as_everything() {

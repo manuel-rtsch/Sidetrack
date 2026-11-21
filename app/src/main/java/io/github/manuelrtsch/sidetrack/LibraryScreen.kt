@@ -60,7 +60,8 @@ fun LibraryScreen(
     onAddLatestShowToQueue: (Show) -> Unit = {},
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
-    onAddToPlaylist: ((Track) -> Unit)? = null
+    onAddToPlaylist: ((Track) -> Unit)? = null,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val rows = rememberTrackRows(
         saved,
@@ -77,7 +78,7 @@ fun LibraryScreen(
     }
     val actions = rowActionBarActions(
         rows.bar,
-        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     )
     // The gate outlives any one row: after a hold switches category, the list may rebuild and move
     // focus before the physical key comes up. The screen root uses the same gate to swallow the
@@ -97,7 +98,7 @@ fun LibraryScreen(
         )
     ) { padding ->
         val listState = rememberLazyListState()
-        rows.bar.dismissOnScroll(listState)
+        rows.bar.DismissOnScroll(listState)
         val filter = library.filter
         val items = library.libraryItems
         val filterFocus = remember {
@@ -168,6 +169,7 @@ fun LibraryScreen(
                 library.libraryMorePending,
                 firstItemListIndex = 1
             )
+            val rowKeys = remember(items) { mediaRowKeys(items) }
             SidekitList(padding, state = listState) {
                 item(key = "filters") {
                     LibraryFilterRow(
@@ -187,8 +189,8 @@ fun LibraryScreen(
                 val base = rowIndex
                 itemsIndexed(
                     items,
-                    key = { index, item -> "$index:${libraryKey(item)}" },
-                    contentType = { _, item -> libraryKey(item).take(1) }
+                    key = { index, _ -> rowKeys[index] },
+                    contentType = { _, item -> mediaContentType(item) }
                 ) { index, item ->
                     var modifier: Modifier = Modifier.listFade(listState, base + index)
                     if (index == 0) modifier = modifier.then(firstRowModifier)

@@ -3,6 +3,7 @@ package io.github.manuelrtsch.sidetrack
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +26,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import hrln.interactive.sidekit.design.action.LocalChrome
 import hrln.interactive.sidekit.design.components.SidekitCard
 import hrln.interactive.sidekit.design.components.SidekitItemRow
 import hrln.interactive.sidekit.design.components.SidekitList
@@ -40,7 +50,8 @@ import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
 import io.github.manuelrtsch.sidetrack.ui.RowGutterState
-import io.github.manuelrtsch.sidetrack.ui.rememberGutterSquareFocus
+import io.github.manuelrtsch.sidetrack.ui.gutterSquareFocus
+import io.github.manuelrtsch.sidetrack.ui.keyScroll
 import io.github.manuelrtsch.sidetrack.ui.rememberRowGutterState
 
 /**
@@ -69,7 +80,8 @@ fun ShowScreen(
     onShowNotes: () -> Unit,
     onEpisodeNotes: (Episode) -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val colors = SidekitTheme.colors
     val savedCollection = collection.key.encode() in saved.savedCollectionKeys
@@ -82,7 +94,8 @@ fun ShowScreen(
             onDismissNotice,
             onNowPlaying,
             onDismissNowPlaying,
-            back
+            back,
+            onUndoQueueReplace = onUndoQueueReplace
         )
     )
     val showNotes = remember(collection.description) { plainPodcastText(collection.description) }
@@ -99,7 +112,7 @@ fun ShowScreen(
         options = options
     ) { padding ->
         val listState = rememberLazyListState()
-        rowActions.dismissOnScroll(listState)
+        rowActions.DismissOnScroll(listState)
         val playFocus = remember { FocusRequester() }
         val moreFocus = rememberLoadMoreFocus()
         val gutters = rememberRowGutterState()
@@ -263,7 +276,6 @@ private fun EpisodeRow(
     onClick: () -> Unit
 ) {
     val colors = SidekitTheme.colors
-    val squareFocus = rememberGutterSquareFocus(key, focus)
     val notes = remember(episode.description) { plainPodcastText(episode.description) }
     val resume = progress?.takeIf { !it.completed }
     val selected = bar.selection?.key == key
@@ -273,20 +285,7 @@ private fun EpisodeRow(
         // Free-height card rather than SidekitTile: a podcast row needs the title, its identity,
         // full-width notes and a progress line, which cannot fit the fixed single-item height.
         Box(
-            Modifier
-                .fillMaxWidth()
-                .focusRequester(rowFocus)
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .onFocusChanged { state ->
-                    if (state.isFocused) focus.rowFocused(key) else focus.rowUnfocused(key)
-                }
-                .then(
-                    if (selected) {
-                        Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                    } else {
-                        Modifier
-                    }
-                )
+            gutterRowModifier(key, selected, focus, rowFocus, focusRequester, Modifier.fillMaxWidth())
                 .clip(SidekitTheme.shapes.item)
                 .background(if (episode.playable) colors.surfaceA3 else colors.surfaceA2)
                 .clickable(
@@ -356,25 +355,16 @@ private fun EpisodeRow(
             }
         }
     }) {
-        RowActionSquare(
-            color = SidekitTheme.colors.surfaceA4,
-            label = "Actions for ${episode.title}",
-            content = { MeatballIcon() },
-            modifier = squareFocus,
-            onClick = {
-                focus.touchDismissed(key)
-                bar.show(
-                    RowActionSelection(
-                        key = key,
-                        title = episode.title,
-                        focusRequester = rowFocus,
-                        actions = rowActions(
-                            addToQueueRowAction(episode.title) { onAddToQueue(episode) },
-                            if (notes.isNotBlank()) episodeNotesRowAction(episode.title, onNotes) else null
-                        )
-                    )
-                )
-            }
+        GutterMeatball(
+            key,
+            episode.title,
+            focus,
+            bar,
+            rowFocus,
+            rowActions(
+                addToQueueRowAction(episode.title) { onAddToQueue(episode) },
+                if (notes.isNotBlank()) episodeNotesRowAction(episode.title, onNotes) else null
+            )
         )
     }
 }
@@ -412,17 +402,47 @@ fun NotesScreen(
     val paragraphs = remember(body) {
         body.split("\n\n").map(String::trim).filter(String::isNotEmpty)
     }
+    // Nothing on this page can take focus, so the list does: Sidekit's lists only scroll to chase
+    // focus, and without a target of their own the keypad would walk past the notes entirely. The
+    // list keeps it and steps itself (keyScroll).
+    val focus = remember { FocusRequester() }
+    val keyStep = with(LocalDensity.current) { NOTES_KEY_STEP.toPx() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    // Past either end of the notes there is one place left to go, the action bar, and focus search
+    // cannot find it from here: the bar is drawn over the list's own bottom edge, so every Down at
+    // the last paragraph and Up at the first asks for it by name instead. That is the same door the
+    // Options hold uses, and Up on the bar hands focus back to the list (Sidekit's content focus).
+    val chrome = LocalChrome.current
+    val handOffToActionBar = Modifier.onPreviewKeyEvent { event ->
+        if (event.type == KeyEventType.KeyDown) {
+            val pastEnd = event.key == Key.DirectionDown && !listState.canScrollForward
+            val pastStart = event.key == Key.DirectionUp && !listState.canScrollBackward
+            if (pastEnd || pastStart) chrome?.focusActionBar()
+        }
+        false
+    }
     SidekitScaffold(
         title = label,
         actions = sidetrackBack("Back", onBack)
     ) { padding ->
-        SidekitList(padding, state = listState) {
+        SidekitList(
+            padding,
+            modifier = Modifier
+                .keyScroll(listState, keyStep)
+                .then(handOffToActionBar)
+                .focusRequester(focus)
+                .focusable()
+                .semantics { contentDescription = label },
+            state = listState
+        ) {
             item(key = "title") {
                 SidekitCard(Modifier.fillMaxWidth().listFade(listState, 0)) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SidekitText(
                             title.ifBlank { label },
-                            style = SidekitTheme.typography.headline,
+                            // One step down from the chrome's own title: the page is already
+                            // labelled above, so the card reads as a heading, not a second title.
+                            style = SidekitTheme.typography.body,
                             maxLines = 3
                         )
                     }
@@ -463,3 +483,6 @@ fun NotesScreen(
         }
     }
 }
+
+/** How far one arrow key moves the notes: about three lines of body text. */
+private val NOTES_KEY_STEP = 64.dp

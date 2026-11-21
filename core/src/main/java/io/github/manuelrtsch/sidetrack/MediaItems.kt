@@ -282,11 +282,6 @@ enum class AudioQuality(val label: String, val bitrateKbps: Int) {
     fun next(): AudioQuality = entries[(ordinal + 1) % entries.size]
 }
 
-data class QueueItem(
-    val item: MediaItem,
-    val isCurrent: Boolean = false
-)
-
 /** Playlist subtitle, prefixed with its library folder when the rootlist places it in one. */
 fun playlistSubtitle(item: Playlist): String = buildString {
     item.folder?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }

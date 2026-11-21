@@ -91,6 +91,18 @@ interface ServiceAuth {
 }
 
 /**
+ * A [ServiceAuth] whose local credential state a runtime may inspect and drop.
+ *
+ * The runtime asks once at construction whether a session exists, and forgets it on sign-out.
+ * Keeping the two calls on the auth object means a device whose keystore refused the session can
+ * still be signed in for this process without pretending the credentials were stored.
+ */
+interface RuntimeAuth : ServiceAuth {
+    fun hasCredentials(): Boolean
+    fun clear()
+}
+
+/**
  * Read side of a music service, expressed in the neutral domain model. Each provider maps its
  * own catalog onto this contract; the UI never sees a provider-specific type.
  *
@@ -137,10 +149,23 @@ interface MediaLibraryWriter {
     suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int? = null) = Unit
 
     /**
-     * Creates a new empty playlist named [name] and returns it, or null when the service cannot
-     * (the app never creates playlists it owns on a service that does not support it).
+     * Renames [playlist] to [name]. False when the service has no rename transport; a refusal is
+     * thrown so the caller can report the service's reason.
      */
-    suspend fun createPlaylist(name: String): Playlist? = null
+    suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean = false
+
+    /**
+     * Deletes [playlist] on the service. False when the service has no delete transport; a refusal
+     * is thrown so the caller can report the service's reason.
+     */
+    suspend fun deletePlaylist(playlist: MediaKey): Boolean = false
+
+    /**
+     * Creates a playlist named [name], optionally seeded with [seed] in that order, and returns it.
+     * Null when the service cannot create playlists (the app never creates playlists it owns on a
+     * service that does not support it).
+     */
+    suspend fun createPlaylist(name: String, seed: List<MediaKey> = emptyList()): Playlist? = null
 }
 
 /**

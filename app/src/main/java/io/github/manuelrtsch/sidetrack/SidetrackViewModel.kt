@@ -50,7 +50,9 @@ class SidetrackViewModel(
     private val session: ServiceRuntime? = null,
     private val openBrowser: (suspend (String) -> Unit)? = null,
     private val clearArtworkCache: () -> Unit = {},
-    private val simulatePlayback: Boolean = true
+    private val simulatePlayback: Boolean = true,
+    private val loadSearchHistory: () -> List<String> = { emptyList() },
+    private val saveSearchHistory: (List<String>) -> Unit = {}
 ) : ViewModel() {
     /** The active service's identity; fixtures without a runtime use the local service. */
     private val service: ServiceId get() = session?.service ?: ServiceId.Local
@@ -75,7 +77,8 @@ class SidetrackViewModel(
     private val store = UiStateStore(
         SidetrackUiState(
             signedIn = session?.signedIn?.value ?: false,
-            searchScopes = supportedScopes
+            searchScopes = supportedScopes,
+            searchHistory = loadSearchHistory()
         )
     )
     val state: StateFlow<SidetrackUiState> = store.state
@@ -157,7 +160,8 @@ class SidetrackViewModel(
         history = history,
         queue = queue,
         effects = effects,
-        clearArtworkCache = clearArtworkCache
+        clearArtworkCache = clearArtworkCache,
+        scope = viewModelScope
     )
 
     private val driver = PlaybackDriver(
@@ -274,6 +278,7 @@ class SidetrackViewModel(
         catalog = catalog,
         supportedScopes = { supportedScopes },
         online = { session?.isOnline != false },
+        saveSearchHistory = saveSearchHistory,
         coroutineScope = viewModelScope
     )
 
@@ -284,13 +289,13 @@ class SidetrackViewModel(
     init {
         sessionWiring?.install()
         driver.restore()
-        refreshCacheSize()
+        // Cache size is read when Settings opens, not here: it walks thousands of files and no
+        // other screen shows it.
         PlaybackTicker(viewModelScope, session, store, clock, driver, uiVisible, simulatePlayback).start()
     }
 
     override fun onCleared() {
         sessionWiring?.detach()
-        super.onCleared()
     }
 
     fun setSleepTimer(minutes: Int) {
@@ -305,7 +310,14 @@ class SidetrackViewModel(
         session?.playback?.clearSleepTimer()
     }
 
-    fun dismissNotice() = notifier.dismiss()
+    /**
+     * Dismisses whatever transient message owns the bar. The queue-replaced offer is one of them,
+     * so dismissing the bar also withdraws it instead of leaving an Undo nothing can reach.
+     */
+    fun dismissNotice() {
+        notifier.dismiss()
+        driver.discardQueueReplaceOffer()
+    }
 
     /** Shows a transient bar message; [kind] decides how long it stays. */
     fun notice(text: String, kind: NoticeKind = NoticeKind.Other) = notifier.say(text, kind)
@@ -313,12 +325,15 @@ class SidetrackViewModel(
     /** Dismisses the transient now-playing confirmation and returns the normal action bar. */
     fun dismissNowPlayingNotice() = effects.dismissNowPlayingNotice()
 
+    /** Puts back the queue the last collection tap replaced, and resumes what was playing. */
+    fun undoQueueReplace() = driver.undoQueueReplaced()
+
     /**
-     * Creates a new empty playlist named [name] on the active service and reloads the Playlists
-     * category so it is visible. Returns the created [Playlist] for the caller to open, or null
-     * when the service cannot create playlists.
+     * Creates a playlist named [name], optionally seeded with [seed], on the active service and
+     * reloads the Playlists category so it is visible. Returns the created [Playlist] for the
+     * caller to open, or null when the service cannot create playlists.
      */
-    suspend fun createPlaylist(name: String): Playlist? = playlists.create(name)
+    suspend fun createPlaylist(name: String, seed: List<MediaKey> = emptyList()): Playlist? = playlists.create(name, seed)
 
     fun ensurePlaylistChoices() = playlists.ensureChoices()
 
@@ -336,7 +351,15 @@ class SidetrackViewModel(
         playlists.remove(collection, item, index)
     }
 
+    suspend fun renamePlaylist(collection: Collection, name: String): Boolean = playlists.rename(collection, name)
+
+    suspend fun deletePlaylist(collection: Collection): Boolean = playlists.delete(collection)
+
+    fun deletePlaylistInBackground(collection: Collection) = playlists.deleteInBackground(collection)
+
     fun playNow(item: MediaItem) = driver.playNow(item)
+
+    fun playFirst(item: MediaItem) = driver.playFirst(item)
 
     fun play(items: List<MediaItem>, index: Int) = driver.play(items, index)
 
@@ -355,14 +378,6 @@ class SidetrackViewModel(
     fun retryArtistRadio(artist: Artist) = radio.retryArtistRadio(artist)
 
     fun playArtistRadio(index: Int) = radio.playArtistRadio(index)
-
-    /**
-     * Plays the artist's whole top-tracks list. Pages still behind "See more tracks" are fetched
-     * first so the queue always matches the list the page shows, instead of whichever page the
-     * user happened to have expanded when they pressed play.
-     */
-
-    fun playRecent(item: MediaItem) = driver.playRecent(item)
 
     fun skipBack(milliseconds: Long = PODCAST_SKIP_MS) = driver.skipBack(milliseconds)
 
@@ -424,10 +439,7 @@ class SidetrackViewModel(
 
     fun signIn(serverUrl: String, username: String, password: String) = account.signIn(serverUrl, username, password)
 
-    fun signOut() {
-        account.signOut()
-        refreshCacheSize()
-    }
+    fun signOut() = account.signOut()
 
     fun toggleShuffle() = effects.applyQueue(queue.toggleShuffle(), syncNowPlaying = false)
 
@@ -476,7 +488,22 @@ class SidetrackViewModel(
 
     fun retryLibrary() = library.retry()
 
-    fun setQuery(query: String) = search.setQuery(query)
+    /** Session-only: whether the search field was put away, so the history stays readable. */
+    val searchFocusDismissed = search.searchFocusDismissed
+
+    fun dismissSearchFocus() = search.dismissSearchFocus()
+
+    fun restoreSearchFocus() = search.restoreSearchFocus()
+
+    fun setSearchDraft(query: String) = search.setDraftQuery(query)
+
+    fun submitSearch(query: String) = search.submitSearch(query)
+
+    fun removeSearchHistory(query: String) = search.removeSearchHistory(query)
+
+    fun clearSearchHistory() = search.clearSearchHistory()
+
+    fun restoreSearchHistory(history: List<String>) = search.restoreSearchHistory(history)
 
     fun clearQuery() = search.clearQuery()
 

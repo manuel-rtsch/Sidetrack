@@ -2,6 +2,7 @@ package io.github.manuelrtsch.sidetrack
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import hrln.interactive.sidekit.design.input.T9Mode
 
 /**
@@ -17,22 +18,20 @@ internal class SidetrackLocalSettings(context: Context) {
     var inputMode: T9Mode
         get() = T9Mode.entries.firstOrNull { it.name == prefs.getString(KEY_INPUT_MODE, null) } ?: T9Mode.MultiTap
         set(value) {
-            prefs.edit().putString(KEY_INPUT_MODE, value.name).apply()
+            prefs.edit { putString(KEY_INPUT_MODE, value.name) }
         }
-
-    fun observeInputMode(onChange: () -> Unit): () -> Unit = observe(KEY_INPUT_MODE, onChange)
 
     /**
-     * Experimental: the song Now Playing screen draws its artwork behind the controls. Off by
-     * default, because it changes how one screen reads rather than how the app looks overall.
+     * The song Now Playing screen draws its artwork behind the controls. Off by default, because it
+     * changes how one screen reads rather than how the app looks overall.
      */
-    var artworkBackdrop: Boolean
-        get() = prefs.getBoolean(KEY_ARTWORK_BACKDROP, false)
+    var nowPlayingBackdrop: Boolean
+        get() = prefs.getBoolean(KEY_NOW_PLAYING_BACKDROP, false)
         set(value) {
-            prefs.edit().putBoolean(KEY_ARTWORK_BACKDROP, value).apply()
+            prefs.edit { putBoolean(KEY_NOW_PLAYING_BACKDROP, value) }
         }
 
-    fun observeArtworkBackdrop(onChange: () -> Unit): () -> Unit = observe(KEY_ARTWORK_BACKDROP, onChange)
+    fun observeNowPlayingBackdrop(onChange: () -> Unit): () -> Unit = observe(KEY_NOW_PLAYING_BACKDROP, onChange)
 
     /**
      * Shrinks the media rows by about a fifth so five fit where four used to. Off by default: the
@@ -41,10 +40,25 @@ internal class SidetrackLocalSettings(context: Context) {
     var compactRows: Boolean
         get() = prefs.getBoolean(KEY_COMPACT_ROWS, false)
         set(value) {
-            prefs.edit().putBoolean(KEY_COMPACT_ROWS, value).apply()
+            prefs.edit { putBoolean(KEY_COMPACT_ROWS, value) }
         }
 
     fun observeCompactRows(onChange: () -> Unit): () -> Unit = observe(KEY_COMPACT_ROWS, onChange)
+
+    /**
+     * Recent search terms, newest first. Stored as one string because SharedPreferences' string
+     * set has no order, and a search history is only useful in the order it was searched.
+     */
+    var searchHistory: List<String>
+        get() = prefs.getString(KEY_SEARCH_HISTORY, null)
+            ?.split(SEARCH_HISTORY_SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        set(value) {
+            prefs.edit {
+                putString(KEY_SEARCH_HISTORY, value.joinToString(SEARCH_HISTORY_SEPARATOR))
+            }
+        }
 
     private fun observe(key: String, onChange: () -> Unit): () -> Unit {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changed ->
@@ -64,9 +78,7 @@ internal class SidetrackLocalSettings(context: Context) {
     fun needsOnboarding(): Boolean = !hasSeenOnboarding()
 
     fun markOnboardingSeen() {
-        prefs.edit()
-            .putBoolean(KEY_ONBOARDING_SEEN, true)
-            .apply()
+        prefs.edit { putBoolean(KEY_ONBOARDING_SEEN, true) }
     }
 
     /**
@@ -75,16 +87,24 @@ internal class SidetrackLocalSettings(context: Context) {
      */
     fun applyStandaloneThemeDefaults() {
         if (prefs.contains(KEY_COMPACT_LAYOUT)) return
-        prefs.edit().putBoolean(KEY_COMPACT_LAYOUT, true).apply()
+        prefs.edit { putBoolean(KEY_COMPACT_LAYOUT, true) }
     }
 
     companion object {
         const val FILE = "sidetrack_settings"
         const val KEYPAD_FILE = "sidetrack_keypad"
         private const val KEY_INPUT_MODE = "input_mode"
-        private const val KEY_ARTWORK_BACKDROP = "artwork_backdrop"
+
+        // Spelled for the artwork it paints, and kept from before the setting was named after the
+        // screen, so an install that already turned it on still finds its choice.
+        private const val KEY_NOW_PLAYING_BACKDROP = "artwork_backdrop"
         private const val KEY_COMPACT_ROWS = "compact_rows"
         private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
+        private const val KEY_SEARCH_HISTORY = "search_history"
+
+        // A query cannot contain a unit separator: the field is single-line and this is not a
+        // character the keypad can type.
+        private const val SEARCH_HISTORY_SEPARATOR = "\u001F"
 
         // Must match the key SharedPreferencesSidekitThemeStore reads and writes.
         private const val KEY_COMPACT_LAYOUT = "compact_layout"

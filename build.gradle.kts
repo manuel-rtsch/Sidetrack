@@ -47,6 +47,7 @@ tasks.register("coverage") {
         ":core:koverVerifyDebug",
         ":provider-spotify:koverVerifyDebug",
         ":provider-jellyfin:koverVerifyDebug",
-        ":provider-navidrome:koverVerifyDebug"
+        ":provider-subsonic:koverVerifyDebug",
+        ":provider-plex:koverVerifyDebug"
     )
 }

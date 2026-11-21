@@ -27,12 +27,13 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             onLibrary = { nav.navigate(LIBRARY) },
             onSearch = { nav.navigate(SEARCH) },
             onSettings = { nav.navigate(SETTINGS) },
-            onPlay = { item -> nav.openTrack(vm, item) { vm.playRecent(item) } },
+            onPlay = { item -> nav.openTrack(vm, item) { vm.playNow(item) } },
             onOpenQueue = { nav.navigate(QUEUE) },
             onAddToQueue = vm::addToQueue,
             onRemoveHistory = vm::removeHistory,
             onHistory = { nav.navigate(HISTORY) },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }
@@ -44,11 +45,12 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             playback,
             chrome,
             onBack = { nav.popBackStack() },
-            onPlay = { item -> nav.openTrack(vm, item) { vm.playRecent(item) } },
+            onPlay = { item -> nav.openTrack(vm, item) { vm.playNow(item) } },
             onAddToQueue = vm::addToQueue,
             onRemove = vm::removeHistory,
             onNowPlaying = { nav.openNowPlaying(vm) },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }
@@ -88,6 +90,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             onQueuePlaylist = { vm.queuePlaylist(it) },
             onAddLatestShowToQueue = { vm.queueLatestEpisode(it) },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice,
             onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
                 { track -> nav.openAddToPlaylist(track) }
@@ -98,14 +101,16 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
     }
     composable(CREATE_PLAYLIST) { entry ->
         val vm = entry.sidetrackViewModel(nav)
+        val playback by vm.playbackState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
         CreatePlaylistScreen(
             chrome,
+            recentTracks = playback.recent.filterIsInstance<Track>(),
             onBack = { nav.popBackStack() },
-            onSubmit = { name ->
+            onSubmit = { name, seed ->
                 scope.launch {
-                    val playlist = vm.createPlaylist(name)
+                    val playlist = vm.createPlaylist(name, seed)
                     if (playlist != null) {
                         nav.navigate(collectionRoute(playlist.key)) {
                             launchSingleTop = true
@@ -115,6 +120,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 }
             },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }
@@ -136,6 +142,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 track?.let { vm.undoAddToPlaylist(playlist, it, index) }
             },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }
@@ -195,8 +202,8 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 onArtwork = {
                     nav.navigate(artworkRoute(collection.artRes, collection.artUrl, collection.title))
                 },
-                onLoadMore = { mediaKey?.let { vm.loadMoreCollection(it) } },
-                loadingMore = mediaKey?.encode() in library.collectionMorePending,
+                onLoadMore = { vm.loadMoreCollection(mediaKey) },
+                loadingMore = mediaKey.encode() in library.collectionMorePending,
                 onShowNotes = {
                     nav.navigate(
                         notesRoute(
@@ -220,6 +227,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                     )
                 },
                 onDismissNotice = vm::dismissNotice,
+                onUndoQueueReplace = vm::undoQueueReplace,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice
             )
         } else {
@@ -243,15 +251,17 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 },
                 onAddToQueue = { vm.queueCollection(collection) },
                 onAddItemToQueue = vm::addToQueue,
+                onPlayItem = vm::playFirst,
                 onSaveTrack = { vm.toggleSaved(it) },
                 onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
                 onNowPlaying = { nav.openNowPlaying(vm) },
                 onArtwork = {
                     nav.navigate(artworkRoute(collection.artRes, collection.artUrl, collection.title))
                 },
-                onLoadMore = { mediaKey?.let { vm.loadMoreCollection(it) } },
-                loadingMore = mediaKey?.encode() in library.collectionMorePending,
+                onLoadMore = { vm.loadMoreCollection(mediaKey) },
+                loadingMore = mediaKey.encode() in library.collectionMorePending,
                 onDismissNotice = vm::dismissNotice,
+                onUndoQueueReplace = vm::undoQueueReplace,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice,
                 onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit && collection.type != CollectionType.Playlist) {
                     { track -> nav.openAddToPlaylist(track) }
@@ -262,7 +272,23 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                     { item, index -> vm.removeFromPlaylist(collection, item, index) }
                 } else {
                     null
-                }
+                },
+                onRename = if (vm.playlistActions(collection).canRename) {
+                    { name -> vm.renamePlaylist(collection, name) }
+                } else {
+                    null
+                },
+                onDelete = if (vm.playlistActions(collection).canDelete) {
+                    { vm.deletePlaylist(collection) }
+                } else {
+                    null
+                },
+                onDeleteInBackground = if (vm.playlistActions(collection).canDelete) {
+                    { vm.deletePlaylistInBackground(collection) }
+                } else {
+                    null
+                },
+                onDeleted = { nav.popBackStack() }
             )
         }
     }
@@ -318,6 +344,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 trackHasMore = library.artistTrackHasMore[artist.id] == true,
                 loadingMore = artist.id in library.artistMorePending,
                 onDismissNotice = vm::dismissNotice,
+                onUndoQueueReplace = vm::undoQueueReplace,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice,
                 onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
                     { track -> nav.openAddToPlaylist(track) }
@@ -330,17 +357,43 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
     composable(SEARCH) { entry ->
         val vm = entry.sidetrackViewModel(nav)
         val search by vm.searchState.collectAsStateWithLifecycle()
+        val chrome by vm.chromeState.collectAsStateWithLifecycle()
+        val focusDismissed by vm.searchFocusDismissed.collectAsStateWithLifecycle()
+        SearchScreen(
+            search,
+            chrome,
+            supportedScopes = vm.supportedScopes,
+            onBack = { nav.popBackStack() },
+            focusDismissed = focusDismissed,
+            onDismissFocus = vm::dismissSearchFocus,
+            onRestoreFocus = vm::restoreSearchFocus,
+            onDraftQuery = vm::setSearchDraft,
+            onSearch = { query ->
+                vm.submitSearch(query)
+                nav.navigate(SEARCH_RESULTS) { launchSingleTop = true }
+            },
+            onClear = vm::clearQuery,
+            onRemoveHistory = vm::removeSearchHistory,
+            onClearHistory = vm::clearSearchHistory,
+            onRestoreHistory = vm::restoreSearchHistory,
+            onScopes = { nav.navigate(SEARCH_SCOPES) },
+            onNowPlaying = { nav.openNowPlaying(vm) },
+            onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
+            onDismissNowPlaying = vm::dismissNowPlayingNotice
+        )
+    }
+    composable(SEARCH_RESULTS) { entry ->
+        val vm = entry.sidetrackViewModel(nav)
+        val search by vm.searchState.collectAsStateWithLifecycle()
         val saved by vm.savedState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
-        SearchScreen(
+        SearchResultsScreen(
             search,
             saved,
             chrome,
             supportedScopes = vm.supportedScopes,
             onBack = { nav.popBackStack() },
-            onQuery = vm::setQuery,
-            onClear = vm::clearQuery,
-            onToggleScope = vm::toggleScope,
             onTrack = { track -> nav.openTrack(vm, track) { vm.playNow(track) } },
             onAddToQueue = vm::addToQueue,
             onArtist = { nav.navigate(artistRoute(it.key)) },
@@ -354,6 +407,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             onScopes = { nav.navigate(SEARCH_SCOPES) },
             onNowPlaying = { nav.openNowPlaying(vm) },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice,
             onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
                 { track -> nav.openAddToPlaylist(track) }
@@ -379,6 +433,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             onToggleScope = vm::toggleScope,
             onNowPlaying = { nav.openNowPlaying(vm) },
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }

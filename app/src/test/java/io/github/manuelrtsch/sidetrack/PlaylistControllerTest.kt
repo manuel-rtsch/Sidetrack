@@ -110,6 +110,17 @@ class PlaylistControllerTest {
     }
 
     @Test
+    fun `create forwards the trimmed name and the seed in order`() = runTest {
+        val writer = FakeWriter()
+        val controller = controller(FakeCatalog(), store(), this, writer = writer)
+
+        controller.create("  Trip  ", listOf(first.key, second.key))
+
+        assertEquals("Trip", writer.createdName)
+        assertEquals(listOf(first.key, second.key), writer.createdSeed)
+    }
+
+    @Test
     fun `read-only playlists are never written`() = runTest {
         val readOnly = playlist("readonly", PlaylistActions.None)
         val writer = FakeWriter()
@@ -117,6 +128,61 @@ class PlaylistControllerTest {
 
         assertEquals(null, controller.add(readOnly, first))
         assertEquals(0, writer.addCalls)
+    }
+
+    @Test
+    fun `rename patches the cached page and every cached row`() = runTest {
+        val target = playlist("target", PlaylistActions.All)
+        val cacheKey = target.key.encode()
+        val cached = collection("target", listOf(first), PlaylistActions.All)
+        val writer = FakeWriter()
+        val store = store(
+            collections = mapOf(cacheKey to cached),
+            libraryPages = mapOf(LibraryFilter.Playlists to LibraryPage(listOf(target)))
+        )
+        val controller = controller(FakeCatalog(), store, this, writer = writer)
+
+        assertTrue(controller.rename(cached, "  New name  "))
+
+        assertEquals(target.key, writer.renamedPlaylist)
+        assertEquals("New name", writer.renamedName)
+        assertEquals("New name", store.value.collections.getValue(cacheKey).title)
+        assertEquals("New name", store.value.playlistRow("target").name)
+        assertEquals("Renamed to New name", store.value.notice)
+        assertEquals(NoticeKind.Success, store.value.noticeKind)
+    }
+
+    @Test
+    fun `read-only playlists are never renamed or deleted`() = runTest {
+        val readOnly = collection("readonly", listOf(first), PlaylistActions.None)
+        val writer = FakeWriter()
+        val controller = controller(FakeCatalog(), store(), this, writer = writer)
+
+        assertEquals(false, controller.rename(readOnly, "Nope"))
+        assertEquals(false, controller.delete(readOnly))
+        assertEquals(0, writer.renamedCalls)
+        assertEquals(0, writer.deletedCalls)
+    }
+
+    @Test
+    fun `delete drops the page and the row only after the service confirms`() = runTest {
+        val target = playlist("target", PlaylistActions.All)
+        val cacheKey = target.key.encode()
+        val cached = collection("target", listOf(first), PlaylistActions.All)
+        val writer = FakeWriter()
+        val store = store(
+            collections = mapOf(cacheKey to cached),
+            libraryPages = mapOf(LibraryFilter.Playlists to LibraryPage(listOf(target)))
+        )
+        val controller = controller(FakeCatalog(), store, this, writer = writer)
+
+        assertTrue(controller.delete(cached))
+
+        assertEquals(target.key, writer.deletedPlaylist)
+        assertTrue(cacheKey !in store.value.collections)
+        assertTrue(store.value.libraryPages.getValue(LibraryFilter.Playlists).items.isEmpty())
+        assertEquals("Deleted Target", store.value.notice)
+        assertEquals(NoticeKind.Success, store.value.noticeKind)
     }
 
     @Test
@@ -223,6 +289,13 @@ class PlaylistControllerTest {
         var removedPlaylist: MediaKey? = null
         var removedItem: MediaItem? = null
         var removedIndex: Int? = null
+        var createdName: String? = null
+        var createdSeed: List<MediaKey>? = null
+        var renamedCalls = 0
+        var renamedPlaylist: MediaKey? = null
+        var renamedName: String? = null
+        var deletedCalls = 0
+        var deletedPlaylist: MediaKey? = null
 
         override suspend fun isSaved(item: MediaKey): Boolean? = null
         override suspend fun isFollowed(artist: MediaKey): Boolean? = null
@@ -240,6 +313,33 @@ class PlaylistControllerTest {
             removedPlaylist = playlist
             removedItem = item
             removedIndex = index
+        }
+
+        override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
+            renamedCalls++
+            renamedPlaylist = playlist
+            renamedName = name
+            return true
+        }
+
+        override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
+            deletedCalls++
+            deletedPlaylist = playlist
+            return true
+        }
+
+        override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist {
+            createdName = name
+            createdSeed = seed
+            return Playlist(
+                id = "created",
+                name = name,
+                owner = "You",
+                ownerId = null,
+                artRes = 0,
+                tracks = emptyList(),
+                actions = PlaylistActions.All
+            )
         }
     }
 }

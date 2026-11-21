@@ -104,6 +104,8 @@ object NativeBridge : SpotifyNative {
 
     override fun playlistItemsRemove(id: String, uris: String): String? = if (isAvailable) runCatching { nativePlaylistItemsRemove(id, uris) }.getOrNull() else null
 
+    override fun playlistRename(id: String, name: String): String? = if (isAvailable) runCatching { nativePlaylistRename(id, name) }.getOrNull() else null
+
     private external fun nativeInit(): Boolean
     private external fun nativeSetTmpDir(path: String)
     private external fun nativeSetCacheDir(path: String, sizeLimitBytes: Long)
@@ -137,4 +139,5 @@ object NativeBridge : SpotifyNative {
     private external fun nativePlaylistSave(id: String, save: Boolean): Boolean
     private external fun nativePlaylistItemsAdd(id: String, uris: String): String?
     private external fun nativePlaylistItemsRemove(id: String, uris: String): String?
+    private external fun nativePlaylistRename(id: String, name: String): String?
 }

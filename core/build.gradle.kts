@@ -3,7 +3,6 @@ import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
 
@@ -13,7 +12,9 @@ android {
     // and core has neither (its R/buildConfig usage stays with the app, where the resources live).
     namespace = "io.github.manuelrtsch.sidetrack.core"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
     defaultConfig {
         minSdk = 31
@@ -28,6 +29,11 @@ android {
             isReturnDefaultValues = true
         }
     }
+    // Fixtures both :app's unit tests and its instrumented tests use, so they cannot live in one
+    // module's test source set. See docs/codebase-duplication-audit.md.
+    testFixtures {
+        enable = true
+    }
 }
 
 dependencies {
@@ -37,6 +43,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
+    // Fixtures other modules' tests extend, so their dependencies are theirs to see too.
+    testFixturesApi(libs.junit)
+    testFixturesApi(libs.androidx.junit)
+    testFixturesImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // ApplicationProvider and the JUnit4 runner used by the store and progress tests.
@@ -46,7 +56,7 @@ dependencies {
 }
 
 // Coverage ratchet for this module's own tests. The floor is the level measured when Kover was
-// introduced (docs/test-coverage-audit.md); it only ever moves up. Note this measures what this
+// introduced (docs/testing.md); it only ever moves up. Note this measures what this
 // module's tests cover, not what the whole suite covers -- the product-wide gate lives in :app,
 // which is the merging module.
 kover {
@@ -55,12 +65,14 @@ kover {
             verify {
                 // Phase 2 slice 1 (audio focus and the runtime contract seams) raised the
                 // module from 35.8% / 29.0% to 46.5% / 34.0%. Slice 6 moved the controller's
-                // own contract into this module with a fake engine: 64.02% / 50.69%.
+                // own contract into this module with a fake engine: 64.02% / 50.69%. The module
+                // measures 62.95% / 51.23% now; the line floor stays where it was because the
+                // dead-code removal took out as much covered as uncovered code.
                 rule("line coverage") {
                     minBound(63)
                 }
                 rule("branch coverage") {
-                    minBound(49, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(51, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

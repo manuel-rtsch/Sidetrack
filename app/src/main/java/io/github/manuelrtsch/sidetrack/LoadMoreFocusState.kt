@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import hrln.interactive.sidekit.design.components.ItemColour
 import hrln.interactive.sidekit.design.components.SidekitText
@@ -45,6 +46,8 @@ fun TerminalRow(
     label: String,
     modifier: Modifier = Modifier,
     secondary: String? = null,
+    /** Overrides the muted trailing value, e.g. on a coloured surface where it would disappear. */
+    secondaryColor: Color? = null,
     linkArrow: Boolean = secondary == null,
     onClick: (() -> Unit)? = null
 ) {
@@ -69,7 +72,9 @@ fun TerminalRow(
                     secondary,
                     Modifier.weight(1f),
                     style = SidekitTheme.typography.small,
-                    color = SidekitTheme.colors.surfaceA6,
+                    // Compact rows sit on the success fill, where the muted surface tone has
+                    // almost no contrast. The value is as bright as the label beside it.
+                    color = secondaryColor ?: SidekitTheme.colors.light,
                     maxLines = 1,
                     textAlign = TextAlign.End
                 )
@@ -129,13 +134,13 @@ class LoadMoreFocusState {
 @Composable
 fun rememberLoadMoreFocus(): LoadMoreFocusState = remember { LoadMoreFocusState() }
 
-/** The modifier for the row at [index] that should take focus after a page loads. */
-fun LoadMoreFocusState.rowModifier(index: Int): Modifier = if (index == targetIndex) Modifier.focusRequester(firstNewFocus) else Modifier
+/** The modifier for the row at [state]'s [index] that should take focus after a page loads. */
+fun Modifier.rowFocusTarget(state: LoadMoreFocusState, index: Int): Modifier = if (index == state.targetIndex) focusRequester(state.firstNewFocus) else this
 
 /**
  * The requester for the row at [index] that should take focus after a page loads, or null. Row
  * wrappers that hide their focusable element behind another layout pass pass this down instead of
- * putting [rowModifier] on the wrapper, where it would have no focus target to attach to.
+ * putting [rowFocusTarget] on the wrapper, where it would have no focus target to attach to.
  */
 fun LoadMoreFocusState.requesterFor(index: Int): FocusRequester? = if (index == targetIndex) firstNewFocus else null
 

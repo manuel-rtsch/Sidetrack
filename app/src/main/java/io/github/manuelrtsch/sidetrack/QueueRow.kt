@@ -31,6 +31,8 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import io.github.manuelrtsch.sidetrack.R
 import io.github.manuelrtsch.sidetrack.playback.formatDuration
+import io.github.manuelrtsch.sidetrack.ui.GUTTER_ANIM_MS
+import io.github.manuelrtsch.sidetrack.ui.GUTTER_SLIDE
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.QueueIndication
 import io.github.manuelrtsch.sidetrack.ui.QueueReorderState
@@ -185,7 +187,7 @@ internal fun QueueUpcomingRow(
                                 Modifier
                             }
                         )
-                        .then(host.moreFocus.rowModifier(index)),
+                        .rowFocusTarget(host.moreFocus, index),
                     secondary = item.creator,
                     // The side control gets the right edge while it is visible.
                     trailing = if (gutter > 0.dp) null else formatDuration(item.durationMs),

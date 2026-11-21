@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.util.zip.ZipFile
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
@@ -8,25 +9,10 @@ plugins {
     alias(libs.plugins.kover)
 }
 
-val fallbackVersionName = "0.1.0"
-val fallbackVersionCode = 1
-
-fun git(vararg args: String) = providers.exec {
-    commandLine("git", *args)
-    workingDir = rootDir
-    isIgnoreExitValue = true
-}.standardOutput.asText.map(String::trim)
-
-val gitVersionName = git("describe", "--tags", "--match", "v[0-9]*", "--dirty")
-    .map { described ->
-        val name = described.removePrefix("v")
-        if (name.isBlank() || !name.first().isDigit()) fallbackVersionName else name
-    }
-val gitVersionCode = git("rev-list", "--count", "HEAD")
-    .map { it.toIntOrNull() ?: fallbackVersionCode }
-
-fun versionCodeFromGit() = runCatching { gitVersionCode.get() }.getOrDefault(fallbackVersionCode)
-fun versionNameFromGit() = runCatching { gitVersionName.get() }.getOrDefault(fallbackVersionName)
+// The version the git checkout describes; see buildSrc/GitVersion.kt. Overridable so a CI run
+// can stamp a build without a tag.
+val gitVersionName = providers.gradleProperty("sidetrackVersionName").getOrElse(GitVersion.nameFrom(project))
+val gitVersionCode = providers.gradleProperty("sidetrackVersionCode").map(String::toInt).getOrElse(GitVersion.codeFrom(project))
 
 // Release signing is configured locally: keystore.properties is gitignored and points at the
 // dedicated Sidetrack release certificate. Without it, release stays unsigned so CI can sign.
@@ -67,18 +53,17 @@ android {
     ndkVersion = "27.1.12297006"
     namespace = "io.github.manuelrtsch.sidetrack"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
 
     defaultConfig {
         applicationId = "io.github.manuelrtsch.sidetrack"
         minSdk = 31
         targetSdk = 36
-        versionCode = providers.gradleProperty("sidetrackVersionCode")
-            .map(String::toInt)
-            .getOrElse(versionCodeFromGit())
-        versionName = providers.gradleProperty("sidetrackVersionName")
-            .getOrElse(versionNameFromGit())
+        versionCode = gitVersionCode
+        versionName = gitVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -290,10 +275,133 @@ tasks.matching {
     dependsOn(buildSpotifyNative)
 }
 
+// A release APK without the bridge does not fail at runtime: Spotify falls back to the public Web
+// API, which rate-limits the desktop client ID, so a native-less build looks like a working app
+// that keeps stalling. That is a tester-facing regression rather than a build variant, so
+// packaging a release refuses to produce one. Debug, dev and profile builds stay native-optional
+// so local iteration does not need a Rust toolchain or the NDK.
+val nativeBridgeAbis = listOf("arm64-v8a", "x86_64")
+// `-PsidetrackAbis` narrows both the packaged ABI set and the set this gate demands.
+val requiredBridgeAbis = packagedAbis.ifEmpty { nativeBridgeAbis }
+// The symbol the Kotlin bridge resolves through `NativeLibraries`. A file that merely exists but
+// has nothing to bind to fails just as quietly, so presence is not enough.
+val nativeBridgeSymbol = "Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_nativeConnect"
+val nativeBridgeSizeFloor = 1_000_000L
+
+val verifySpotifyNative = tasks.register("verifySpotifyNative") {
+    group = "verification"
+    description = "Fails when a release build would ship without libsidetrack_spotify.so."
+    dependsOn(buildSpotifyNative)
+    // Captured as plain values: a closure that reaches back into the script object cannot be
+    // stored in the configuration cache.
+    val abis = requiredBridgeAbis
+    val symbol = nativeBridgeSymbol
+    val sizeFloor = nativeBridgeSizeFloor
+    val libsDir = spotifyJniLibs
+    // Whether this build can produce the bridge at all. Checked first, so the gate does not pass
+    // on a stale generated directory left behind by an earlier native build.
+    val canBuildBridge = nativeEnabled && cargo != null && ndk != null
+    inputs.dir(libsDir)
+    doLast {
+        if (!canBuildBridge) {
+            throw GradleException(
+                buildString {
+                    appendLine("Sidetrack: this release build has no native Spotify bridge.")
+                    appendLine("  - native playback is off, or cargo / the Android NDK is missing")
+                    appendLine("Build it with -PsidetrackNative=true, which needs cargo and the Android NDK.")
+                    appendLine("For local iteration use assembleDebug / assembleDev, which do not need either.")
+                }
+            )
+        }
+        val root = libsDir.get().asFile
+        val problems = abis.mapNotNull { abi ->
+            val so = root.resolve("$abi/libsidetrack_spotify.so")
+            val problem = when {
+                !so.isFile -> "libsidetrack_spotify.so is missing"
+
+                so.length() < sizeFloor -> "libsidetrack_spotify.so is only ${so.length()} bytes"
+
+                !so.readBytes().toString(Charsets.ISO_8859_1).contains(symbol) ->
+                    "libsidetrack_spotify.so does not export $symbol"
+
+                else -> null
+            }
+            problem?.let { "$abi: $it" }
+        }
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    appendLine("Sidetrack: this release build has no native Spotify bridge.")
+                    problems.forEach { appendLine("  - $it") }
+                    appendLine("Build it with -PsidetrackNative=true, which needs cargo and the Android NDK.")
+                    appendLine("For local iteration use assembleDebug / assembleDev, which do not need either.")
+                }
+            )
+        }
+        logger.lifecycle("Sidetrack: native Spotify bridge verified for ${abis.joinToString(", ")}.")
+    }
+}
+
+// The input check above catches a build that never produced the library. This one reads the APK
+// that was actually packaged, because that is the only place where abiFilters, splits and
+// packaging rules have all had their say.
+val verifyReleaseApk = tasks.register("verifyReleaseApk") {
+    group = "verification"
+    description = "Checks that the packaged release APK carries the native bridge for every ABI it ships."
+    dependsOn("packageRelease")
+    val apkDir = layout.buildDirectory.dir("outputs/apk/release")
+    val abis = requiredBridgeAbis
+    inputs.dir(apkDir)
+    doLast {
+        val apks = apkDir.get().asFile.listFiles { file -> file.isFile && file.extension == "apk" }.orEmpty()
+        if (apks.isEmpty()) throw GradleException("Sidetrack: no release APK was packaged into $apkDir.")
+        apks.forEach { apk ->
+            val bridgeAbis = ZipFile(apk).use { zip ->
+                zip.entries().asSequence()
+                    .map { it.name }
+                    .filter { it.startsWith("lib/") && it.endsWith("/libsidetrack_spotify.so") }
+                    .map { it.split('/')[1] }
+                    .toSet()
+            }
+            val missing = abis.filterNot { it in bridgeAbis }
+            if (missing.isNotEmpty()) {
+                throw GradleException(
+                    buildString {
+                        appendLine("Sidetrack: ${apk.name} ships without the native Spotify bridge.")
+                        appendLine("  expected: ${abis.joinToString(", ")}")
+                        appendLine("  packaged: ${bridgeAbis.sorted().joinToString(", ").ifBlank { "none" }}")
+                        appendLine("  missing:  ${missing.joinToString(", ")}")
+                    }
+                )
+            }
+            logger.lifecycle("Sidetrack: ${apk.name} carries libsidetrack_spotify.so for ${bridgeAbis.sorted().joinToString(", ")}.")
+        }
+    }
+}
+
+tasks.matching { it.name == "packageRelease" }.configureEach {
+    // Fail before R8 and the packaging work, not after: the point is to stop a native-less
+    // release as early as the build can know about it.
+    dependsOn(verifySpotifyNative)
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    dependsOn(verifyReleaseApk)
+}
+
+// What the About screen reports, so an installed APK states which Spotify engine it carries
+// instead of leaving it to be inferred from a rate-limit notice.
+android.defaultConfig.buildConfigField(
+    "boolean",
+    "NATIVE_SPOTIFY",
+    (nativeEnabled && cargo != null && ndk != null).toString()
+)
+
 dependencies {
     implementation(project(":core"))
-    implementation(project(":provider-navidrome"))
+    implementation(project(":provider-subsonic"))
     implementation(project(":provider-jellyfin"))
+    implementation(project(":provider-plex"))
     implementation(project(":provider-spotify"))
     implementation(libs.sidekit.design)
     implementation(libs.sidekit.sdk)
@@ -319,6 +427,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
+    androidTestImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
@@ -340,7 +450,8 @@ dependencies {
     kover(project(":core"))
     kover(project(":provider-spotify"))
     kover(project(":provider-jellyfin"))
-    kover(project(":provider-navidrome"))
+    kover(project(":provider-plex"))
+    kover(project(":provider-subsonic"))
 }
 
 kover {
@@ -373,12 +484,13 @@ kover {
                 // Spotify session, Jellyfin SDK seam) to 57.74% / 38.12%; slice 5 (native playback)
                 // to 59.11% / 39.75%; slice 6 (controller session and deferred engine rebuilds) to
                 // 59.51% / 40.17%. Phase 2 targets: 70% / 45% with the full suite; the full-suite
-                // line is at 71.87%. Raise, never lower.
+                // line is at 71.87%. The default suite measures 64.84% / 44.10% after the gutter
+                // and category machinery moved into shared helpers. Raise, never lower.
                 rule("product line coverage") {
-                    minBound(if (runScreenshotTests) 71 else 58)
+                    minBound(if (runScreenshotTests) 71 else 62)
                 }
                 rule("product branch coverage") {
-                    minBound(if (runScreenshotTests) 45 else 39, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(if (runScreenshotTests) 45 else 42, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

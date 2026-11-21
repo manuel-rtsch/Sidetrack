@@ -9,6 +9,13 @@ package io.github.manuelrtsch.sidetrack
 /** How long the now-playing confirmation owns the action bar before the normal actions return. */
 const val NOW_PLAYING_NOTICE_MS = 4_000L
 
+/**
+ * How long the bar offers to put back a queue a collection tap replaced. Longer than the
+ * now-playing confirmation: reading "Queue replaced" and deciding to undo it is a decision, not a
+ * glance, and the tap that caused it did not announce itself the way a row action does.
+ */
+internal const val QUEUE_REPLACED_UNDO_MS = 8_000L
+
 /** The podcast transport's rewind and fast-forward step. */
 internal const val PODCAST_SKIP_MS = 30_000L
 
@@ -16,10 +23,11 @@ internal const val PODCAST_SKIP_MS = 30_000L
 internal const val EPISODE_PROGRESS_INTERVAL_MS = 5_000L
 
 /**
- * How often the seek bar advances while it is on screen. The bar animates between samples, so
- * 200 ms looks the same as 100 ms while halving the wakeups.
+ * How often the seek bar advances while it is on screen. The bar animates between samples, so a
+ * one-second step still reads as continuous while waking the main loop once a second instead of
+ * five times.
  */
-internal const val POSITION_TICK_MS = 200L
+internal const val POSITION_TICK_MS = 1_000L
 
 /**
  * A native position event this far from the UI clock is treated as a real seek from another

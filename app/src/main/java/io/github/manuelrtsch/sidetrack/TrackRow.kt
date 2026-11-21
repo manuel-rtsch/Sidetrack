@@ -16,8 +16,8 @@ import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
 import io.github.manuelrtsch.sidetrack.ui.RowGutterState
-import io.github.manuelrtsch.sidetrack.ui.rememberGutterSquareFocus
-import io.github.manuelrtsch.sidetrack.ui.settle
+import io.github.manuelrtsch.sidetrack.ui.Settle
+import io.github.manuelrtsch.sidetrack.ui.gutterSquareFocus
 
 /** The row whose gutter is showing in a track list. */
 @Stable
@@ -36,6 +36,11 @@ class TrackRows(
     val onSave: (Track) -> Unit,
     val onEnsureSaved: (Track) -> Unit,
     val onAddToQueue: (Track) -> Unit,
+    /**
+     * Offered on pages whose row tap plays in collection context (album, playlist, radio): plays
+     * this track now and hands the tail back to what was playing. Null hides the row action.
+     */
+    val onPlayFirst: ((Track) -> Unit)? = null,
     /** Offered where the account may append to some playlist; null hides the row action. */
     val onAddToPlaylist: ((Track) -> Unit)? = null,
     /** Offered on a playlist page; the index is the entry the user acted on. */
@@ -51,12 +56,13 @@ fun rememberTrackRows(
     onSave: (Track) -> Unit,
     onEnsureSaved: (Track) -> Unit,
     onAddToQueue: (Track) -> Unit,
+    onPlayFirst: ((Track) -> Unit)? = null,
     onAddToPlaylist: ((Track) -> Unit)? = null,
     onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null
 ): TrackRows {
     val focus = remember { TrackRowFocusState() }
     val bar = rememberRowActionBarState()
-    focus.settle()
+    focus.Settle()
     return TrackRows(
         focus,
         bar,
@@ -64,6 +70,7 @@ fun rememberTrackRows(
         onSave,
         onEnsureSaved,
         onAddToQueue,
+        onPlayFirst,
         onAddToPlaylist,
         onRemoveFromPlaylist
     )
@@ -96,20 +103,7 @@ fun TrackRow(
     GutterRow(key, rows.focus, squares = 1, modifier = modifier, content = { gutterVisible ->
         MediaRow(
             track,
-            Modifier
-                .focusRequester(rowFocus)
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .then(bodyModifier)
-                .onFocusChanged { state ->
-                    if (state.isFocused) rows.focus.rowFocused(key) else rows.focus.rowUnfocused(key)
-                }
-                .then(
-                    if (selected) {
-                        Modifier.border(2.dp, SidekitTheme.colors.light, SidekitTheme.shapes.item)
-                    } else {
-                        Modifier
-                    }
-                ),
+            gutterRowModifier(key, selected, rows.focus, rowFocus, focusRequester, bodyModifier),
             index = index,
             showArt = showArt,
             secondary = secondary,
@@ -123,7 +117,7 @@ fun TrackRow(
     }) {
         // The trigger and its focus state only exist while the gutter is open. A long list
         // otherwise pays for a focus modifier on every row it composes.
-        val squareFocus = rememberGutterSquareFocus(key, rows.focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, rows.focus)
         RowActionSquare(
             color = SidekitTheme.colors.surfaceA4,
             label = "Actions for ${track.title}",
@@ -134,6 +128,7 @@ fun TrackRow(
                 val addToPlaylist = rows.onAddToPlaylist
                 val removeFromPlaylist = rows.onRemoveFromPlaylist
                 val actions = rowActions(
+                    rows.onPlayFirst?.let { play -> playRowAction(track.title) { play(track) } },
                     addToQueueRowAction(track.title) { rows.onAddToQueue(track) },
                     addToPlaylist?.let { add -> addToPlaylistRowAction(track.title) { add(track) } },
                     if (removeFromPlaylist != null && entryIndex != null) {
@@ -206,7 +201,7 @@ fun GutterMediaRow(
             }
         )
     }) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, focus)
         RowActionSquare(
             color = SidekitTheme.colors.successA1,
             icon = SidekitIcon.PlaylistAdd,

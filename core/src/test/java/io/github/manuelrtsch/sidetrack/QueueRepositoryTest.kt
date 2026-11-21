@@ -64,12 +64,67 @@ class QueueRepositoryTest {
         assertTrue(queue.snapshot.history.isEmpty())
     }
 
-    @Test fun `play next moves an existing upcoming item instead of duplicating it`() {
+    @Test fun `play first puts the current item back at the head of the tail`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 1)
+
+        queue.playFirst(track("z"))
+
+        assertEquals("z", queue.snapshot.current?.id)
+        assertEquals(listOf("b", "c", "d"), queue.snapshot.upcoming.map { it.id })
+        assertTrue(queue.snapshot.history.isEmpty())
+    }
+
+    @Test fun `play first keeps the context so repeat still replays the album`() {
         val queue = QueueRepository(Random(1))
         queue.play(tracks, 0)
-        queue.playNext(tracks[2])
 
-        assertEquals(listOf("c", "b", "d"), queue.snapshot.upcoming.map { it.id })
+        queue.playFirst(track("z"))
+
+        assertEquals(listOf("a", "b", "c", "d"), queue.snapshot.context.map { it.id })
+    }
+
+    @Test fun `play first on the current item changes nothing`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 1)
+        val before = queue.snapshot
+
+        queue.playFirst(tracks[1])
+
+        assertEquals(before, queue.snapshot)
+    }
+
+    @Test fun `play first moves an occurrence already in the tail instead of playing it twice`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 0)
+
+        queue.playFirst(tracks[2])
+
+        assertEquals("c", queue.snapshot.current?.id)
+        assertEquals(listOf("a", "b", "d"), queue.snapshot.upcoming.map { it.id })
+    }
+
+    @Test fun `play first grows the pre-shuffle backup so shuffle off keeps the head`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 0)
+        queue.toggleShuffle()
+
+        queue.playFirst(track("z"))
+        queue.toggleShuffle()
+
+        assertEquals("z", queue.snapshot.current?.id)
+        assertEquals(listOf("a"), queue.snapshot.upcoming.take(1).map { it.id })
+        assertEquals(listOf("a", "b", "c", "d"), queue.snapshot.upcoming.map { it.id })
+    }
+
+    @Test fun `play first from an empty queue starts a queue of one`() {
+        val queue = QueueRepository(Random(1))
+
+        queue.playFirst(track("z"))
+
+        assertEquals("z", queue.snapshot.current?.id)
+        assertEquals(listOf("z"), queue.snapshot.context.map { it.id })
+        assertTrue(queue.snapshot.upcoming.isEmpty())
     }
 
     @Test fun `restore adopts a process-wide snapshot`() {
@@ -303,15 +358,6 @@ class QueueRepositoryTest {
         assertEquals(listOf("b", "b", "c"), queue.snapshot.upcoming.map { it.id })
     }
 
-    @Test fun `play next moves one duplicate and keeps the other`() {
-        val queue = QueueRepository(Random(1))
-        queue.play(listOf(track("a"), track("c"), track("b"), track("d"), track("b")), 0)
-
-        queue.playNext(track("b"))
-
-        assertEquals(listOf("b", "c", "d", "b"), queue.snapshot.upcoming.map { it.id })
-    }
-
     @Test fun `jumping to one duplicate uses the occurrence index`() {
         val queue = QueueRepository(Random(1))
         queue.play(listOf(track("a"), track("b"), track("b"), track("c")), 0)
@@ -387,6 +433,56 @@ class QueueRepositoryTest {
         assertTrue(queue.snapshot.upcoming.isEmpty())
 
         queue.restoreUpcoming(removed)
+        assertEquals(listOf("b", "c", "d"), queue.snapshot.upcoming.map { it.id })
+    }
+
+    @Test fun `extending a collection queues the pages behind the loaded one`() {
+        val queue = QueueRepository(Random(1))
+        val page = tracks.take(2)
+        queue.play(page, 0)
+
+        queue.extendContext(page, tracks)
+
+        assertEquals(listOf("b", "c", "d"), queue.snapshot.upcoming.map { it.id })
+        // Repeat-context loops the whole collection, not the page it started from.
+        assertEquals(listOf("a", "b", "c", "d"), queue.snapshot.context.map { it.id })
+    }
+
+    @Test fun `extending a collection twice does not queue the page twice`() {
+        val queue = QueueRepository(Random(1))
+        val page = tracks.take(2)
+        queue.play(page, 0)
+
+        queue.extendContext(page, tracks)
+        val once = queue.snapshot
+        queue.extendContext(page, tracks)
+
+        assertEquals(once, queue.snapshot)
+    }
+
+    @Test fun `a page that lands after the user moved on is dropped`() {
+        val queue = QueueRepository(Random(1))
+        val page = tracks.take(2)
+        queue.play(page, 0)
+        queue.playNow(track("z"))
+
+        queue.extendContext(page, tracks)
+
+        assertEquals("z", queue.snapshot.current?.id)
+        // The tail the user already had survives, and the stale page never joins it.
+        assertEquals(listOf("b"), queue.snapshot.upcoming.map { it.id })
+        assertEquals(listOf("z"), queue.snapshot.context.map { it.id })
+    }
+
+    @Test fun `a shuffled collection grows both the tail and its unshuffled backup`() {
+        val queue = QueueRepository(Random(1))
+        val page = tracks.take(2)
+        queue.toggleShuffle()
+        queue.play(page, 0)
+
+        queue.extendContext(page, tracks)
+        queue.toggleShuffle()
+
         assertEquals(listOf("b", "c", "d"), queue.snapshot.upcoming.map { it.id })
     }
 

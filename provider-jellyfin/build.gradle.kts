@@ -1,28 +1,13 @@
-import java.util.Properties
 import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 
-val fallbackVersionName = "0.1.0"
-
-// Mirrors :app's git-derived version so the Jellyfin client reports the same version the app does.
-fun git(vararg args: String) = providers.exec {
-    commandLine("git", *args)
-    workingDir = rootDir
-    isIgnoreExitValue = true
-}.standardOutput.asText.map(String::trim)
-
-val gitVersionName = git("describe", "--tags", "--match", "v[0-9]*", "--dirty")
-    .map { described ->
-        val name = described.removePrefix("v")
-        if (name.isBlank() || !name.first().isDigit()) fallbackVersionName else name
-    }
-fun versionNameFromGit() = runCatching { gitVersionName.get() }.getOrDefault(fallbackVersionName)
-
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
 }
+
+// The version this client reports to its server; see buildSrc/GitVersion.kt.
+val clientVersionName = GitVersion.nameFrom(project)
 
 // `*IntegrationTest` classes need a live server; opt in with -PsidetrackIntegration.
 val runIntegrationTests = providers.gradleProperty("sidetrackIntegration").isPresent
@@ -31,14 +16,16 @@ android {
     // Unique per module; :app owns io.github.manuelrtsch.sidetrack. Sources keep their packages.
     namespace = "io.github.manuelrtsch.sidetrack.jellyfin"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
     defaultConfig {
         minSdk = 31
         // JellyfinAuth reports the client version to the server through BuildConfig.VERSION_NAME.
         // The library plugin does not drive versionName, so the value is mirrored from the app's
         // git-derived version to keep the two reporting the same client version.
-        buildConfigField("String", "VERSION_NAME", "\"${versionNameFromGit()}\"")
+        buildConfigField("String", "VERSION_NAME", "\"${clientVersionName}\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -68,6 +55,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // The Jellyfin SDK logs through kotlin-logging, whose JVM binding needs an slf4j provider.
@@ -80,18 +68,19 @@ dependencies {
 }
 
 // Coverage ratchet for this module's own tests. The floor is the level measured when Kover was
-// introduced (docs/test-coverage-audit.md); it only ever moves up. Note this measures what this
+// introduced (docs/testing.md); it only ever moves up. Note this measures what this
 // module's tests cover, not what the whole suite covers -- the product-wide gate lives in :app,
 // which is the merging module.
 kover {
     reports {
         variant("debug") {
             verify {
+                // Measures 93.87% line / 63.79% branch.
                 rule("line coverage") {
-                    minBound(91)
+                    minBound(92)
                 }
                 rule("branch coverage") {
-                    minBound(60, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(62, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

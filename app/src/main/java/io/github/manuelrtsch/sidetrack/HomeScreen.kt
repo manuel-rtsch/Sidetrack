@@ -36,7 +36,8 @@ fun SidetrackHomeScreen(
     onRemoveHistory: (MediaItem) -> (() -> Unit)?,
     onHistory: () -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     // The slice is remembered so an unrelated state change (notice, save, etc.) does not give the
     // recent rows a new list instance and force them to rebuild.
@@ -52,7 +53,7 @@ fun SidetrackHomeScreen(
     }
     val bar = rowActionBarActions(
         rowActions,
-        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     )
     SidekitScaffold(
         title = "Sidetrack",
@@ -61,7 +62,8 @@ fun SidetrackHomeScreen(
         options = sidetrackOptions(settingsOption(onSettings))
     ) { padding ->
         val listState = rememberLazyListState()
-        rowActions.dismissOnScroll(listState)
+        rowActions.DismissOnScroll(listState)
+        val rowKeys = remember(recent) { mediaRowKeys(recent) }
         SidekitList(padding, state = listState) {
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, 0)) {
@@ -81,10 +83,10 @@ fun SidetrackHomeScreen(
             } else {
                 itemsIndexed(
                     recent,
-                    key = { index, item -> "$index:${item.id}" },
+                    key = { index, _ -> rowKeys[index] },
                     contentType = { _, item -> mediaContentType(item) }
                 ) { index, item ->
-                    val key = "$index:${item.id}"
+                    val key = rowKeys[index]
                     HistoryRow(
                         key,
                         item,

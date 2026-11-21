@@ -14,19 +14,6 @@ data class SpotifyCredentials(
     /** Refresh a minute early so a request never races the expiry. */
     fun isExpired(nowMs: Long = System.currentTimeMillis()): Boolean = expiresAtMs <= nowMs + REFRESH_WINDOW_MS
 
-    fun withTokenResponse(
-        accessToken: String,
-        refreshToken: String?,
-        expiresInSeconds: Long,
-        scope: String?
-    ): SpotifyCredentials = copy(
-        accessToken = accessToken,
-        // Spotify omits the refresh token when the grant did not rotate it.
-        refreshToken = refreshToken ?: this.refreshToken,
-        expiresAtMs = System.currentTimeMillis() + expiresInSeconds.coerceAtLeast(0L) * 1_000L,
-        scope = scope ?: this.scope
-    )
-
     companion object {
         const val REFRESH_WINDOW_MS = 60_000L
     }

@@ -6,8 +6,33 @@ import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 
 /**
- * The screen's action bar, with the transient now-playing confirmation taking precedence over the
- * normal actions. A real notice (an error or confirmation) wins over the now-playing confirmation.
+ * The bar while a replaced queue can still be taken back: what happened, then Undo.
+ *
+ * The label is grey and dismisses the offer, the way every notice's text does, so the only live
+ * entry in the bar is the Undo square itself.
+ */
+fun queueReplacedActions(onDismiss: () -> Unit, onUndo: () -> Unit): List<SideAction> = undoBar(
+    continueWith = SideAction(
+        key = "queueReplaced",
+        label = "Queue replaced",
+        icon = SidekitIcon.QueueMusic,
+        tone = ActionTone.Muted,
+        contentDescription = "Queue replaced. Dismiss",
+        onClick = onDismiss
+    ),
+    undo = SideAction.undo(
+        key = "undoQueueReplace",
+        label = "Undo",
+        contentDescription = "Put the replaced queue back",
+        onClick = onUndo
+    )
+)
+
+/**
+ * The screen's action bar, with the transient confirmations taking precedence over the normal
+ * actions. A real notice (an error or confirmation) wins over the queue-replaced offer, which in
+ * turn wins over the now-playing confirmation: the offer has a deadline and the confirmation is
+ * decoration.
  */
 fun sidetrackActions(
     chrome: ChromeUiState,
@@ -15,10 +40,13 @@ fun sidetrackActions(
     onOpenNowPlaying: () -> Unit,
     onDismissNowPlaying: () -> Unit,
     actions: List<SideAction>,
+    onUndoQueueReplace: () -> Unit,
     showNowPlayingNotice: Boolean = true
 ): List<SideAction> = when {
     chrome.notice != null ->
         withNotice(chrome.notice, onDismissNotice, actions, chrome.noticeKind)
+
+    chrome.queueReplaced -> queueReplacedActions(onDismissNotice, onUndoQueueReplace)
 
     showNowPlayingNotice && chrome.nowPlayingNotice != null ->
         nowPlayingNoticeActions(chrome.nowPlayingNotice, onOpenNowPlaying, onDismissNowPlaying)
@@ -36,6 +64,7 @@ fun sidetrackBar(
     onDismissNowPlaying: () -> Unit,
     continueWith: SideAction,
     extra: List<SideAction> = emptyList(),
+    onUndoQueueReplace: () -> Unit,
     showNowPlayingNotice: Boolean = true
 ): List<SideAction> = sidetrackActions(
     chrome,
@@ -43,6 +72,7 @@ fun sidetrackBar(
     onOpenNowPlaying,
     onDismissNowPlaying,
     listOf(continueWith) + extra,
+    onUndoQueueReplace,
     showNowPlayingNotice
 )
 
@@ -50,9 +80,9 @@ fun sidetrackBar(
  * The screen's Options menu, built in one place.
  *
  * Options are the screen's destinations and its list-wide controls. Every menu is assembled here so
- * a shared entry cannot drift in wording, glyph, shape or colour from one screen to the next; the
- * audit in `docs/options-menu-audit.md` found the same Sleep timer, Now playing and queue entries
- * all doing exactly that.
+ * a shared entry cannot drift in wording, glyph, shape or colour from one screen to the next. The
+ * same Sleep timer, Now playing and queue entries used to do exactly that; the rules live in
+ * `docs/menus.md`.
  *
  * Two rules, and neither is decided by the screen:
  *
@@ -103,6 +133,27 @@ fun addToQueueOption(label: String = "Add to queue", onClick: () -> Unit) = Side
 fun artistRadioOption(onClick: () -> Unit) = SideAction("artistRadio", "Artist radio", SidekitIcon.Explore, tone = ActionTone.Primary, onClick = onClick)
 
 /**
+ * Rename is an ordinary edit: the page stays, only its title changes. It is a square on the
+ * playlist page because Add to queue already owns the bar's one label there — three labels plus
+ * the close square do not fit. [title] moves into the content description the label would carry.
+ */
+fun renamePlaylistOption(title: String, onClick: () -> Unit) = SideAction.square(
+    key = "renamePlaylist",
+    icon = SidekitIcon.Edit,
+    contentDescription = "Rename $title",
+    onClick = onClick
+)
+
+/** Delete belongs last and in the destructive red, like every other delete in the app. */
+fun deletePlaylistOption(title: String, onClick: () -> Unit) = SideAction.square(
+    key = "deletePlaylist",
+    icon = SidekitIcon.DeleteForever,
+    contentDescription = "Delete $title",
+    onClick = onClick,
+    tone = ActionTone.Destructive
+)
+
+/**
  * Now Playing's options are the bar's one icon-only set: the screen has no room for labels and the
  * bar reads as transport beside the five tiles below it. They are accents like every other option —
  * only their shape differs, and their content description carries the name a label would.
@@ -114,9 +165,24 @@ fun songRadioOption(onClick: () -> Unit) = SideAction.square("songRadio", Sideki
 fun episodeNotesOption(onClick: () -> Unit) = SideAction.square("notes", SidekitIcon.Docs, "Episode notes", onClick)
 
 /**
- * The sleep timer is a destination with a state, so it keeps its label: the armed state is written
- * into the words as well as the colour, and both screens that offer it show it the same way. Idle it
- * is an ordinary option; armed it commits to stopping playback, so it turns green.
+ * The sleep timer on Now Playing: the same destination as [sleepTimerOption], as an icon-only
+ * square like the queue and radio/episode-notes shortcuts beside it. The bar there is transport —
+ * three playback squares and Sidekit's close square already claim 430 of its 460 dp — so a label
+ * has no width left to live in and would truncate to "Sle…". The words are not lost: the screen's
+ * own "Sleep timer · 23:00" row spells the state out, and the glyph turns green while armed.
+ */
+fun sleepTimerShortcutOption(active: Boolean, onClick: () -> Unit) = SideAction.square(
+    key = "sleepTimer",
+    icon = SidekitIcon.Bedtime,
+    contentDescription = if (active) "Sleep timer on" else "Sleep timer",
+    onClick = onClick,
+    tone = if (active) ActionTone.Secondary else ActionTone.Primary
+)
+
+/**
+ * The sleep timer is a destination with a state, so it keeps its label on the screens with room for
+ * one: the armed state is written into the words as well as the colour. Idle it is an ordinary
+ * option; armed it commits to stopping playback, so it turns green.
  */
 fun sleepTimerOption(active: Boolean, onClick: () -> Unit) = SideAction(
     key = "sleepTimer",

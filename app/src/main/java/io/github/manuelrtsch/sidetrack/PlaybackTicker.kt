@@ -67,9 +67,4 @@ internal class PlaybackTicker(
             }
         }
     }
-
-    private companion object {
-        /** Seek-bar step while the now-playing screen is visible. */
-        const val POSITION_TICK_MS = 1_000L
-    }
 }

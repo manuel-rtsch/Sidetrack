@@ -544,6 +544,23 @@ pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_
     catalog_result(&mut env, result)
 }
 
+#[no_mangle]
+pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_nativePlaylistRename(
+    mut env: JNIEnv,
+    _this: JObject,
+    id: JString,
+    name: JString,
+) -> jni::sys::jstring {
+    let (Some(id), Some(name)) = (string(&mut env, &id), string(&mut env, &name)) else {
+        return std::ptr::null_mut();
+    };
+    let result = engine::with_session_and_token(|session, token| {
+        engine::run(catalog::playlist_rename(session, token, &id, &name))
+            .map(|()| "ok".to_string())
+    });
+    catalog_result(&mut env, result)
+}
+
 fn bool_result(result: Result<(), String>) -> jboolean {
     match result {
         Ok(()) => JNI_TRUE,

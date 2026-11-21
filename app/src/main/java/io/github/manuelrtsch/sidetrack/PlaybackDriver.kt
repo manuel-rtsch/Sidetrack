@@ -45,12 +45,27 @@ internal class PlaybackDriver(
         effects = effects,
         store = store,
         matchesCurrent = ::matchesCurrent,
-        onEnded = ::onPlaybackEnded
+        onEnded = ::onPlaybackEnded,
+        onUnavailable = ::onPlaybackUnavailable
     )
 
     private val service: ServiceId get() = session?.service ?: ServiceId.Local
 
     private var autoplayJob: Job? = null
+
+    /**
+     * The queue a collection tap replaced, while the bar still offers it back.
+     *
+     * [playingId] is the item that tap started. The offer only stands while that item is still the
+     * one playing, so a stale snapshot can never undo a newer choice.
+     */
+    private data class ReplacedQueue(
+        val snapshot: QueueRepository.Snapshot,
+        val positionMs: Long,
+        val playingId: String
+    )
+
+    private var replacedQueue: ReplacedQueue? = null
 
     private fun playbackNotice(error: Exception): String = serviceMessage(error, session?.isOnline != false)
 
@@ -63,23 +78,75 @@ internal class PlaybackDriver(
             store.update { it.copy(notice = null) }
             return
         }
-        beginPlayback(queue.play(items, index), item)
+        // A tap on a collection page is the only gesture in the app that throws away a queue the
+        // user lined up. Keep the outgoing queue for a few seconds so the bar can offer it back; a
+        // tail that is already empty has nothing to lose and leaves the bar alone.
+        clearReplacedQueue()
+        val before = queue.snapshot
+        val lost = before.upcoming.isNotEmpty()
+        if (lost) {
+            replacedQueue = ReplacedQueue(before, clock.value, item.id)
+            effects.showQueueReplaced { replacedQueue = null }
+        }
+        beginPlayback(queue.play(items, index), item, notify = !lost)
     }
 
+    private fun clearReplacedQueue() {
+        if (replacedQueue == null) return
+        replacedQueue = null
+        effects.dismissQueueReplaced()
+    }
+
+    /** Withdraws the queue-replaced offer without putting anything back. */
+    fun discardQueueReplaceOffer() = clearReplacedQueue()
+
+    /**
+     * Puts back the queue the last collection tap replaced and resumes the item that was playing.
+     *
+     * The album track stays in the history it earned, so the undo restores the queue the user
+     * built without rewriting what they listened to. Nothing happens once something else has
+     * started: the offer is withdrawn then, and a snapshot restored late would cut off a choice
+     * the user made on purpose.
+     */
+    fun undoQueueReplaced() {
+        val replaced = replacedQueue ?: return
+        if (store.value.current?.id != replaced.playingId) {
+            clearReplacedQueue()
+            return
+        }
+        clearReplacedQueue()
+        val restored = queue.restore(replaced.snapshot)
+        val previous = restored.current
+        if (previous == null) {
+            effects.applyQueue(restored, positionMs = 0L, playing = false)
+            return
+        }
+        effects.applyQueue(restored, positionMs = replaced.positionMs, playing = true)
+        startRemote(previous, replaced.positionMs, resuming = replaced.positionMs > 0L)
+    }
+
+    /**
+     * The catalog decides this, before any transport is involved, so the refusal is logged here:
+     * the announcement alone left no trace of which row the user tried to play.
+     */
     fun readyToPlay(item: MediaItem): Boolean {
         if (!item.playable) {
+            SidetrackDebug.log(
+                "play refused: playable=false service=${item.service} id=${item.id} " +
+                    "title=${item.title} creator=${item.creator} uri=${item.uri}"
+            )
             notifier.say("Not available on this account")
             return false
         }
         return true
     }
 
-    fun beginPlayback(snapshot: QueueRepository.Snapshot, item: MediaItem) {
+    fun beginPlayback(snapshot: QueueRepository.Snapshot, item: MediaItem, notify: Boolean = true) {
         if (item is Track) ensureTrackSaved(item.id)
         val resume = effects.itemStartPosition(item)
         effects.applyQueue(snapshot, positionMs = resume, playing = true)
         store.update { it.copy(notice = null) }
-        effects.showNowPlayingNotice(item)
+        if (notify) effects.showNowPlayingNotice(item)
         startRemote(item, resume, resuming = resume > 0L)
     }
 
@@ -118,6 +185,7 @@ internal class PlaybackDriver(
     }
 
     fun next() {
+        clearReplacedQueue()
         val before = store.value.current
         val snapshot = queue.next(auto = false)
         if (snapshot.current !== before) {
@@ -129,6 +197,7 @@ internal class PlaybackDriver(
     }
 
     fun previous() {
+        clearReplacedQueue()
         val s = store.value
         if (s.current == null) return
         // A podcast's Previous means the previous episode. Rewinding belongs to the ±30 s
@@ -147,7 +216,7 @@ internal class PlaybackDriver(
         }
         if (clock.value > 3_000L) {
             clock.set(0L)
-            if (s.current?.service != ServiceId.Local) {
+            if (s.current.service != ServiceId.Local) {
                 session?.let { session ->
                     scope.launch { runCatching { session.seek(0L) } }
                 }
@@ -162,7 +231,7 @@ internal class PlaybackDriver(
             previous?.let { startRemote(it, resume, resuming = resume > 0L) }
         } else {
             clock.set(0L)
-            if (s.current?.service != ServiceId.Local) {
+            if (s.current.service != ServiceId.Local) {
                 session?.let { session ->
                     scope.launch { runCatching { session.seek(0L) } }
                 }
@@ -183,6 +252,7 @@ internal class PlaybackDriver(
     }
 
     fun jumpTo(index: Int) {
+        clearReplacedQueue()
         val s = store.value
         val snapshot = queue.jumpTo(index)
         if (snapshot.current !== s.current) {
@@ -207,7 +277,9 @@ internal class PlaybackDriver(
         effects.markEpisodeFinished(current)
         // The sleep timer wins over repeat and autoplay: this is where the queue must stop.
         if (session?.playback?.consumeEndOfTrackTimer() == true) {
-            store.update { it.copy(isPlaying = false) }
+            // Same stop as the queue end: the native player is already at the end, so leaving it
+            // there makes the drain mistake the finished track for a stalled connection.
+            effects.stopAtQueueEnd()
             return
         }
         if (endOfEpisode(current)) return
@@ -217,6 +289,27 @@ internal class PlaybackDriver(
             startRemote(current, 0L)
         } else {
             advance(auto = true, forceContextLoop = snapshot.repeat == RepeatMode.Context)
+        }
+    }
+
+    /**
+     * The service refused this item, so it is not playable at all — Spotify answers a regional or
+     * removed track this way. Treat it like a finished track and move on, autoplay included, which
+     * is also what librespot does internally.
+     *
+     * Retrying is never useful here: the previous behaviour let the stall detector treat the
+     * rejection as a dead connection, rebuilding the session and reloading the same item until
+     * playback gave up. Repeat-track deliberately does not apply — a refused track must not loop.
+     */
+    fun onPlaybackUnavailable() {
+        val skipped = store.value.current
+        SidetrackDebug.log("unavailable: skipping on from ${skipped?.key?.encode()}")
+        advance(auto = true, forceContextLoop = false)
+        // Announced after the advance, which clears the notice on its way in, and only when the
+        // queue really moved: running out of queue or asking for similar tracks has its own
+        // message, and this one must not overwrite it.
+        if (store.value.current !== skipped) {
+            store.update { it.say("Skipped — this track isn't available") }
         }
     }
 
@@ -249,6 +342,9 @@ internal class PlaybackDriver(
     }
 
     fun advance(auto: Boolean, forceContextLoop: Boolean) {
+        // Playback moved on by itself, so the queue the last collection tap replaced is no longer
+        // the thing the bar is talking about.
+        clearReplacedQueue()
         val s = store.value
         val current = s.current ?: return
         if (auto) effects.markEpisodeFinished(current)
@@ -352,6 +448,7 @@ internal class PlaybackDriver(
      */
     fun playNow(item: MediaItem) {
         if (!readyToPlay(item)) return
+        clearReplacedQueue()
         if (store.value.current?.id == item.id) {
             if (!store.value.isPlaying) togglePlayPause()
             store.update { it.copy(notice = null) }
@@ -360,13 +457,36 @@ internal class PlaybackDriver(
         beginPlayback(queue.playNow(item), item)
     }
 
+    /**
+     * Plays one track from an album or playlist page without dropping the queue behind it.
+     *
+     * A row tap there plays in collection context, which throws away whatever was lined up. This
+     * is the same request read the other way round: hear this track now, then pick the queue back
+     * up where it was.
+     */
+    fun playFirst(item: MediaItem) {
+        if (!readyToPlay(item)) return
+        clearReplacedQueue()
+        if (store.value.current?.id == item.id) {
+            if (!store.value.isPlaying) togglePlayPause()
+            store.update { it.copy(notice = null) }
+            return
+        }
+        beginPlayback(queue.playFirst(item), item)
+    }
+
     fun playEpisode(episode: Episode) = playItem(episode)
 
-    /** Play a recent item in context, so the rest of the history follows it in the queue. */
-    fun playRecent(item: MediaItem) {
-        val recent = store.value.recent
-        val at = recent.indexOfFirst { it.id == item.id }
-        if (at >= 0) play(recent, at) else playItem(item)
+    /**
+     * Adds the pages behind a collection that is already playing. The page on screen starts the
+     * queue immediately and this only grows its tail, so a long playlist no longer spins before
+     * its first note and one failing page cannot stop playback. A load that lands after the user
+     * started something else is dropped by [QueueRepository.extendContext].
+     */
+    fun extendCollection(page: List<MediaItem>, complete: List<MediaItem>) {
+        val before = queue.snapshot
+        val after = queue.extendContext(page, complete)
+        if (after != before) effects.applyQueue(after, syncNowPlaying = false)
     }
 
     /** Podcast rewind. [seekTo] clamps to the item's duration and never goes below zero. */

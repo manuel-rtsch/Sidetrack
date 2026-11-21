@@ -128,13 +128,6 @@ internal class PlaybackClock(
         return eventPositionMs + RESUME_EVENT_SLACK_MS < anchor.positionMs
     }
 
-    /** Drops the resume window when the queue moves to a different item. */
-    fun onItemChanged(itemId: String, previousId: String?) {
-        if (itemId != previousId) {
-            seek = null
-        }
-    }
-
     /**
      * Advances the seek bar from the monotonic anchor. The AudioTrack playback head is not stable
      * across pause/resume on this device, so the system clock is used instead: it advances at the

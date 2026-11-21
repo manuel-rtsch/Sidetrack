@@ -25,13 +25,14 @@ fun HistoryScreen(
     onRemove: (MediaItem) -> (() -> Unit)?,
     onNowPlaying: () -> Unit,
     onDismissNotice: () -> Unit,
-    onDismissNowPlaying: () -> Unit
+    onDismissNowPlaying: () -> Unit,
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     val baseActions = remember { listOf(sidetrackBack("Home", onBack).first()) }
     val rowActions = rememberRowActionBarState()
     val actions = rowActionBarActions(
         rowActions,
-        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions)
+        sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
     )
     SidekitScaffold(
         title = "History",
@@ -40,22 +41,23 @@ fun HistoryScreen(
         options = sidetrackOptions(onNowPlaying = onNowPlaying)
     ) { padding ->
         val listState = rememberLazyListState()
-        rowActions.dismissOnScroll(listState)
+        rowActions.DismissOnScroll(listState)
         // The gutter follows the focused row, or a long press when the list is driven by touch.
         val gutters = rememberRowGutterState()
         val shown = remember { mutableIntStateOf(CATALOG_PAGE_SIZE) }
         val visible = playback.recent.take(shown.intValue)
         val moreFocus = rememberLoadMoreFocus()
         LoadMoreFocus(moreFocus, listState, visible.size, loading = false, firstItemListIndex = 0)
+        val rowKeys = remember(visible) { mediaRowKeys(visible) }
         SidekitList(padding, state = listState) {
-            // History is local-only and has no empty state: with no entries the list is simply blank.
-            // A track can be played again, so the id alone repeats; index keeps keys unique.
+            // History is local-only and has no empty state: with no entries the list is simply
+            // blank. A track can be played again, so the keys carry their occurrence rank.
             itemsIndexed(
                 visible,
-                key = { index, item -> "$index:${item.id}" },
-                contentType = { _, item -> if (item is Track) "track" else "episode" }
+                key = { index, _ -> rowKeys[index] },
+                contentType = { _, item -> mediaContentType(item) }
             ) { index, item ->
-                val key = "$index:${item.id}"
+                val key = rowKeys[index]
                 HistoryRow(
                     key,
                     item,

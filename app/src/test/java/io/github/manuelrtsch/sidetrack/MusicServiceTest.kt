@@ -16,33 +16,46 @@ import org.junit.Test
 class MusicServiceTest {
     @Test fun `the picker offers every service this build can provision`() {
         assertEquals(
-            listOf(ServiceId.Spotify, ServiceId.Navidrome, ServiceId.Jellyfin),
+            listOf(
+                ServiceId.Jellyfin,
+                ServiceId.Navidrome,
+                ServiceId.NextcloudMusic,
+                ServiceId.Plex,
+                ServiceId.Spotify,
+                ServiceId.Subsonic
+            ),
             KnownServices.map { it.id }
         )
         // The label comes from the provider's own constant, so the picker cannot drift from it.
         assertEquals("Spotify", KnownServices.first { it.id == ServiceId.Spotify }.displayName)
         assertEquals("Navidrome", KnownServices.first { it.id == ServiceId.Navidrome }.displayName)
+        assertEquals("Nextcloud Music", KnownServices.first { it.id == ServiceId.NextcloudMusic }.displayName)
+        assertEquals("Subsonic", KnownServices.first { it.id == ServiceId.Subsonic }.displayName)
         assertEquals("Jellyfin", KnownServices.first { it.id == ServiceId.Jellyfin }.displayName)
+        // The picker sorts by the label it renders, so the welcome list reads A–Z.
+        assertEquals(
+            KnownServices.map { it.displayName }.sortedBy { it.lowercase() },
+            KnownServices.map { it.displayName }
+        )
         assertNull(serviceChoice(ServiceId("unknown")))
     }
 
-    @Test fun `Navidrome advertises the parity capabilities it can deliver`() {
-        val caps = ServiceCapabilities.Navidrome
+    @Test fun `the Subsonic family advertises the parity capabilities it can deliver`() {
+        val caps = ServiceCapabilities.Subsonic
         assertTrue(caps.supportsRadio)
-        assertTrue(caps.supportsQualitySelection)
         assertTrue(caps.supportsNormalization)
         assertTrue(caps.supportsPlaylistEdit)
         assertTrue(caps.supportsPlaylistCreate)
         assertTrue(caps.supportsProgressReporting)
         assertTrue(caps.supportsScrobbling)
-        // Not yet available for Navidrome: podcasts, artist-follow and gapless.
+        // Not yet available for the Subsonic family: podcasts, artist-follow and gapless.
         assertTrue(!caps.supportsPodcasts)
         assertTrue(!caps.supportsFollowArtist)
         assertTrue(!caps.supportsGapless)
     }
 
-    @Test fun `Navidrome mutes the categories its API cannot answer`() {
-        val navidrome = ServiceCapabilities.Navidrome
+    @Test fun `the Subsonic family mutes the categories its API cannot answer`() {
+        val navidrome = ServiceCapabilities.Subsonic
         // Shows are missing because Navidrome answers every Subsonic podcast endpoint with 501.
         assertEquals(
             listOf(
@@ -64,7 +77,6 @@ class MusicServiceTest {
         val caps = ServiceCapabilities.Jellyfin
         assertTrue(caps.supportsRadio)
         assertTrue(caps.supportsFollowArtist)
-        assertTrue(caps.supportsQualitySelection)
         assertTrue(caps.supportsPlaylistEdit)
         assertTrue(caps.supportsPlaylistCreate)
         assertTrue(caps.supportsProgressReporting)
@@ -97,6 +109,35 @@ class MusicServiceTest {
         val choice = serviceChoice(ServiceId.Jellyfin)
         assertEquals("Jellyfin", choice?.displayName)
         assertEquals(ServiceId.Jellyfin, choice?.id)
+    }
+
+    @Test fun `the picker offers Plex with a browser sign-in`() {
+        val choice = serviceChoice(ServiceId.Plex)
+        assertEquals("Plex", choice?.displayName)
+        assertEquals(ServiceId.Plex, choice?.id)
+    }
+
+    @Test fun `Plex advertises only what its API can deliver`() {
+        val caps = ServiceCapabilities.Plex
+        assertTrue(caps.supportsPlaylistEdit)
+        assertTrue(caps.supportsProgressReporting)
+        assertTrue(caps.supportsScrobbling)
+        // Plex has no radio endpoint on this server generation and no artist-follow flag.
+        assertTrue(!caps.supportsRadio)
+        assertTrue(!caps.supportsFollowArtist)
+        assertTrue(!caps.supportsPlaylistCreate)
+        assertTrue(!caps.supportsPodcasts)
+        assertTrue(!caps.supportsNormalization)
+        assertTrue(!caps.supportsGapless)
+        assertEquals(
+            listOf(
+                LibraryFilter.LikedSongs,
+                LibraryFilter.Playlists,
+                LibraryFilter.Albums,
+                LibraryFilter.Artists
+            ),
+            caps.availableLibraryFilters.toList()
+        )
     }
 
     @Test fun `a fully featured service keeps every category selectable`() {

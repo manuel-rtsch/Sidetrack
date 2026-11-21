@@ -16,17 +16,8 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
 
-/** How long a row must hold the focus before its gutter control appears. */
-internal const val GUTTER_DELAY_MS = 250L
-
 /** A lifted row only lends the arrows a sliver of width, as Arrange apps does. */
 internal val LiftedGutter = 30.dp
-
-/** How far the gutter control slides in from the right as it appears. */
-internal val GUTTER_SLIDE = 12.dp
-
-/** How long the gutter takes to open or close. */
-internal const val GUTTER_ANIM_MS = 160
 
 internal enum class GutterMode { Lifted, Actions }
 

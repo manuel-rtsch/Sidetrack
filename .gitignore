@@ -40,3 +40,6 @@ __pycache__/
 
 # Local release notes
 /RELEASE-*.draft.md
+
+# Store catalogue shots, rendered on demand and never committed
+/app/screenshots/store/

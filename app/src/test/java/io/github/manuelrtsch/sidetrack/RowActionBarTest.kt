@@ -112,6 +112,37 @@ class RowActionBarTest {
     }
 
     @Test
+    fun playOpensACollectionRowAndItsLabelStaysShort() {
+        // The order the caller lists them in is the order the bar shows, so Play leads the
+        // collection row's three squares the way `TrackRow` builds it.
+        val actions = rowActions(
+            playRowAction("A") {},
+            addToQueueRowAction("A") {},
+            addToPlaylistRowAction("A") {}
+        )
+
+        assertEquals(listOf("play", "addToQueue", "addToPlaylist"), actions.map { it.key })
+        // Three actions drop the label, so it has to read on its own and the description carries
+        // the sentence a sighted user would otherwise get from the bar.
+        assertEquals("Play", playRowAction("A") {}.label)
+        assertEquals("Play A now", playRowAction("A") {}.contentDescription)
+        assertEquals(ActionTone.Primary, playRowAction("A") {}.tone)
+    }
+
+    @Test
+    fun theCollectionRowSquaresDoNotRepeatAGlyph() {
+        // Play, Add to queue and Add to playlist sit side by side, and three squares are icon-only:
+        // two of them sharing a glyph makes the bar read as the same action offered twice.
+        val actions = rowActions(
+            playRowAction("A") {},
+            addToQueueRowAction("A") {},
+            addToPlaylistRowAction("A") {}
+        )
+
+        assertEquals(actions.size, actions.map { it.icon }.distinct().size)
+    }
+
+    @Test
     fun aRowActionIsLiveByDefaultAndOnlyCancelIsGrey() {
         val menu = rowActions(
             removeFromPlaylistRowAction("A") {},

@@ -34,6 +34,7 @@ internal class PlaybackEffects(
 
     private var lastEpisodeProgressAt = 0L
     private var nowPlayingNoticeJob: Job? = null
+    private var queueReplacedJob: Job? = null
 
     fun applyQueue(
         snapshot: QueueRepository.Snapshot,
@@ -134,7 +135,43 @@ internal class PlaybackEffects(
         }
     }
 
+    /**
+     * Offers the queue a collection tap just replaced for a few seconds.
+     *
+     * The timer lives here for the same reason the now-playing confirmation's does: the bar is not
+     * rendered on every screen, so the offer has to expire even while the user is elsewhere.
+     * [onExpire] lets the caller drop the queue it is offering to put back, so a stale snapshot
+     * cannot be restored after the bar has moved on.
+     */
+    fun showQueueReplaced(onExpire: () -> Unit) {
+        queueReplacedJob?.cancel()
+        // One message owns the bar, and the queue that can still be recovered is the one that
+        // matters: the confirmation would push it out for four of its eight seconds.
+        dismissNowPlayingNotice()
+        store.update { it.copy(queueReplaced = true) }
+        queueReplacedJob = scope.launch {
+            delay(QUEUE_REPLACED_UNDO_MS)
+            store.update { if (it.queueReplaced) it.copy(queueReplaced = false) else it }
+            onExpire()
+        }
+    }
+
+    /** Drops the offer, e.g. because something else started playing. */
+    fun dismissQueueReplaced() {
+        queueReplacedJob?.cancel()
+        queueReplacedJob = null
+        store.update { if (it.queueReplaced) it.copy(queueReplaced = false) else it }
+    }
+
     fun stopAtQueueEnd(notice: String? = null) {
+        // The native player is parked at the end of the item. Left playing, the drain keeps
+        // polling an empty source until the stall watchdog fires and reloads the finished track;
+        // left at its duration, the next play ends again immediately. Pause it and rewind.
+        playback()?.let { controller ->
+            controller.updatePosition(0L)
+            controller.pause()
+            controller.requestSeek(0L)
+        }
         clock.set(0L)
         store.update {
             val next = it.copy(isPlaying = false)

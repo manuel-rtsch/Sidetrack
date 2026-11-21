@@ -11,7 +11,9 @@ android {
     // io.github.manuelrtsch.sidetrack.* packages; this namespace only drives generated code.
     namespace = "io.github.manuelrtsch.sidetrack.spotify"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 2
+        }
     }
     defaultConfig {
         minSdk = 31
@@ -36,6 +38,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     // ApplicationProvider and AndroidJUnit4 in the session, auth and cache tests.
@@ -43,7 +46,7 @@ dependencies {
 }
 
 // Coverage ratchet for this module's own tests. The floor is the level measured when Kover was
-// introduced (docs/test-coverage-audit.md); it only ever moves up. Note this measures what this
+// introduced (docs/testing.md); it only ever moves up. Note this measures what this
 // module's tests cover, not what the whole suite covers -- the product-wide gate lives in :app,
 // which is the merging module.
 kover {
@@ -53,13 +56,13 @@ kover {
                 // Re-based when the phase-2 branch was rebased onto release/v0.4.0 and lifted by
                 // the native-playback suite (SpotifySessionNativeTest, 13 tests). Slice 6 moved
                 // LibrespotPlaybackEngineTest and PlaybackControllerTest next to the engine, so
-                // the module measures 77.74% line / 61.24% branch. The floors sit under the
+                // the module measures 78.71% line / 62.56% branch. The floors sit under the
                 // measurement, as a ratchet.
                 rule("line coverage") {
-                    minBound(76)
+                    minBound(77)
                 }
                 rule("branch coverage") {
-                    minBound(60, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                    minBound(61, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
                 }
             }
         }

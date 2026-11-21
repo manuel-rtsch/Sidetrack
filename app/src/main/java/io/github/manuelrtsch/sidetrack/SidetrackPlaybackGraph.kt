@@ -64,7 +64,8 @@ internal fun NavGraphBuilder.playbackGraph(
                     )
                 }
             },
-            onDismissNotice = vm::dismissNotice
+            onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace
         )
     }
     composable(SLEEP_TIMER) { entry ->
@@ -121,6 +122,7 @@ internal fun NavGraphBuilder.playbackGraph(
                 onArtist = {},
                 onAddToQueue = { vm.queueCollection(radio) },
                 onAddItemToQueue = vm::addToQueue,
+                onPlayItem = vm::playFirst,
                 onSaveTrack = { vm.toggleSaved(it) },
                 onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
                 onNowPlaying = { nav.openNowPlaying(vm) },
@@ -128,6 +130,7 @@ internal fun NavGraphBuilder.playbackGraph(
                 onLoadMore = {},
                 loadingMore = false,
                 onDismissNotice = vm::dismissNotice,
+                onUndoQueueReplace = vm::undoQueueReplace,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice,
                 showSave = radio.saveable,
                 onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
@@ -191,6 +194,7 @@ internal fun NavGraphBuilder.playbackGraph(
                     onArtist = {},
                     onAddToQueue = { vm.queueCollection(radio) },
                     onAddItemToQueue = vm::addToQueue,
+                    onPlayItem = vm::playFirst,
                     onSaveTrack = { vm.toggleSaved(it) },
                     onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
                     onNowPlaying = { nav.openNowPlaying(vm) },
@@ -198,6 +202,7 @@ internal fun NavGraphBuilder.playbackGraph(
                     onLoadMore = {},
                     loadingMore = false,
                     onDismissNotice = vm::dismissNotice,
+                    onUndoQueueReplace = vm::undoQueueReplace,
                     onDismissNowPlaying = vm::dismissNowPlayingNotice,
                     showSave = radio.saveable,
                     onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
@@ -233,6 +238,7 @@ internal fun NavGraphBuilder.playbackGraph(
             onRestoreUpcoming = vm::restoreUpcoming,
             onShuffle = vm::toggleShuffle,
             onDismissNotice = vm::dismissNotice,
+            onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }

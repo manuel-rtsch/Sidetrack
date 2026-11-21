@@ -24,6 +24,8 @@ internal fun NavGraphBuilder.settingsGraph(
         val playback by vm.playbackState.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val appSession = remember(context) { AppSessions.get(context) }
+        // The cache row is the only reader of the size, so the directory walk starts when this
+        // screen opens instead of during ViewModel creation.
         LaunchedEffect(Unit) { vm.refreshCacheSize() }
         SettingsScreen(
             account,
@@ -49,9 +51,11 @@ internal fun NavGraphBuilder.settingsGraph(
                 }
             },
             onDismissNotice = vm::dismissNotice,
-            // A host-backed Sidekit owns appearance and keyboard settings. Passing null hides
-            // those rows instead of offering edits the host would ignore.
-            onAppearance = if (hostBacked) null else ({ nav.navigate(APPEARANCE) }),
+            // A host-backed Sidekit owns the theme and the keypad, so the Keyboard row is hidden
+            // rather than offering edits the host would ignore. Appearance stays: the host owns
+            // the case colour and compact layout inside it, but not Sidetrack's own row density
+            // or its Now Playing backdrop, and the screen drops the host-owned rows itself.
+            onAppearance = { nav.navigate(APPEARANCE) },
             onKeyboard = if (hostBacked) null else ({ nav.navigate(KEYBOARD) }),
             onAbout = { nav.navigate(ABOUT) }
         )
@@ -95,7 +99,7 @@ internal fun NavGraphBuilder.settingsGraph(
         )
     }
     composable(APPEARANCE) {
-        SidetrackAppearanceScreen(onBack = { nav.popBackStack() })
+        SidetrackAppearanceScreen(hostBacked = hostBacked, onBack = { nav.popBackStack() })
     }
     composable(KEYBOARD) {
         val backLabel = if (nav.previousBackStackEntry?.destination?.route in setOf(ONBOARDING, HELP)) {

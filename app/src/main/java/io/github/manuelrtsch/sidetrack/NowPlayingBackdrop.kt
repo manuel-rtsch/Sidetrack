@@ -73,13 +73,13 @@ import kotlinx.coroutines.flow.StateFlow
 private val BackdropBlur = 11.dp
 
 /**
- * The backdrop setting, shared by the screen and Settings. It persists in
+ * The Now Playing backdrop setting, shared by the screen and Appearance. It persists in
  * [SidetrackLocalSettings]; the listener keeps a second screen (or a second Now Playing instance)
  * in step when the pref changes elsewhere.
  */
 @Stable
-internal class ArtworkBackdropSetting internal constructor(private val settings: SidetrackLocalSettings) {
-    var enabled by mutableStateOf(settings.artworkBackdrop)
+internal class NowPlayingBackdropSetting internal constructor(private val settings: SidetrackLocalSettings) {
+    var enabled by mutableStateOf(settings.nowPlayingBackdrop)
         private set
 
     fun toggle() = set(!enabled)
@@ -87,18 +87,18 @@ internal class ArtworkBackdropSetting internal constructor(private val settings:
     fun set(value: Boolean) {
         if (value == enabled) return
         enabled = value
-        settings.artworkBackdrop = value
+        settings.nowPlayingBackdrop = value
     }
 
-    internal fun observe(): () -> Unit = settings.observeArtworkBackdrop {
-        enabled = settings.artworkBackdrop
+    internal fun observe(): () -> Unit = settings.observeNowPlayingBackdrop {
+        enabled = settings.nowPlayingBackdrop
     }
 }
 
 @Composable
-internal fun rememberArtworkBackdropSetting(): ArtworkBackdropSetting {
+internal fun rememberNowPlayingBackdropSetting(): NowPlayingBackdropSetting {
     val context = LocalContext.current.applicationContext
-    val setting = remember(context) { ArtworkBackdropSetting(SidetrackLocalSettings(context)) }
+    val setting = remember(context) { NowPlayingBackdropSetting(SidetrackLocalSettings(context)) }
     DisposableEffect(setting) {
         val stop = setting.observe()
         onDispose(stop)
@@ -283,24 +283,13 @@ internal fun BackdroppedNowPlayingBody(
             buffering = playback.isBuffering
         )
         Spacer(Modifier.height(6.dp))
-        SidekitItemRow {
-            IconTile(
-                SidekitIcon.Shuffle,
-                if (playback.shuffle) "Shuffle on" else "Shuffle off",
-                onShuffle,
-                tone = if (playback.shuffle) TileTone.On else TileTone.Neutral,
-                weight = 0.85f
-            )
-            IconTile(SidekitIcon.SkipPrevious, "Previous", onPrevious, weight = 0.85f)
-            IconTile(
-                if (playback.isPlaying) SidekitIcon.Pause else SidekitIcon.PlayArrow,
-                if (playback.isPlaying) "Pause" else "Play",
-                onPlayPause,
-                tone = TileTone.Play,
-                weight = 1.2f
-            )
-            IconTile(SidekitIcon.SkipNext, "Next", onNext, weight = 0.85f)
-            RepeatTile(playback.repeat, onRepeat)
-        }
+        SongTransportRow(
+            playback,
+            onPlayPause = onPlayPause,
+            onPrevious = onPrevious,
+            onNext = onNext,
+            onShuffle = onShuffle,
+            onRepeat = onRepeat
+        )
     }
 }

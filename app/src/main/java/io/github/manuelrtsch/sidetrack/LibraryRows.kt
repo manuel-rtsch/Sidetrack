@@ -32,7 +32,7 @@ internal fun LibraryRow(
         // Library rows carry no list index: a track can appear once per category, so its id is
         // already unique here.
         is Track -> TrackRow(
-            item.id,
+            mediaRowKey(item),
             item,
             rows,
             modifier,
@@ -41,7 +41,7 @@ internal fun LibraryRow(
         ) { onTrack(item) }
 
         is Playlist -> PlaylistGutterRow(
-            item.key.encode(),
+            mediaRowKey(item),
             item,
             libraryGutters,
             rows.bar,
@@ -53,7 +53,7 @@ internal fun LibraryRow(
         )
 
         is Album -> AlbumGutterRow(
-            item.key.encode(),
+            mediaRowKey(item),
             item,
             libraryGutters,
             rows.bar,
@@ -65,7 +65,7 @@ internal fun LibraryRow(
         )
 
         is Artist -> ArtistGutterRow(
-            item.key.encode(),
+            mediaRowKey(item),
             item,
             libraryGutters,
             rows.bar,
@@ -78,7 +78,7 @@ internal fun LibraryRow(
         )
 
         is Show -> ShowGutterRow(
-            item.key.encode(),
+            mediaRowKey(item),
             item,
             libraryGutters,
             rows.bar,

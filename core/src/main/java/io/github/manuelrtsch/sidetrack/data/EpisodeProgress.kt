@@ -89,15 +89,6 @@ class EpisodeProgressRepository(
         commit(entries + (episodeId to EpisodeProgress(episodeId, position, duration, now(), finished, service)))
     }
 
-    /** Marks an episode played or unplayed without inventing a playback position. */
-    fun setCompleted(episodeId: String, completed: Boolean, durationMs: Long = 0L, service: ServiceId = ServiceId.Local) {
-        if (episodeId.isEmpty()) return
-        val previous = entries[episodeId]
-        val duration = durationMs.takeIf { it > 0L } ?: previous?.durationMs ?: 0L
-        val position = if (completed) duration else 0L
-        commit(entries + (episodeId to EpisodeProgress(episodeId, position, duration, now(), completed, service)))
-    }
-
     /** The offset playback should start at, or zero when there is nothing useful to resume. */
     fun resumePosition(episodeId: String): Long {
         val entry = entries[episodeId] ?: return 0L

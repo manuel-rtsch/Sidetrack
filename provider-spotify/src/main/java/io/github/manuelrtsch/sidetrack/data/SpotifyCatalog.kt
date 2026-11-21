@@ -99,4 +99,10 @@ interface SpotifyLibraryWriter {
 
     /** Removes the most recent occurrence of [uri] from [playlistId]. */
     suspend fun removeFromPlaylist(playlistId: String, uri: String) = Unit
+
+    /** Renames a playlist the signed-in account owns. False when the transport cannot do it. */
+    suspend fun renamePlaylist(playlistId: String, name: String): Boolean = false
+
+    /** Removes an owned playlist from the account's library. False when not supported. */
+    suspend fun deletePlaylist(playlistId: String): Boolean = false
 }

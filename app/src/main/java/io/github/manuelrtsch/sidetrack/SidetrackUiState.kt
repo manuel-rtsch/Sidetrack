@@ -49,6 +49,8 @@ data class SidetrackUiState(
     val pendingArtists: Set<String> = emptySet(),
     val filter: LibraryFilter = LibraryFilter.LikedSongs,
     val searchScopes: Set<SearchScope> = SearchScope.entries.toSet(),
+    /** Recent search terms, newest first; the landing screen offers them under "Search in". */
+    val searchHistory: List<String> = emptyList(),
     val query: String = "",
     val audioQuality: AudioQuality = AudioQuality.High,
     val normalization: Boolean = false,
@@ -60,6 +62,11 @@ data class SidetrackUiState(
     val noticeKind: NoticeKind = NoticeKind.Other,
     /** The item that just started, shown briefly in the action bar as a now-playing confirmation. */
     val nowPlayingNotice: MediaItem? = null,
+    /**
+     * A collection tap just replaced the queue, and the bar is offering it back for a few seconds.
+     * The queue itself lives in the playback driver; this is only the offer's deadline.
+     */
+    val queueReplaced: Boolean = false,
     /** The station built from the current track, shown by the Song radio screen. */
     val radio: Collection? = null,
     /** Which track seeded [radio], so revisiting the same song does not refetch it. */
@@ -79,8 +86,6 @@ data class SidetrackUiState(
     val playlistChoicesHasMore: Boolean = false,
     val playlistChoicesError: String? = null
 ) {
-    val savedCurrent: Boolean get() = current?.let { it.key.encode() in savedTrackIds } ?: false
-
     // The open category is a projection of [libraryPages]: the cache is the only copy of the rows,
     // so a page that arrives for a category the user has left is still worth keeping.
     val libraryItems: List<Any> get() = libraryPages[filter]?.items.orEmpty()

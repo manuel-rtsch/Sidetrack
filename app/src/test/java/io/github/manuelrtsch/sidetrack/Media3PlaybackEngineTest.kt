@@ -8,6 +8,7 @@ import io.github.manuelrtsch.sidetrack.playback.MediaSessionRegistry
 import io.github.manuelrtsch.sidetrack.playback.PlaybackController
 import io.github.manuelrtsch.sidetrack.playback.PlaybackEvent
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.test.TestAudioStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.CoroutineScope
@@ -154,14 +155,14 @@ class Media3PlaybackEngineTest {
     }
 
     @Test fun `a fake HTTP source serves the stream with range requests and headers`() {
-        FakeHttpStream(requireToken = "secret").use { stream ->
+        TestAudioStream(requireToken = "secret").use { stream ->
             val connection = (URL(stream.authUrl).openConnection() as HttpURLConnection).apply {
-                setRequestProperty(FakeHttpStream.TOKEN_HEADER, "secret")
+                setRequestProperty(TestAudioStream.TOKEN_HEADER, "secret")
                 setRequestProperty("Range", "bytes=100-199")
             }
 
             assertEquals(206, connection.responseCode)
-            assertEquals("bytes 100-199/${FakeHttpStream.WAV.size}", connection.getHeaderField("Content-Range"))
+            assertEquals("bytes 100-199/${TestAudioStream.WAV.size}", connection.getHeaderField("Content-Range"))
             assertEquals(100, connection.inputStream.use { it.readBytes() }.size)
             assertEquals("bytes=100-199", stream.requests.single().range)
             assertEquals("secret", stream.requests.single().token)
@@ -169,7 +170,7 @@ class Media3PlaybackEngineTest {
     }
 
     @Test fun `the shared controller plays an HTTP source through the Media3 engine`() = runTest {
-        FakeHttpStream(requireToken = "secret").use { stream ->
+        TestAudioStream(requireToken = "secret").use { stream ->
             val player = FakeMedia3Player()
             val engine = Media3PlaybackEngine { player }
             val registry = MediaSessionRegistry()
@@ -184,13 +185,13 @@ class Media3PlaybackEngineTest {
                 key,
                 stream.authUrl,
                 0L,
-                headers = mapOf(FakeHttpStream.TOKEN_HEADER to "secret")
+                headers = mapOf(TestAudioStream.TOKEN_HEADER to "secret")
             )
 
             assertSame(controller, registry.active)
             assertTrue(controller.isActive)
             assertEquals(stream.authUrl, player.prepared?.uri)
-            assertEquals("secret", player.prepared?.headers?.get(FakeHttpStream.TOKEN_HEADER))
+            assertEquals("secret", player.prepared?.headers?.get(TestAudioStream.TOKEN_HEADER))
             assertEquals(stream.authUrl, controller.currentSource?.uri)
         }
     }

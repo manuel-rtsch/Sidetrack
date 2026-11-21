@@ -9,10 +9,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The Options menu is assembled in one place (`ActionBars.kt`). These tests pin the two rules the
- * audit in `docs/options-menu-audit.md` settled on, so a later screen cannot reintroduce the drift
- * it found: shape belongs to the entry (a destination is labelled, only a list-wide toggle and Now
- * Playing's playback shortcuts are icon-only squares) and colour belongs to what an option does
+ * The Options menu is assembled in one place (`ActionBars.kt`). These tests pin the two rules in
+ * `docs/menus.md`, so a later screen cannot reintroduce the drift they exist to prevent: shape
+ * belongs to the entry (a destination is labelled; only a list-wide toggle, Now Playing's
+ * playback shortcuts and a playlist edit squeezed by the queue destination are squares) and colour
+ * belongs to what an option does
  * (accent for every live option, as Sidekit's own apps paint their Options bars; green for a toggle
  * that is on; red for destroy).
  */
@@ -64,20 +65,34 @@ class OptionsBuilderTest {
     fun sleepTimerSaysItsStateInWordsAndColorOnEveryScreen() {
         val idle = sleepTimerOption(active = false, onClick = {})
         val armed = sleepTimerOption(active = true, onClick = {})
-        val nowPlaying = sidetrackOptions(
+        val queue = sidetrackOptions(
             openQueueOption({}),
-            songRadioOption({}),
             sleepTimerOption(active = true, onClick = {})
-        ).last()
+        )
 
         assertEquals("Sleep timer", idle.label)
         assertEquals("Sleep timer on", armed.label)
         assertEquals(ActionTone.Primary, idle.tone)
         assertEquals(ActionTone.Secondary, armed.tone)
-        // The queue and Now Playing build the same entry, so it cannot differ in shape or tone.
-        assertEquals(armed.label, nowPlaying.label)
-        assertEquals(armed.square, nowPlaying.square)
-        assertEquals(armed.tone, nowPlaying.tone)
+        assertTrue("The queue's bar has room for the words", queue.last().label != null)
+        assertEquals(armed.tone, queue.last().tone)
+    }
+
+    @Test
+    fun nowPlayingSleepTimerIsASquareBecauseTheWordsAreOnTheScreen() {
+        // Three playback squares plus Sidekit's close square already claim 430 of the bar's
+        // 460 dp, so a labelled sleep timer there truncated to "Sle…". It is a square like the
+        // shortcuts beside it; the countdown row in the body carries the words.
+        val idle = sleepTimerShortcutOption(active = false, onClick = {})
+        val armed = sleepTimerShortcutOption(active = true, onClick = {})
+        val nowPlaying = sidetrackOptions(openQueueOption({}), songRadioOption({}), armed)
+
+        assertTrue("Now Playing has no room for a label", nowPlaying.all { it.square })
+        assertEquals("Sleep timer", idle.contentDescription)
+        assertEquals("Sleep timer on", armed.contentDescription)
+        assertEquals(ActionTone.Primary, idle.tone)
+        assertEquals(ActionTone.Secondary, armed.tone)
+        assertEquals("sleepTimer", armed.key)
     }
 
     @Test
@@ -112,6 +127,25 @@ class OptionsBuilderTest {
     }
 
     @Test
+    fun playlistEditsAreSquaresSoTheQueueKeepsItsLabel() {
+        // Add to queue is the page's destination and keeps the bar's one label. Rename and Delete
+        // become squares: three labels alongside Sidekit's close square would truncate.
+        val options = sidetrackOptions(
+            addToQueueOption {},
+            renamePlaylistOption("Road trip") {},
+            deletePlaylistOption("Road trip") {}
+        )
+
+        assertEquals(listOf("addToQueue", "renamePlaylist", "deletePlaylist"), options.map { it.key })
+        assertFalse("Add to queue keeps its label", options[0].square)
+        assertTrue("Rename is a square", options[1].square)
+        assertTrue("Delete is a square", options[2].square)
+        assertEquals("Rename Road trip", options[1].contentDescription)
+        assertEquals("Delete Road trip", options[2].contentDescription)
+        assertEquals(ActionTone.Destructive, options[2].tone)
+    }
+
+    @Test
     fun aDestructiveOptionIsAlwaysLast() {
         val options = sidetrackOptions(
             artistRadioOption {},
@@ -128,11 +162,11 @@ class OptionsBuilderTest {
         val nowPlaying = sidetrackOptions(
             openQueueOption({}),
             songRadioOption({}),
-            sleepTimerOption(active = false, onClick = {})
+            sleepTimerShortcutOption(active = false, onClick = {})
         )
         val contentScreen = sidetrackOptions(artistRadioOption({}), onNowPlaying = {})
 
-        assertEquals(listOf(true, true, false), nowPlaying.map { it.square })
+        assertEquals(listOf(true, true, true), nowPlaying.map { it.square })
         assertEquals(listOf(false, false), contentScreen.map { it.square })
     }
 
@@ -151,7 +185,8 @@ class OptionsBuilderTest {
             openQueueOption {},
             songRadioOption {},
             episodeNotesOption {},
-            sleepTimerOption(active = false) {}
+            sleepTimerOption(active = false) {},
+            sleepTimerShortcutOption(active = false) {}
         )
 
         live.forEach { assertEquals("${it.key} is a live option", ActionTone.Primary, it.tone) }

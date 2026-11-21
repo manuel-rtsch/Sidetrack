@@ -1,37 +1,24 @@
 package io.github.manuelrtsch.sidetrack.data
 
 import android.content.Context
-import hrln.interactive.sidekit.sdk.media.RemoteArtwork
-import io.github.manuelrtsch.sidetrack.AudioQuality
-import io.github.manuelrtsch.sidetrack.MediaItem
 import io.github.manuelrtsch.sidetrack.MediaKey
 import io.github.manuelrtsch.sidetrack.MediaType
 import io.github.manuelrtsch.sidetrack.ServiceCapabilities
 import io.github.manuelrtsch.sidetrack.ServiceId
-import io.github.manuelrtsch.sidetrack.auth.CredentialPersistenceException
 import io.github.manuelrtsch.sidetrack.auth.JellyfinAuth
 import io.github.manuelrtsch.sidetrack.auth.JellyfinCredentialStore
 import io.github.manuelrtsch.sidetrack.auth.SdkJellyfinAuthenticator
-import io.github.manuelrtsch.sidetrack.playback.ExoPlayerMedia3Player
-import io.github.manuelrtsch.sidetrack.playback.Media3PlaybackEngine
 import io.github.manuelrtsch.sidetrack.playback.PlaybackController
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 /**
  * A signed-in Jellyfin account.
  *
- * Catalog, auth and writer are the SDK adapter; playback is the shared [PlaybackController] over
- * Media3/ExoPlayer, so the media session, notification and audio focus behave exactly as they do
- * for Navidrome. Queue, history and resume files are Jellyfin-specific, so switching services
- * never mixes two accounts.
+ * Catalog, auth and writer are the SDK adapter; playback runs the shared [Media3ServiceRuntime]
+ * lifecycle over Media3/ExoPlayer, so the media session, notification and audio focus behave
+ * exactly as they do for the Subsonic family and Plex.
  *
  * One [SdkJellyfinApi] is kept per access token. The SDK client is expensive to build and carries
  * the device identity the server keys a session on, so it must not be recreated per request.
@@ -42,17 +29,13 @@ class JellyfinRuntime(
         JellyfinCredentialStore(context),
         SdkJellyfinAuthenticator(context)
     )
-) : ServiceRuntime,
-    CacheRuntime,
-    QualitySettingsRuntime {
-    private val appContext = context.applicationContext
-
-    override val service: ServiceId = ServiceId.Jellyfin
-    override val capabilities: ServiceCapabilities = ServiceCapabilities.Jellyfin
-
-    private val _signedIn = MutableStateFlow(runCatching { auth.hasCredentials() }.getOrDefault(false))
-    override val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
-
+) : Media3ServiceRuntime(
+    context = context,
+    service = ServiceId.Jellyfin,
+    capabilities = ServiceCapabilities.Jellyfin,
+    auth = auth,
+    stores = StoreNames.forService("jellyfin")
+) {
     @Volatile
     private var client: JellyfinApi? = null
 
@@ -75,55 +58,17 @@ class JellyfinRuntime(
 
     override val catalog: JellyfinCatalog = JellyfinCatalog(
         api = ::api,
-        settings = { _settings.value }
+        settings = { settingsState.value }
     )
-    override val writer: MediaLibraryWriter get() = catalog as MediaLibraryWriter
 
-    override val network: NetworkMonitor = NetworkMonitor(appContext)
-    override val isOnline: Boolean get() = network.isOnline
-
-    private val settingsStore = PlaybackSettingsStore(appContext, "sidetracks_settings_jellyfin")
-    private val _settings = MutableStateFlow(
-        runCatching { settingsStore.read() }.getOrDefault(PlaybackSettings())
-    )
-    override val settings: StateFlow<PlaybackSettings> = _settings.asStateFlow()
-
-    private val queueStore = FileQueueStore(File(appContext.filesDir, "sidetracks-jellyfin-queue.bin"))
-    private val historyStore = FileHistoryStore(File(appContext.filesDir, "sidetracks-jellyfin-history.bin"))
-    private val positionStore = FilePositionStore(File(appContext.filesDir, "sidetracks-jellyfin-resume.bin"))
-
-    override val queue = QueueRepository(
-        load = { queueStore.read() },
-        save = { queueStore.write(it) }
-    )
-    override val history = HistoryRepository(
-        load = { historyStore.read() },
-        save = { historyStore.write(it) }
-    )
-    override val episodeProgress = EpisodeProgressRepository()
-    override val episodeMeta = EpisodeMetaRepository()
-
-    @Volatile
-    override var resumePoint: ResumePoint? = runCatching { positionStore.read() }.getOrNull()
-        private set
-
-    private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val reportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    override val playback: PlaybackController by lazy {
-        PlaybackController(
-            engine = Media3PlaybackEngine { ExoPlayerMedia3Player(appContext) },
-            scope = playbackScope,
-            context = appContext
-        ).also(::startReporting)
-    }
 
     init {
         // A stored session installs the artwork header before the first row is drawn.
-        if (_signedIn.value) runCatching { auth.installArtworkHeaders() }
+        if (signedIn.value) runCatching { auth.installArtworkHeaders() }
     }
 
-    private fun startReporting(controller: PlaybackController) {
+    override fun attachPlaybackFeatures(controller: PlaybackController): PlaybackController {
         JellyfinPlaybackReporter(
             api = ::api,
             playbackInfo = catalog::playbackInfo,
@@ -133,104 +78,20 @@ class JellyfinRuntime(
             position = { controller.position },
             scope = reportScope
         ).start()
+        return controller
     }
 
-    override suspend fun signIn(input: AuthInput) {
-        try {
-            auth.signIn(input)
-        } catch (e: CredentialPersistenceException) {
-            // The server accepted the sign-in and the in-memory session works; only the next
-            // launch will have to ask again.
-            _signedIn.value = true
-            throw e
-        }
-        // Reset the client so the new token gets its own SDK instance.
+    /** A new token gets its own SDK client, and the account's resume list seeds the position. */
+    override suspend fun onSignedIn() {
         client = null
         clientToken = null
-        _signedIn.value = true
         seedFromServer()
     }
 
-    override fun signOut() {
-        rememberPosition(clear = true)
-        queue.stop()
-        history.clear()
-        playbackScope.launch { runCatching { playback.stop() } }
-        auth.clear()
+    override fun onSignedOut() {
         client = null
         clientToken = null
-        _signedIn.value = false
     }
-
-    override suspend fun play(item: MediaItem, positionMs: Long, gapless: Boolean) {
-        val source = catalog.resolvePlaybackSource(item)
-        playback.start(item.key, source.uri, positionMs, headers = source.headers)
-    }
-
-    override suspend fun resume(): Boolean {
-        val current = playback.current
-        if (current != null && playback.engine.state.value.source == null) {
-            val source = catalog.resolvePlaybackSource(current)
-            playback.start(current.key, source.uri, playback.position, headers = source.headers)
-            return true
-        }
-        return playback.resume()
-    }
-
-    override suspend fun seek(positionMs: Long) = playback.seek(positionMs)
-
-    override fun pause() {
-        rememberPosition()
-        playback.pause()
-    }
-
-    override fun togglePlayback() {
-        if (playback.isActive) pause() else playbackScope.launch { runCatching { resume() } }
-    }
-
-    override fun stopPlayback() {
-        rememberPosition(clear = true)
-        queue.stop()
-        playbackScope.launch { runCatching { playback.stop() } }
-    }
-
-    override fun haltPlayback() {
-        rememberPosition()
-        playbackScope.launch { runCatching { playback.stop(keepQueue = true) } }
-    }
-
-    override fun setAutoplay(enabled: Boolean) {
-        _settings.update { it.copy(autoplay = enabled) }
-        settingsStore.write(_settings.value)
-    }
-
-    override fun setAudioQuality(quality: AudioQuality) {
-        _settings.update { it.copy(audioQuality = quality) }
-        settingsStore.write(_settings.value)
-    }
-
-    override fun setNormalization(enabled: Boolean) {
-        // Jellyfin has no loudness parameter (D4/capability), but the preference is kept so the
-        // settings row behaves the same when the service can use it.
-        _settings.update { it.copy(normalization = enabled) }
-        settingsStore.write(_settings.value)
-    }
-
-    override fun setGapless(enabled: Boolean) {
-        _settings.update { it.copy(gapless = enabled) }
-        settingsStore.write(_settings.value)
-    }
-
-    override fun clearCaches() {
-        RemoteArtwork.clear(appContext)
-    }
-
-    override fun cacheSizeBytes(): Long = File(appContext.cacheDir, "artwork")
-        .walkTopDown()
-        .filter { it.isFile }
-        .sumOf { it.length() }
-
-    override fun clearAudioCache() = clearCaches()
 
     /**
      * Tells the server this client exists (so its session list is honest) and seeds the resume
@@ -244,19 +105,7 @@ class JellyfinRuntime(
         val ticks = resumed.playbackPositionTicks ?: 0L
         if (ticks <= 0L) return
         val type = resumed.kind.toMediaType() ?: return
-        val point = ResumePoint(MediaKey(ServiceId.Jellyfin, type, resumed.id), ticks.ticksToMs())
-        positionStore.write(point)
-        resumePoint = point
-    }
-
-    private fun rememberPosition(clear: Boolean = false) {
-        val point = if (clear) {
-            null
-        } else {
-            playback.current?.let { ResumePoint(it.key, playback.position.coerceAtLeast(0L)) }
-        }
-        positionStore.write(point)
-        resumePoint = point
+        recordResumePoint(ResumePoint(MediaKey(ServiceId.Jellyfin, type, resumed.id), ticks.ticksToMs()))
     }
 }
 

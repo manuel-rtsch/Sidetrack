@@ -38,7 +38,9 @@ class QueueRepository(
 
     /**
      * Starts playback from [index] within [items], replacing the queue. The rows after the
-     * chosen item become upcoming; the item that was playing moves into history.
+     * chosen item become upcoming; the item that was playing moves into history. [items] is also
+     * the playback context, so repeat-context replays the whole list — a page of it until
+     * [extendContext] adds the pages behind "See more".
      */
     fun play(items: List<MediaItem>, index: Int): Snapshot {
         if (index !in items.indices) return snapshot
@@ -65,6 +67,32 @@ class QueueRepository(
     fun playItem(item: MediaItem): Snapshot = play(listOf(item), 0)
 
     /**
+     * Grows the tail of a collection whose later pages are still loading, starting from the page
+     * that is already playing as [page]. Only the end of the queue moves, so Up next can be read
+     * while the request runs.
+     *
+     * The page itself is the guard: the call does nothing once the queue's context is no longer
+     * exactly that page, which drops a load that lands after the user started something else, and
+     * also keeps two loads from queueing the same page twice. A shuffled queue grows both the
+     * shuffled tail and its pre-shuffle backup, so shuffle still describes the whole collection.
+     */
+    fun extendContext(page: List<MediaItem>, items: List<MediaItem>): Snapshot {
+        if (items.size <= page.size) return snapshot
+        val context = snapshot.context
+        if (context.size != page.size) return snapshot
+        if (context.map { it.key } != page.map { it.key }) return snapshot
+        val delta = items.drop(page.size)
+        val backup = snapshot.shuffleBackup
+        return commit(
+            snapshot.copy(
+                context = context + delta,
+                upcoming = snapshot.upcoming + if (snapshot.shuffle) delta.shuffled(random) else delta,
+                shuffleBackup = if (snapshot.shuffle) (backup ?: snapshot.upcoming) + delta else backup
+            )
+        )
+    }
+
+    /**
      * Starts [item] now without touching the tail. A track picked from a list row is a request
      * to hear that track, not a request to discard the queue the user assembled: only the
      * current item changes, the previous one moves into history, and the context becomes the
@@ -83,6 +111,36 @@ class QueueRepository(
                     (listOf(previous) + snapshot.history).take(HISTORY_LIMIT)
                 },
                 context = listOf(item)
+            )
+        )
+    }
+
+    /**
+     * Plays [item] immediately and hands the tail back to the item that was playing: the queue
+     * resumes where it was once the picked track ends, so a request to hear one song does not
+     * drop anything the user had lined up. History is untouched, because nothing was skipped.
+     *
+     * Unlike [play] this does not adopt a new context, so Repeat context still replays the album
+     * or playlist the queue came from.
+     */
+    fun playFirst(item: MediaItem): Snapshot {
+        if (!item.playable) return snapshot
+        if (item.key == snapshot.current?.key) return snapshot
+        val previous = snapshot.current
+
+        // The picked track is about to play, so an occurrence further down would only play twice.
+        fun withoutPicked(tail: List<MediaItem>): List<MediaItem> {
+            val at = tail.indexOfFirst { it.key == item.key }
+            return if (at < 0) tail else tail.filterIndexed { index, _ -> index != at }
+        }
+        val tail = withoutPicked(snapshot.upcoming)
+        val backup = snapshot.shuffleBackup?.let { withoutPicked(it) }
+        return commit(
+            snapshot.copy(
+                current = item,
+                upcoming = listOfNotNull(previous) + tail,
+                shuffleBackup = backup?.let { listOfNotNull(previous) + it },
+                context = snapshot.context.ifEmpty { listOf(item) }
             )
         )
     }
@@ -192,19 +250,6 @@ class QueueRepository(
                 history = (listOf(current) + skipped + snapshot.history).take(HISTORY_LIMIT)
             )
         )
-    }
-
-    /**
-     * Puts one occurrence directly after the current item. An existing occurrence is moved, not
-     * duplicated; the first match is enough because the queue UI has no id-based Play next.
-     */
-    fun playNext(item: MediaItem): Snapshot {
-        if (item.key == snapshot.current?.key) return snapshot
-        val upcoming = snapshot.upcoming.toMutableList()
-        val at = upcoming.indexOfFirst { it.key == item.key }
-        if (at >= 0) upcoming.removeAt(at)
-        upcoming.add(0, item)
-        return commit(snapshot.copy(upcoming = upcoming))
     }
 
     fun addToQueue(item: MediaItem): Snapshot = addToQueue(listOf(item))

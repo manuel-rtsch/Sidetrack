@@ -34,6 +34,7 @@ import hrln.interactive.sidekit.design.components.listFade
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
+import io.github.manuelrtsch.sidetrack.ui.GUTTER_DELAY_MS
 import io.github.manuelrtsch.sidetrack.ui.QueueReorderAutoScroll
 import io.github.manuelrtsch.sidetrack.ui.rememberQueueReorderState
 import io.github.manuelrtsch.sidetrack.ui.rememberSwipeRevealGroup
@@ -57,7 +58,8 @@ fun QueueScreen(
     onShuffle: () -> Unit,
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
-    onKeypadBackOverride: ((() -> Boolean)?) -> Unit = {}
+    onKeypadBackOverride: ((() -> Boolean)?) -> Unit = {},
+    onUndoQueueReplace: () -> Unit = {}
 ) {
     var pendingUndo by remember { mutableStateOf<QueueUndo?>(null) }
     // Removing from the queue offers the same five visible seconds as every other Undo in the app.
@@ -73,7 +75,7 @@ fun QueueScreen(
     // them, and the rows below share the same list playback.
     val listState = rememberLazyListState()
     val rowActions = rememberRowActionBarState()
-    rowActions.dismissOnScroll(listState)
+    rowActions.DismissOnScroll(listState)
     val reorder = rememberQueueReorderState(listState)
     // Touch swipes and the keypad gutter share the same right edge. Keep one group here so a
     // keypad move can dismiss an open swipe instead of leaving two action buttons on screen.
@@ -94,7 +96,7 @@ fun QueueScreen(
     // Keys are the track's identity, not its position: a row that moves keeps its node, so it
     // keeps focus and never blinks out and back in. Duplicates get an occurrence suffix because
     // the queue may legitimately hold the same track twice.
-    val upcomingKeys = remember(visibleUpcoming) { entryKeys(visibleUpcoming) }
+    val upcomingKeys = remember(visibleUpcoming) { mediaRowKeys(visibleUpcoming) }
     // Focus state is keyed, not indexed: a shuffle or a move can change every index while the
     // row under the focus ring stays the same. This is what used to let a gutter land on the
     // wrong track after shuffle.
@@ -272,6 +274,7 @@ fun QueueScreen(
         onNowPlaying,
         onDismissNowPlaying,
         listOfNotNull(back, shuffleAction),
+        onUndoQueueReplace,
         showNowPlayingNotice = false
     )
     val undo = when (val pending = pendingUndo) {
