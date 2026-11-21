@@ -56,7 +56,7 @@ internal fun BaseItemDto.toItem(): JellyfinItem = JellyfinItem(
 )
 
 internal fun SearchHint.toHint(): JellyfinSearchHint = JellyfinSearchHint(
-    itemId = itemId.toString(),
+    itemId = id.toString(),
     name = name,
     kind = type.toKind(),
     albumId = albumId?.toString(),
@@ -66,7 +66,7 @@ internal fun SearchHint.toHint(): JellyfinSearchHint = JellyfinSearchHint(
     runTimeTicks = runTimeTicks,
     productionYear = productionYear,
     imageTag = primaryImageTag,
-    imageItemId = thumbImageItemId?.toString()
+    imageItemId = thumbImageItemId
 )
 
 internal fun BaseItemKind.toKind(): JellyfinKind = when (this) {

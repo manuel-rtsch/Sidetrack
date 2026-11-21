@@ -97,7 +97,7 @@ fun LibraryScreen(
         )
     ) { padding ->
         val listState = rememberLazyListState()
-        rows.bar.dismissOnScroll(listState)
+        rows.bar.DismissOnScroll(listState)
         val filter = library.filter
         val items = library.libraryItems
         val filterFocus = remember {

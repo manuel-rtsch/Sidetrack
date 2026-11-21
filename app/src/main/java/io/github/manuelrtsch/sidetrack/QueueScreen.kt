@@ -73,7 +73,7 @@ fun QueueScreen(
     // them, and the rows below share the same list playback.
     val listState = rememberLazyListState()
     val rowActions = rememberRowActionBarState()
-    rowActions.dismissOnScroll(listState)
+    rowActions.DismissOnScroll(listState)
     val reorder = rememberQueueReorderState(listState)
     // Touch swipes and the keypad gutter share the same right edge. Keep one group here so a
     // keypad move can dismiss an open swipe instead of leaving two action buttons on screen.

@@ -206,7 +206,7 @@ fun CollectionScreen(
         header = header
     ) { padding ->
         val listState = rememberLazyListState()
-        rows.bar.dismissOnScroll(listState)
+        rows.bar.DismissOnScroll(listState)
         val playFocus = remember { FocusRequester() }
         val moreFocus = rememberLoadMoreFocus()
         val playIds = remember(collection.items) { collection.items.mapTo(mutableSetOf()) { it.id } }

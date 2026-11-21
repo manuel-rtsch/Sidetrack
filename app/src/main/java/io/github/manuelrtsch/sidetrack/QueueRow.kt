@@ -185,7 +185,7 @@ internal fun QueueUpcomingRow(
                                 Modifier
                             }
                         )
-                        .then(host.moreFocus.rowModifier(index)),
+                        .rowFocusTarget(host.moreFocus, index),
                     secondary = item.creator,
                     // The side control gets the right edge while it is visible.
                     trailing = if (gutter > 0.dp) null else formatDuration(item.durationMs),

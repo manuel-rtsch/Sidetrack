@@ -147,7 +147,7 @@ internal class PlaybackDriver(
         }
         if (clock.value > 3_000L) {
             clock.set(0L)
-            if (s.current?.service != ServiceId.Local) {
+            if (s.current.service != ServiceId.Local) {
                 session?.let { session ->
                     scope.launch { runCatching { session.seek(0L) } }
                 }
@@ -162,7 +162,7 @@ internal class PlaybackDriver(
             previous?.let { startRemote(it, resume, resuming = resume > 0L) }
         } else {
             clock.set(0L)
-            if (s.current?.service != ServiceId.Local) {
+            if (s.current.service != ServiceId.Local) {
                 session?.let { session ->
                     scope.launch { runCatching { session.seek(0L) } }
                 }

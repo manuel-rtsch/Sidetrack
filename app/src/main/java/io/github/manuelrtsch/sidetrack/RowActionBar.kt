@@ -338,7 +338,7 @@ fun CloseRowActionsWhenDisposed(selected: Boolean, state: RowActionBarState) {
  * bar's own doing, so treating it as a dismissal closed the bar in the same frame it opened.
  */
 @Composable
-fun RowActionBarState.dismissOnScroll(listState: LazyListState) {
+fun RowActionBarState.DismissOnScroll(listState: LazyListState) {
     val dragged by listState.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(dragged) {
         if (dragged) close(restoreFocus = false)

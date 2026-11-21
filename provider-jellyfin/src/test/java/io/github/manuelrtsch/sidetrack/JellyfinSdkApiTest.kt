@@ -25,7 +25,7 @@ class JellyfinSdkApiTest : JellyfinSdkApiTestBase() {
 
     @Test fun `library queries ask for the right kinds and map the page`() = runBlocking {
         server.reply { req ->
-            if (req.path == "/Artists") {
+            if (req.query.orEmpty().contains("includeItemTypes=MusicArtist")) {
                 FakeJellyfin.Res(200, page(ARTIST))
             } else {
                 FakeJellyfin.Res(200, page(ITEM))
@@ -57,7 +57,7 @@ class JellyfinSdkApiTest : JellyfinSdkApiTestBase() {
         assertTrue(itemsQuery(0).contains("startIndex=5"))
         assertTrue(itemsQuery(1).contains("includeItemTypes=Playlist"))
         assertTrue(itemsQuery(2).contains("includeItemTypes=MusicAlbum"))
-        assertTrue(requests[3].path == "/Artists")
+        assertTrue(itemsQuery(3).contains("includeItemTypes=MusicArtist"))
         assertTrue(itemsQuery(3).contains("isFavorite=true"))
         assertTrue(itemsQuery(4).contains("parentId=$ALBUM_ID"))
         assertTrue(itemsQuery(4).contains("recursive=false"))

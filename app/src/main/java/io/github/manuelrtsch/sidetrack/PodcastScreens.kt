@@ -50,8 +50,8 @@ import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
 import io.github.manuelrtsch.sidetrack.ui.RowGutterState
+import io.github.manuelrtsch.sidetrack.ui.gutterSquareFocus
 import io.github.manuelrtsch.sidetrack.ui.keyScroll
-import io.github.manuelrtsch.sidetrack.ui.rememberGutterSquareFocus
 import io.github.manuelrtsch.sidetrack.ui.rememberRowGutterState
 
 /**
@@ -110,7 +110,7 @@ fun ShowScreen(
         options = options
     ) { padding ->
         val listState = rememberLazyListState()
-        rowActions.dismissOnScroll(listState)
+        rowActions.DismissOnScroll(listState)
         val playFocus = remember { FocusRequester() }
         val moreFocus = rememberLoadMoreFocus()
         val gutters = rememberRowGutterState()
@@ -274,7 +274,7 @@ private fun EpisodeRow(
     onClick: () -> Unit
 ) {
     val colors = SidekitTheme.colors
-    val squareFocus = rememberGutterSquareFocus(key, focus)
+    val squareFocus = Modifier.gutterSquareFocus(key, focus)
     val notes = remember(episode.description) { plainPodcastText(episode.description) }
     val resume = progress?.takeIf { !it.completed }
     val selected = bar.selection?.key == key

@@ -134,13 +134,13 @@ class LoadMoreFocusState {
 @Composable
 fun rememberLoadMoreFocus(): LoadMoreFocusState = remember { LoadMoreFocusState() }
 
-/** The modifier for the row at [index] that should take focus after a page loads. */
-fun LoadMoreFocusState.rowModifier(index: Int): Modifier = if (index == targetIndex) Modifier.focusRequester(firstNewFocus) else Modifier
+/** The modifier for the row at [state]'s [index] that should take focus after a page loads. */
+fun Modifier.rowFocusTarget(state: LoadMoreFocusState, index: Int): Modifier = if (index == state.targetIndex) focusRequester(state.firstNewFocus) else this
 
 /**
  * The requester for the row at [index] that should take focus after a page loads, or null. Row
  * wrappers that hide their focusable element behind another layout pass pass this down instead of
- * putting [rowModifier] on the wrapper, where it would have no focus target to attach to.
+ * putting [rowFocusTarget] on the wrapper, where it would have no focus target to attach to.
  */
 fun LoadMoreFocusState.requesterFor(index: Int): FocusRequester? = if (index == targetIndex) firstNewFocus else null
 

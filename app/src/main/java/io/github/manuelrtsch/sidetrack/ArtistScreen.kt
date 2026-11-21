@@ -76,7 +76,7 @@ fun ArtistScreen(
         )
     ) { padding ->
         val listState = rememberLazyListState()
-        rows.bar.dismissOnScroll(listState)
+        rows.bar.DismissOnScroll(listState)
         val playIds = remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
         val tracksFocus = rememberLoadMoreFocus()
         val albumsFocus = rememberLoadMoreFocus()
@@ -168,7 +168,7 @@ fun ArtistScreen(
                     album.title,
                     "${album.year}" + if (album.trackCount > 0) " · ${album.trackCount} tracks" else "",
                     Modifier.listFade(listState, albumsBase + index)
-                        .then(albumsFocus.rowModifier(index)),
+                        .rowFocusTarget(albumsFocus, index),
                     artUrl = album.artUrl
                 ) { onAlbum(album) }
             }

@@ -217,5 +217,5 @@ val PlaybackEvent.debugName: String
         is PlaybackEvent.Ended -> "Ended"
         is PlaybackEvent.Stopped -> "Stopped"
         is PlaybackEvent.Unavailable -> "Unavailable"
-        is PlaybackEvent.Unknown -> "Unknown(${type})"
+        is PlaybackEvent.Unknown -> "Unknown($type)"
     }

@@ -55,7 +55,7 @@ fun AddToPlaylistScreen(
     )
     SidekitScaffold(title = "Add to playlist", actions = actions) { padding ->
         val listState = rememberLazyListState()
-        bar.dismissOnScroll(listState)
+        bar.DismissOnScroll(listState)
         val choices = playlists.choices
         val loading = playlists.loading && choices.isEmpty()
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -111,7 +111,7 @@ fun AddToPlaylistScreen(
                     playlist.artRes,
                     playlist.name,
                     playlistSubtitle(playlist),
-                    Modifier.listFade(listState, index + 1).then(moreFocus.rowModifier(index)),
+                    Modifier.listFade(listState, index + 1).rowFocusTarget(moreFocus, index),
                     artUrl = playlist.artUrl
                 ) {
                     scope.launch {

@@ -16,8 +16,8 @@ import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
 import io.github.manuelrtsch.sidetrack.ui.RowGutterState
-import io.github.manuelrtsch.sidetrack.ui.rememberGutterSquareFocus
-import io.github.manuelrtsch.sidetrack.ui.settle
+import io.github.manuelrtsch.sidetrack.ui.Settle
+import io.github.manuelrtsch.sidetrack.ui.gutterSquareFocus
 
 /** The row whose gutter is showing in a track list. */
 @Stable
@@ -56,7 +56,7 @@ fun rememberTrackRows(
 ): TrackRows {
     val focus = remember { TrackRowFocusState() }
     val bar = rememberRowActionBarState()
-    focus.settle()
+    focus.Settle()
     return TrackRows(
         focus,
         bar,
@@ -123,7 +123,7 @@ fun TrackRow(
     }) {
         // The trigger and its focus state only exist while the gutter is open. A long list
         // otherwise pays for a focus modifier on every row it composes.
-        val squareFocus = rememberGutterSquareFocus(key, rows.focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, rows.focus)
         RowActionSquare(
             color = SidekitTheme.colors.surfaceA4,
             label = "Actions for ${track.title}",
@@ -206,7 +206,7 @@ fun GutterMediaRow(
             }
         )
     }) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, focus)
         RowActionSquare(
             color = SidekitTheme.colors.successA1,
             icon = SidekitIcon.PlaylistAdd,

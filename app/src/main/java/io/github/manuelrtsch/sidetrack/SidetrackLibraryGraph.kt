@@ -197,8 +197,8 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 onArtwork = {
                     nav.navigate(artworkRoute(collection.artRes, collection.artUrl, collection.title))
                 },
-                onLoadMore = { mediaKey?.let { vm.loadMoreCollection(it) } },
-                loadingMore = mediaKey?.encode() in library.collectionMorePending,
+                onLoadMore = { vm.loadMoreCollection(mediaKey) },
+                loadingMore = mediaKey.encode() in library.collectionMorePending,
                 onShowNotes = {
                     nav.navigate(
                         notesRoute(
@@ -251,8 +251,8 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 onArtwork = {
                     nav.navigate(artworkRoute(collection.artRes, collection.artUrl, collection.title))
                 },
-                onLoadMore = { mediaKey?.let { vm.loadMoreCollection(it) } },
-                loadingMore = mediaKey?.encode() in library.collectionMorePending,
+                onLoadMore = { vm.loadMoreCollection(mediaKey) },
+                loadingMore = mediaKey.encode() in library.collectionMorePending,
                 onDismissNotice = vm::dismissNotice,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice,
                 onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit && collection.type != CollectionType.Playlist) {

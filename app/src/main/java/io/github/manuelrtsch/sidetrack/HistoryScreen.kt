@@ -40,7 +40,7 @@ fun HistoryScreen(
         options = sidetrackOptions(onNowPlaying = onNowPlaying)
     ) { padding ->
         val listState = rememberLazyListState()
-        rowActions.dismissOnScroll(listState)
+        rowActions.DismissOnScroll(listState)
         // The gutter follows the focused row, or a long press when the list is driven by touch.
         val gutters = rememberRowGutterState()
         val shown = remember { mutableIntStateOf(CATALOG_PAGE_SIZE) }

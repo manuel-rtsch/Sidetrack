@@ -2,6 +2,7 @@ package io.github.manuelrtsch.sidetrack
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import hrln.interactive.sidekit.design.input.T9Mode
 
 /**
@@ -17,7 +18,7 @@ internal class SidetrackLocalSettings(context: Context) {
     var inputMode: T9Mode
         get() = T9Mode.entries.firstOrNull { it.name == prefs.getString(KEY_INPUT_MODE, null) } ?: T9Mode.MultiTap
         set(value) {
-            prefs.edit().putString(KEY_INPUT_MODE, value.name).apply()
+            prefs.edit { putString(KEY_INPUT_MODE, value.name) }
         }
 
     fun observeInputMode(onChange: () -> Unit): () -> Unit = observe(KEY_INPUT_MODE, onChange)
@@ -29,7 +30,7 @@ internal class SidetrackLocalSettings(context: Context) {
     var nowPlayingBackdrop: Boolean
         get() = prefs.getBoolean(KEY_NOW_PLAYING_BACKDROP, false)
         set(value) {
-            prefs.edit().putBoolean(KEY_NOW_PLAYING_BACKDROP, value).apply()
+            prefs.edit { putBoolean(KEY_NOW_PLAYING_BACKDROP, value) }
         }
 
     fun observeNowPlayingBackdrop(onChange: () -> Unit): () -> Unit = observe(KEY_NOW_PLAYING_BACKDROP, onChange)
@@ -41,7 +42,7 @@ internal class SidetrackLocalSettings(context: Context) {
     var compactRows: Boolean
         get() = prefs.getBoolean(KEY_COMPACT_ROWS, false)
         set(value) {
-            prefs.edit().putBoolean(KEY_COMPACT_ROWS, value).apply()
+            prefs.edit { putBoolean(KEY_COMPACT_ROWS, value) }
         }
 
     fun observeCompactRows(onChange: () -> Unit): () -> Unit = observe(KEY_COMPACT_ROWS, onChange)
@@ -56,9 +57,9 @@ internal class SidetrackLocalSettings(context: Context) {
             ?.filter { it.isNotBlank() }
             .orEmpty()
         set(value) {
-            prefs.edit()
-                .putString(KEY_SEARCH_HISTORY, value.joinToString(SEARCH_HISTORY_SEPARATOR))
-                .apply()
+            prefs.edit {
+                putString(KEY_SEARCH_HISTORY, value.joinToString(SEARCH_HISTORY_SEPARATOR))
+            }
         }
 
     private fun observe(key: String, onChange: () -> Unit): () -> Unit {
@@ -79,9 +80,7 @@ internal class SidetrackLocalSettings(context: Context) {
     fun needsOnboarding(): Boolean = !hasSeenOnboarding()
 
     fun markOnboardingSeen() {
-        prefs.edit()
-            .putBoolean(KEY_ONBOARDING_SEEN, true)
-            .apply()
+        prefs.edit { putBoolean(KEY_ONBOARDING_SEEN, true) }
     }
 
     /**
@@ -90,7 +89,7 @@ internal class SidetrackLocalSettings(context: Context) {
      */
     fun applyStandaloneThemeDefaults() {
         if (prefs.contains(KEY_COMPACT_LAYOUT)) return
-        prefs.edit().putBoolean(KEY_COMPACT_LAYOUT, true).apply()
+        prefs.edit { putBoolean(KEY_COMPACT_LAYOUT, true) }
     }
 
     companion object {

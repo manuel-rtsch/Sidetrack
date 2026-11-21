@@ -421,7 +421,7 @@ fun SearchResultsScreen(
         options = sidetrackOptions(searchInOption(onScopes), onNowPlaying = onNowPlaying)
     ) { padding ->
         val listState = rememberLazyListState()
-        rows.bar.dismissOnScroll(listState)
+        rows.bar.DismissOnScroll(listState)
         val viewport = rememberSearchViewport(
             query = search.query,
             scope = scope,

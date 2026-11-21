@@ -95,10 +95,9 @@ internal class SidetrackSessionWiring(
     }
 
     fun detach() {
-        session?.playback?.let {
-            if (it.onNext === nextHandler) it.onNext = null
-            if (it.onPrevious === previousHandler) it.onPrevious = null
-            if (it.onSeek === seekHandler) it.onSeek = null
-        }
+        val playback = session.playback
+        if (playback.onNext === nextHandler) playback.onNext = null
+        if (playback.onPrevious === previousHandler) playback.onPrevious = null
+        if (playback.onSeek === seekHandler) playback.onSeek = null
     }
 }

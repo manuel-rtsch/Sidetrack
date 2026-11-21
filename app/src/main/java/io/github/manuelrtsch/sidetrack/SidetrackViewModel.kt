@@ -294,7 +294,6 @@ class SidetrackViewModel(
 
     override fun onCleared() {
         sessionWiring?.detach()
-        super.onCleared()
     }
 
     fun setSleepTimer(minutes: Int) {

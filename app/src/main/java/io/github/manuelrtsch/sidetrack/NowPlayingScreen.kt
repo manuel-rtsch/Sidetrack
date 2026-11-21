@@ -132,7 +132,7 @@ fun NowPlayingScreen(
         )
     }
     Box(Modifier.fillMaxSize()) {
-        if (backdropped && current is Track) {
+        if (backdropped) {
             // The artwork is the screen: behind the scaffold, so it can run under the chrome,
             // which the canvas paints after the screens. The body has no cover tile of its own.
             ArtworkBackdrop(current, onOpenAlbum = onAlbum, modifier = Modifier.matchParentSize())

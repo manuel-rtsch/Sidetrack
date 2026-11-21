@@ -120,9 +120,11 @@ class SdkJellyfinApi(
     }
 
     override suspend fun favoriteArtists(offset: Int, limit: Int): JellyfinPage = call {
-        api.artistApi.getArtists(
+        api.libraryApi.getItems(
             userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
             isFavorite = true,
+            recursive = true,
             startIndex = offset,
             limit = limit,
             sortBy = listOf(ItemSortBy.SORT_NAME),
@@ -325,7 +327,7 @@ class SdkJellyfinApi(
                 startIndex = start,
                 limit = limit,
                 fields = listOf(ItemFields.PARENT_ID)
-            ).content.items.map { PlaylistEntry(entryId = it.playlistItemId, itemId = it.id?.toString()) }
+            ).content.items.map { PlaylistEntry(entryId = it.playlistItemId, itemId = it.id.toString()) }
         }
     }
 

@@ -17,8 +17,7 @@ class DrainPolicyTest {
     private val starveTimeout = 15_000L
     private val playingStarveTimeout = 3_000L
 
-    private fun policy() =
-        DrainPolicy(prefill, minStart, prefillTimeout, starveTimeout, playingStarveTimeout)
+    private fun policy() = DrainPolicy(prefill, minStart, prefillTimeout, starveTimeout, playingStarveTimeout)
 
     @Test fun `does not play before the track is primed`() {
         val policy = policy()

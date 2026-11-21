@@ -93,7 +93,7 @@ fun SleepTimerState.notificationSuffix(): String? = when (this) {
 
     SleepTimerState.EndOfTrack -> "pauses after this track"
 
-    is SleepTimerState.Countdown -> "pauses in ${remainingMinutes} min"
+    is SleepTimerState.Countdown -> "pauses in $remainingMinutes min"
 
     // The timer already did its job; a suffix would claim one is still running.
     SleepTimerState.Finished -> null

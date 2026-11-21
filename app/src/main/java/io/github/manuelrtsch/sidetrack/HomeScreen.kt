@@ -61,7 +61,7 @@ fun SidetrackHomeScreen(
         options = sidetrackOptions(settingsOption(onSettings))
     ) { padding ->
         val listState = rememberLazyListState()
-        rowActions.dismissOnScroll(listState)
+        rowActions.DismissOnScroll(listState)
         SidekitList(padding, state = listState) {
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, 0)) {

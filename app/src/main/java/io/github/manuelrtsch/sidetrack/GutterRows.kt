@@ -15,7 +15,7 @@ import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
 import io.github.manuelrtsch.sidetrack.ui.RowGutterState
-import io.github.manuelrtsch.sidetrack.ui.rememberGutterSquareFocus
+import io.github.manuelrtsch.sidetrack.ui.gutterSquareFocus
 
 /**
  * An artist row in a library list. Its gutter publishes Artist radio only. Follow/Unfollow is
@@ -85,7 +85,7 @@ fun ArtistGutterRow(
             )
         }
     ) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, focus)
         RowActionSquare(
             color = SidekitTheme.colors.surfaceA4,
             label = "Actions for ${artist.name}",
@@ -249,7 +249,7 @@ private fun LibraryCollectionGutterRow(
             )
         }
     ) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, focus)
         RowActionSquare(
             color = SidekitTheme.colors.surfaceA4,
             label = "Actions for $title",
@@ -308,7 +308,7 @@ fun HistoryRow(
             }
         )
     }) {
-        val squareFocus = rememberGutterSquareFocus(key, focus)
+        val squareFocus = Modifier.gutterSquareFocus(key, focus)
         RowActionSquare(
             color = SidekitTheme.colors.surfaceA4,
             label = "Actions for ${item.title}",

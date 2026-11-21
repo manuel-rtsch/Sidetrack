@@ -110,7 +110,7 @@ open class RowGutterState {
 @Composable
 fun rememberRowGutterState(): RowGutterState {
     val state = remember { RowGutterState() }
-    state.settle()
+    state.Settle()
     return state
 }
 
@@ -191,9 +191,9 @@ fun GutterRow(
  * event a freshly attached square reports must not be mistaken for the row losing focus.
  */
 @Composable
-fun rememberGutterSquareFocus(key: Any, state: RowGutterState): Modifier {
+fun Modifier.gutterSquareFocus(key: Any, state: RowGutterState): Modifier {
     var squareHadFocus by remember(key) { mutableStateOf(false) }
-    return Modifier.onFocusChanged { focus ->
+    return onFocusChanged { focus ->
         when {
             focus.isFocused -> {
                 squareHadFocus = true
@@ -214,7 +214,7 @@ fun rememberGutterSquareFocus(key: Any, state: RowGutterState): Modifier {
  * every row a held D-pad passes. See [Haptics].
  */
 @Composable
-internal fun RowGutterState.settle() {
+internal fun RowGutterState.Settle() {
     LaunchedEffect(focusedKey) {
         val target = focusedKey
         if (target == null) {
