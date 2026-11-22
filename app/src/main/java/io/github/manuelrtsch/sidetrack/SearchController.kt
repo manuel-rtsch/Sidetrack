@@ -36,7 +36,7 @@ internal class SearchController(
     private val focusDismissed = MutableStateFlow(false)
     val searchFocusDismissed: StateFlow<Boolean> = focusDismissed.asStateFlow()
 
-    private fun playbackNotice(error: Exception): String = serviceMessage(error, online())
+    private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     fun search(debounceMs: Long) {
         searchJob?.cancel()
@@ -67,7 +67,7 @@ internal class SearchController(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure = playbackNotice(e)
+                failure = catalogNotice(e)
                 SearchResults()
             }
             store.update {
@@ -142,7 +142,7 @@ internal class SearchController(
                 throw e
             } catch (e: Exception) {
                 store.update {
-                    it.copy(searchMorePending = it.searchMorePending - scope).say(playbackNotice(e))
+                    it.copy(searchMorePending = it.searchMorePending - scope).say(catalogNotice(e))
                 }
             }
         }

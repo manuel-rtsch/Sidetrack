@@ -21,7 +21,7 @@ internal class SavesController(
     private val scope: CoroutineScope
 ) {
 
-    private fun playbackNotice(error: Exception): String = serviceMessage(error, online())
+    private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     fun toggleSaveCurrent() {
         val track = store.value.current as? Track ?: return
@@ -59,7 +59,7 @@ internal class SavesController(
                 store.update {
                     val ids = it.savedTrackIds.toMutableSet()
                     if (wasSaved) ids.add(savedKey) else ids.remove(savedKey)
-                    var next = it.copy(savedTrackIds = ids).say(playbackNotice(e))
+                    var next = it.copy(savedTrackIds = ids).say(catalogNotice(e))
                     next = if (wasSaved) {
                         track?.let { item -> next.withLibraryItemAdded(LibraryFilter.LikedSongs, item, mediaKeys) } ?: next
                     } else {
@@ -101,7 +101,7 @@ internal class SavesController(
                 store.update {
                     val keys = it.savedCollectionKeys.toMutableSet()
                     if (wasSaved) keys.add(key) else keys.remove(key)
-                    val next = it.copy(savedCollectionKeys = keys).say(playbackNotice(e))
+                    val next = it.copy(savedCollectionKeys = keys).say(catalogNotice(e))
                     if (wasSaved) {
                         addedItem?.let { item -> next.withLibraryItemAdded(libraryFilterFor(type), item, mediaKeys) } ?: next
                     } else {
@@ -140,7 +140,7 @@ internal class SavesController(
                 store.update {
                     val ids = it.followedArtistIds.toMutableSet()
                     if (wasFollowing) ids.add(followedKey) else ids.remove(followedKey)
-                    val next = it.copy(followedArtistIds = ids).say(playbackNotice(e))
+                    val next = it.copy(followedArtistIds = ids).say(catalogNotice(e))
                     if (wasFollowing) {
                         next.withLibraryItemAdded(LibraryFilter.Artists, artist, mediaKeys)
                     } else {

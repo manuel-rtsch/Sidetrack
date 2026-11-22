@@ -31,7 +31,7 @@ internal class LibraryController(
     private val libraryJobs = mutableMapOf<LibraryFilter, Job>()
     private val libraryMoreJobs = mutableMapOf<LibraryFilter, Job>()
 
-    private fun playbackNotice(error: Exception): String = serviceMessage(error, online())
+    private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     /** Drops the account's pages. Called when the user signs out. */
     fun reset() {
@@ -103,7 +103,7 @@ internal class LibraryController(
                 store.update {
                     it.copy(
                         pendingCollections = it.pendingCollections - cacheKey,
-                        collectionErrors = it.collectionErrors + (cacheKey to playbackNotice(e))
+                        collectionErrors = it.collectionErrors + (cacheKey to catalogNotice(e))
                     )
                 }
             }
@@ -148,7 +148,7 @@ internal class LibraryController(
                     it.copy(
                         collectionMorePending = it.collectionMorePending - cacheKey,
                         collections = if (current == null) it.collections else it.collections + (cacheKey to current.copy(hasMore = false))
-                    ).say(playbackNotice(e))
+                    ).say(catalogNotice(e))
                 }
             }
         }
@@ -176,7 +176,7 @@ internal class LibraryController(
                     it.copy(
                         artistAlbumHasMore = it.artistAlbumHasMore + (id to false),
                         artistMorePending = it.artistMorePending - id
-                    ).say(playbackNotice(e))
+                    ).say(catalogNotice(e))
                 }
             }
         }
@@ -204,7 +204,7 @@ internal class LibraryController(
                     it.copy(
                         artistTrackHasMore = it.artistTrackHasMore + (id to false),
                         artistMorePending = it.artistMorePending - id
-                    ).say(playbackNotice(e))
+                    ).say(catalogNotice(e))
                 }
             }
         }
@@ -283,7 +283,7 @@ internal class LibraryController(
                 store.update {
                     it.copy(
                         pendingArtists = it.pendingArtists - id,
-                        artistErrors = it.artistErrors + (id to playbackNotice(e))
+                        artistErrors = it.artistErrors + (id to catalogNotice(e))
                     )
                 }
             }
@@ -321,7 +321,7 @@ internal class LibraryController(
                 throw e
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.playCollection key=$key failed", e)
-                store.update { it.say("Playing what's loaded — ${playbackNotice(e)}") }
+                store.update { it.say("Playing what's loaded — ${catalogNotice(e)}") }
             } finally {
                 store.update { it.copy(collectionMorePending = it.collectionMorePending - key) }
             }
@@ -351,7 +351,7 @@ internal class LibraryController(
                 throw e
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.playArtist id=$id failed", e)
-                store.update { it.say("Playing what's loaded — ${playbackNotice(e)}") }
+                store.update { it.say("Playing what's loaded — ${catalogNotice(e)}") }
             } finally {
                 store.update { it.copy(artistMorePending = it.artistMorePending - id) }
             }
@@ -469,7 +469,7 @@ internal class LibraryController(
                 throw e
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.loadLibrary filter=$filter failed", e)
-                val message = playbackNotice(e)
+                val message = catalogNotice(e)
                 store.update {
                     val cached = it.libraryPages[filter]?.items?.isNotEmpty() == true
                     // A list the user can still read beats an error page: the failure becomes a
@@ -518,7 +518,7 @@ internal class LibraryController(
                         throw e
                     } catch (e: Exception) {
                         // One failing category should not hide the rest of the library.
-                        if (notice == null) notice = playbackNotice(e)
+                        if (notice == null) notice = catalogNotice(e)
                     }
                 }
                 store.update { current ->
@@ -551,7 +551,7 @@ internal class LibraryController(
                 store.update {
                     it.copy(
                         librarySectionsLoading = false,
-                        librarySectionsError = playbackNotice(e)
+                        librarySectionsError = catalogNotice(e)
                     )
                 }
             }
@@ -590,7 +590,7 @@ internal class LibraryController(
                             it.libraryPages + (filter to current.copy(hasMore = false))
                         },
                         libraryMorePendingPages = it.libraryMorePendingPages - filter
-                    ).say(playbackNotice(e))
+                    ).say(catalogNotice(e))
                 }
             } finally {
                 libraryMoreJobs.remove(filter)

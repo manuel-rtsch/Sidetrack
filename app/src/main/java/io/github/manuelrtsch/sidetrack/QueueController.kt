@@ -27,7 +27,7 @@ internal class QueueController(
     private val scope: CoroutineScope
 ) {
 
-    private fun playbackNotice(error: Exception): String = serviceMessage(error, online())
+    private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     /**
      * Removes one upcoming occurrence by index and returns where it was, so the caller can offer
@@ -98,7 +98,7 @@ internal class QueueController(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update { it.say(playbackNotice(e)) }
+                store.update { it.say(catalogNotice(e)) }
             } finally {
                 store.update { it.copy(collectionMorePending = it.collectionMorePending - key) }
             }
@@ -151,7 +151,7 @@ internal class QueueController(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update { it.say(playbackNotice(e)) }
+                store.update { it.say(catalogNotice(e)) }
             } finally {
                 store.update { it.copy(collectionMorePending = it.collectionMorePending - cacheKey) }
             }

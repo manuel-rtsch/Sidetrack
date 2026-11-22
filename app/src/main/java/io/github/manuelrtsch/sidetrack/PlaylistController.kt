@@ -25,7 +25,7 @@ internal class PlaylistController(
     private val scope: CoroutineScope
 ) {
 
-    private fun playbackNotice(error: Exception): String = serviceMessage(error, online())
+    private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     private var choicesOffset = 0
 
@@ -56,7 +56,7 @@ internal class PlaylistController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            store.update { it.say(playbackNotice(e)) }
+            store.update { it.say(catalogNotice(e)) }
             null
         }
     }
@@ -133,7 +133,7 @@ internal class PlaylistController(
                     it.copy(
                         playlistChoicesLoading = false,
                         playlistChoicesLoaded = if (reset) false else it.playlistChoicesLoaded,
-                        playlistChoicesError = playbackNotice(e)
+                        playlistChoicesError = catalogNotice(e)
                     )
                 }
             }
@@ -184,7 +184,7 @@ internal class PlaylistController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            store.update { it.say(playbackNotice(e)) }
+            store.update { it.say(catalogNotice(e)) }
             null
         }
     }
@@ -203,7 +203,7 @@ internal class PlaylistController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            store.update { it.say(playbackNotice(e)) }
+            store.update { it.say(catalogNotice(e)) }
         }
     }
 
@@ -235,7 +235,7 @@ internal class PlaylistController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            store.update { it.say(playbackNotice(e)) }
+            store.update { it.say(catalogNotice(e)) }
             false
         }
     }
@@ -263,7 +263,7 @@ internal class PlaylistController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            store.update { it.say(playbackNotice(e)) }
+            store.update { it.say(catalogNotice(e)) }
             false
         }
     }
@@ -308,7 +308,7 @@ internal class PlaylistController(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update { it.say(playbackNotice(e)) }
+                store.update { it.say(catalogNotice(e)) }
             }
         }
     }

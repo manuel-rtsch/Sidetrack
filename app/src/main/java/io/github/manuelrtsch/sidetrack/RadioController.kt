@@ -33,7 +33,7 @@ internal class RadioController(
     private var radioJob: Job? = null
     private var artistRadioJob: Job? = null
 
-    private fun playbackNotice(error: Exception): String = serviceMessage(error, online())
+    private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     /** Cancels both stations; called when the account changes. */
     fun reset() {
@@ -157,7 +157,7 @@ internal class RadioController(
             } catch (e: Exception) {
                 if (store.value.artistRadioArtistId == id) {
                     store.update {
-                        it.copy(artistRadioPending = false, artistRadioError = playbackNotice(e))
+                        it.copy(artistRadioPending = false, artistRadioError = catalogNotice(e))
                     }
                 }
             }
@@ -180,7 +180,7 @@ internal class RadioController(
                     .distinctBy { it.id }
                 if (store.value.current?.id != seed.id) {
                     store.update {
-                        it.copy(radioPending = false, radioError = "The track changed — try again")
+                        it.copy(radioPending = false, radioError = "The track changed")
                     }
                     return@launch
                 }
@@ -230,9 +230,9 @@ internal class RadioController(
                         it.copy(
                             radioPending = false,
                             radioError = if (it.current?.id == seed.id) {
-                                playbackNotice(e)
+                                catalogNotice(e)
                             } else {
-                                "The track changed — try again"
+                                "The track changed"
                             }
                         )
                     }

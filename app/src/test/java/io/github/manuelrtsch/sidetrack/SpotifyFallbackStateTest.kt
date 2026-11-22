@@ -42,6 +42,14 @@ class SpotifyFallbackStateTest {
         Dispatchers.resetMain()
     }
 
+    @Test fun `a catalog connection failure never blames playback`() {
+        val error = SpotifyGatewayException(SpotifyFailure.NotConnected, "session lost")
+
+        assertEquals("The service isn't connected", catalogMessage(error, online = true))
+        assertEquals("No internet connection", catalogMessage(error, online = false))
+        assertEquals("Playback isn't ready", serviceMessage(error, online = true))
+    }
+
     @Test fun `a failed collection load is retryable`() = runTest(dispatcher) {
         val catalog = FlakyCatalog()
         val vm = viewModel(catalog)
