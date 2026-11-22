@@ -13,165 +13,95 @@
   <a href="https://www.sidephone.com/"><img src="https://img.shields.io/badge/made%20for-Sidephone%20SP--01-1db954" alt="Made for Sidephone SP-01"></a>
 </p>
 
-Sidetrack is a capable music player built on the [Sidekit
-SDK](https://github.com/HarlenPostill/Sidekit). It is designed for the [Sidephone
-SP-01](https://www.sidephone.com/): the whole app is optimized for its small display, and every
-action has a keypad path. When Sidekit is installed, Sidetrack follows the launcher's theme,
-accent, input mode and key mappings; it also runs on its own on any Android 12+ phone with a
-keypad or touchscreen.
+Sidetrack is a music player for Android 12 and later, built around the keypad of the [Sidephone SP-01](https://www.sidephone.com/).
 
-> Sidetrack is an independent project. It is not made by or affiliated with any of the music
-> services it connects to.
+It plays from Spotify, Plex, Jellyfin or any Subsonic-compatible server such as Navidrome. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), a launcher for the SP-01, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
 
-## Designed for the Sidephone
-
-Sidetrack is built around the SP-01 rather than adapted from a touch-first app. The layout is
-sized for its small display, and the whole app can be driven from the keypad, with touch as an
-equal option.
-
-- **Keypad first** — T9, mini QWERTY, Sundial and game controller input are supported, with
-  keypad navigation throughout.
-- **Sidekit integration** — when Sidekit is installed, theme, accent, input mode and key
-  mappings follow the launcher.
-- **Touch-friendly** — swipe actions and on-screen controls cover the same actions.
-
-## Supported services
-
-Sidetrack connects to one service at a time. The choice is remembered until you sign out.
-Capabilities vary by service: the interface shows only what the selected service supports, so
-podcasts, artist following, gapless playback or playlist creation appear only where they work.
-
-The self-hosted side includes the whole Subsonic family and Plex. **Navidrome**, **Nextcloud
-Music** and **Subsonic** itself are listed separately on the welcome screen because that is the
-product you run, but they all speak the same Subsonic/OpenSubsonic API and run the same code —
-any other Subsonic-compatible server works through the **Subsonic** entry. Picking one keeps its
-own credentials, queue and history, so two servers never mix.
-
-| | Spotify | Subsonic family | Jellyfin | Plex |
-| --- | --- | --- | --- | --- |
-| Sign-in | Browser | Username and password over Subsonic | Username and password | Browser PIN on plex.tv |
-| Library | Liked songs, playlists, albums, artists, shows | Starred tracks, playlists, albums, artists | Favourite tracks, playlists, albums, artists | Liked tracks, playlists, albums, artists |
-| Search | Tracks, artists, albums, playlists, shows | Tracks, artists, albums, playlists | Tracks, artists, albums, playlists | Tracks, artists, albums, playlists |
-| Radio | Song radio from any seed | Similar songs, with a random-song fallback | Instant Mix from any item | — |
-
-| Capability | Spotify | Subsonic family | Jellyfin | Plex |
-| --- | :---: | :---: | :---: | :---: |
-| Podcasts | ✅ | ❌ | ❌ | ❌ |
-| Follow artists | ✅ | ❌ | ✅ | ❌ |
-| Create playlists | ❌ | ✅ | ✅ | ❌ |
-| Edit playlists | ✅ | ✅ | ✅ | ✅ |
-| Loudness normalization | ✅ | ✅ | ❌ | ❌ |
-| Gapless playback | ✅ | ❌ | ❌ | ❌ |
-| Quality selection | ✅ | ✅ | ✅ | ❌ |
-
-Spotify needs a Premium account for playback. Jellyfin needs a 12.x server with a music library.
-Plex needs a claimed Plex Media Server on the same network. On Spotify, podcasts include show
-notes, episode numbers, dates, per-episode resume and ±30-second controls. Jellyfin follows
-artists through its favourite-artist flag.
-
-## What you can do
-
-- **Listen to your library** — liked tracks, playlists, albums and artists. Spotify adds shows.
-- **Search everything** — tracks, artists, albums and playlists in one place, plus shows on
-  Spotify.
-- **Listen to podcasts properly** (Spotify) — show notes, episode numbers and dates, per-episode
-  resume, ±30-second controls, and no song-style shuffle or repeat.
-- **Control playback** — play, pause, skip, seek, shuffle, repeat, and volume with the phone's
-  own keys. Loudness is normalized where the service supports it, and sequential Spotify tracks
-  join without a gap.
-- **Keep a queue** — add tracks or whole collections, reorder, and see what played before.
-- **Start a song radio** — build a station from whatever is playing.
-- **Save what you like** — like tracks, save albums, follow artists on Spotify and Jellyfin.
-  Create playlists on Subsonic servers and Jellyfin, and add or remove tracks on every service where
-  the account may edit the playlist.
-- **See what is playing** — a full Now Playing screen, lock-screen controls, and a notification
-  with artwork and transport buttons.
+> Sidetrack is an independent project, not made by or affiliated with Sidephone, Spotify, Plex, Jellyfin or any other service it connects to.
 
 ## Screenshots
 
-| Home | Search | Now Playing | Queue |
-| --- | --- | --- | --- |
-| ![Home](app/screenshots/sidetrack_home.png) | ![Search](app/screenshots/sidetrack_search.png) | ![Now Playing](app/screenshots/sidetrack_now_playing.png) | ![Queue](app/screenshots/sidetrack_queue.png) |
+| Home | Library | Now Playing |
+| --- | --- | --- |
+| ![Home](app/screenshots/sidetrack_home.png) | ![Library](app/screenshots/sidetrack_library.png) | ![Now Playing](app/screenshots/sidetrack_now_playing.png) |
 
-| Album | Artist | Library | Show |
-| --- | --- | --- | --- |
-| ![Album](app/screenshots/sidetrack_album.png) | ![Artist](app/screenshots/sidetrack_artist.png) | ![Library](app/screenshots/sidetrack_library.png) | ![Show](app/screenshots/sidetrack_show.png) |
+| Queue | Search | Album |
+| --- | --- | --- |
+| ![Queue](app/screenshots/sidetrack_queue.png) | ![Search](app/screenshots/sidetrack_search.png) | ![Album](app/screenshots/sidetrack_album.png) |
 
-| Notes | Episode | Welcome | Keyboard |
-| --- | --- | --- | --- |
-| ![Show notes](app/screenshots/sidetrack_notes.png) | ![Now Playing episode](app/screenshots/sidetrack_now_playing_episode.png) | ![Welcome](app/screenshots/sidetrack_welcome.png) | ![Keyboard](app/screenshots/sidetrack_keyboard.png) |
+| Sign in | Welcome | Podcast |
+| --- | --- | --- |
+| ![Sign in](app/screenshots/sidetrack_sign_in.png) | ![Welcome](app/screenshots/sidetrack_welcome.png) | ![Podcast show](app/screenshots/sidetrack_show.png) |
 
-| History | Sleep timer | Settings | Sign in |
-| --- | --- | --- | --- |
-| ![History](app/screenshots/sidetrack_history.png) | ![Sleep timer](app/screenshots/sidetrack_sleep_timer.png) | ![Settings](app/screenshots/sidetrack_settings.png) | ![Sign in](app/screenshots/sidetrack_sign_in.png) |
+## Install
 
-## Installing
+All three routes give you the same signed app.
 
-On a Sidephone SP-01, the easiest route is the **Sidetrack app pack**. The stock Library app takes
-app packs, and one scan adds Sidetrack to your library with no "unknown sources" prompt and silent
-updates from then on:
+**1. App pack (SP-01).** An app pack is a source of apps for the SP-01's Library. Add the Sidetrack pack, and Sidetrack installs from the Library with no "unknown sources" prompt and updates silently.
 
 <p align="center">
   <img src="https://manuel-rtsch.github.io/sidetrack-pack/fdroid/repo/index.png" width="220"
     alt="QR code that adds the Sidetrack app pack to the SP-01 Library">
 </p>
 
-Open **Library → Settings → App Packs → +** and scan it, or add
-`https://manuel-rtsch.github.io/sidetrack-pack/fdroid/repo` by hand, and check that the signing
-fingerprint the phone shows matches `07E18BC4…FAE17488` (published in full on the
-[pack's install page](https://manuel-rtsch.github.io/sidetrack-pack/)).
+Open `Library → Settings → App Packs → +` and scan the code, or enter `https://manuel-rtsch.github.io/sidetrack-pack/fdroid/repo` by hand. The phone shows a signing fingerprint. It should read `07E18BC4…FAE17488`, and the full value is on the [pack's install page](https://manuel-rtsch.github.io/sidetrack-pack/).
 
-Every other Android 12+ phone, and anyone who would rather not add a pack, can install the APK
-directly: [Obtainium](https://github.com/ImranR98/Obtainium/releases/latest) watching this
-repository gives update notifications, or download the signed APK from the
-[latest release](https://github.com/manuel-rtsch/Sidetrack/releases/latest). All three routes ship
-the same signed app.
+**2. Obtainium.** [Obtainium](https://github.com/ImranR98/Obtainium/releases/latest) watches GitHub releases. Point it at this repository to get update notifications on any Android 12+ phone.
+
+**3. APK.** Download the signed APK from the [latest release](https://github.com/manuel-rtsch/Sidetrack/releases/latest).
+
+## Supported services
+
+Sidetrack remembers your service until you sign out. Spotify and Plex sign in through the browser; the others take a server address, a username and a password. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
+
+| | Spotify | Subsonic family | Jellyfin | Plex |
+| --- | --- | --- | --- | --- |
+| Radio | Song radio from any seed | Similar songs | Instant Mix | — |
+| Podcasts | ✅ | ❌ | ❌ | ❌ |
+| Follow artists | ✅ | ❌ | ✅ | ❌ |
+| Create playlists | ❌ | ✅ | ✅ | ❌ |
+| Edit playlists | ✅ | ✅ | ✅ | ✅ |
+| Loudness normalisation | ✅ | ✅ | ❌ | ❌ |
+| Gapless playback | ✅ | ❌ | ❌ | ❌ |
+| Quality selection | ✅ | ✅ | ✅ | ❌ |
+
+Spotify needs a Premium account for playback. Jellyfin needs a 12.x server with a music library. Plex needs a claimed Plex Media Server.
+
+## What you can do
+
+- Browse and search liked tracks, playlists, albums and artists.
+- Control playback with the phone's own keys, the lock screen or the notification.
+- Queue tracks, reorder them and see what played before.
+- Play one track from an album without losing your queue. If a tap replaces the queue, `Undo` restores it for 8 seconds.
+- Start a song radio from whatever is playing, except on Plex.
+- Like tracks, save albums, and follow artists on Spotify and Jellyfin.
+- Create, edit, rename and delete playlists where the service allows it.
+- Follow Spotify podcasts with show notes and per-episode resume.
+- Set a sleep timer.
+
+## Limits
+
+Spotify library and search need the native bridge, a bundled librespot client. Without it, Spotify falls back to the public Web API, which rate-limits the shared client ID. Release APKs include the bridge, and your own build needs `-PsidetrackNative=true`. Jellyfin servers older than 12.0 are refused at sign-in, because they accept the login and then fail every read.
 
 ## Getting started
 
-1. Optionally install [Sidekit](https://github.com/HarlenPostill/Sidekit/releases/latest) to use
-   Sidetrack alongside the launcher and pick up its theme, accent and key mappings. Sidetrack
-   runs without it.
-2. Install the Sidetrack APK.
-3. Open Sidetrack and choose a service. Spotify and Plex open a browser sign-in; Navidrome,
-   Nextcloud Music, Subsonic and Jellyfin ask for a server address, username and password. Any
-   Subsonic entry connects to any Subsonic server; Jellyfin needs a 12.x server with a music
-   library. Plex finds your claimed server from the account, so there is no address to type.
-4. To try the app without an account or a server, choose **Navidrome** and submit the blank
-   sign-in form: it signs into the shared demo at
-   [demo.navidrome.org](https://demo.navidrome.org) (`demo` / `demo`).
-5. Follow the short **Welcome** screen to set up the keyboard and keypad preferences.
-6. Pick something from your library or search, and start listening.
+1. Install Sidetrack. [Sidekit](https://github.com/HarlenPostill/Sidekit/releases/latest) is optional.
+2. Choose a service. Plex finds your server from the account.
+3. To try the app without a server, choose **Navidrome** and submit the blank sign-in form. It signs in to the shared demo at [demo.navidrome.org](https://demo.navidrome.org) (`demo` / `demo`).
+4. Follow the **Welcome** screen to set up your keyboard and keypad.
 
 ## Building from source
 
-You need JDK 21 and the Android SDK. The Subsonic family, Jellyfin and Plex need nothing else. Spotify
-playback through librespot also needs the Android NDK and a Rust toolchain.
+You need JDK 21 and the Android SDK. Spotify playback through librespot also needs the Android NDK and a Rust toolchain.
 
 ```sh
 ./gradlew :app:assembleProfile -PsidetrackNative=true
 ```
 
-The native bridge is required for Spotify library and search; without it Spotify falls back to
-the public Spotify Web API, which currently rate-limits the desktop client ID. Builds without
-`-PsidetrackNative=true` still support the Subsonic family, Jellyfin and Plex, but a release build
-refuses to package without the bridge — see [docs/releasing.md](docs/releasing.md).
+Release builds refuse to package without the bridge.
 
-## Documentation
+## Licence
 
-- [docs/architecture.md](docs/architecture.md) — module graph, contracts and how to add a provider.
-- [docs/provider-capabilities.md](docs/provider-capabilities.md) — what each service supports.
-- [docs/testing.md](docs/testing.md) — suites, coverage floors and where tests live.
-- [docs/releasing.md](docs/releasing.md) — tags, gates, secrets and publishing.
-- [docs/plex-integration.md](docs/plex-integration.md) and
-  [docs/jellyfin-integration.md](docs/jellyfin-integration.md) — wire decisions per service.
-- [docs/menus.md](docs/menus.md) — Options bar and row action rules.
-- [maestro/README.md](maestro/README.md) — UI flows, recordings and the demo build.
+MIT. Sidetrack also links librespot. Its licence and notice ship with the native build.
 
-## License
-
-MIT. Sidetrack also links librespot; its license and notice ship with the native build.
-
-Exception: `provider-spotify/src/main/java/io/github/manuelrtsch/sidetrack/auth/` was written with
-the GPLv3 Sidespot auth path as a reference and is therefore a derivative of it. That package is
-pending a clean-room rewrite or a GPLv3 notice.
+Exception: `provider-spotify/src/main/java/io/github/manuelrtsch/sidetrack/auth/` was written with the GPLv3 Sidespot auth path as a reference and is therefore a derivative of it. That package is pending a clean-room rewrite or a GPLv3 notice.
