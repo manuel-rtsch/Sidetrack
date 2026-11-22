@@ -15,7 +15,7 @@
 
 Sidetrack is a music player for Android 12 and later, built around the keypad of the [Sidephone SP-01](https://www.sidephone.com/).
 
-It plays from Spotify, Plex, Jellyfin or any Subsonic-compatible server such as Navidrome. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), the SP-01's launcher, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
+It plays from Spotify, Plex, Jellyfin or any Subsonic-compatible server such as Navidrome. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), a launcher for the SP-01, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
 
 > Sidetrack is an independent project, not made by or affiliated with Sidephone, Spotify, Plex, Jellyfin or any other service it connects to.
 
@@ -52,17 +52,11 @@ Open `Library → Settings → App Packs → +` and scan the code, or enter `htt
 
 ## Supported services
 
-Sidetrack remembers your service until you sign out and offers only what that service supports. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run. Any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
+Sidetrack remembers your service until you sign out. Spotify and Plex sign in through the browser; the others take a server address, a username and a password. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
 
 | | Spotify | Subsonic family | Jellyfin | Plex |
 | --- | --- | --- | --- | --- |
-| Sign-in | Browser | Username and password over Subsonic | Username and password | Browser PIN on plex.tv |
-| Library | Liked songs, playlists, albums, artists, shows | Starred tracks, playlists, albums, artists | Favourite tracks, playlists, albums, artists | Liked tracks, playlists, albums, artists |
-| Search | Tracks, artists, albums, playlists, shows | Tracks, artists, albums, playlists | Tracks, artists, albums, playlists | Tracks, artists, albums, playlists |
-| Radio | Song radio from any seed | Similar songs, with a random-song fallback | Instant Mix from any item | — |
-
-| Capability | Spotify | Subsonic family | Jellyfin | Plex |
-| --- | :---: | :---: | :---: | :---: |
+| Radio | Song radio from any seed | Similar songs | Instant Mix | — |
 | Podcasts | ✅ | ❌ | ❌ | ❌ |
 | Follow artists | ✅ | ❌ | ✅ | ❌ |
 | Create playlists | ❌ | ✅ | ✅ | ❌ |
@@ -92,7 +86,7 @@ Spotify library and search need the native bridge, a bundled librespot client. W
 ## Getting started
 
 1. Install Sidetrack. [Sidekit](https://github.com/HarlenPostill/Sidekit/releases/latest) is optional.
-2. Choose a service. Spotify and Plex sign in through the browser. The others ask for a server address, username and password. Plex finds your server from the account.
+2. Choose a service. Plex finds your server from the account.
 3. To try the app without a server, choose **Navidrome** and submit the blank sign-in form. It signs in to the shared demo at [demo.navidrome.org](https://demo.navidrome.org) (`demo` / `demo`).
 4. Follow the **Welcome** screen to set up your keyboard and keypad.
 
