@@ -17,8 +17,9 @@ class ResilientSpotifyCatalogTest {
     private fun catalog(
         native: FakeCatalog,
         web: FakeCatalog = FakeCatalog(),
-        onDegrade: (ServiceException) -> Unit = {}
-    ) = ResilientSpotifyCatalog(native, web, onDegrade, retryAfterMs = RETRY_MS, clock = { now })
+        onDegrade: (ServiceException) -> Unit = {},
+        online: () -> Boolean = { true }
+    ) = ResilientSpotifyCatalog(native, web, onDegrade, online, retryAfterMs = RETRY_MS, clock = { now })
 
     @Test fun `an unreachable access point moves reads to the web`() = runTest {
         val native = FakeCatalog(failWith = ServiceException(ServiceFailure.Network, "Couldn't reach Spotify"))
@@ -113,6 +114,18 @@ class ResilientSpotifyCatalogTest {
         native.failWith = ServiceException(ServiceFailure.Network, "no access point")
         catalog.library(LibraryFilter.Shows, 0, 20)
         assertEquals(2, notices)
+    }
+
+    @Test fun `an offline failure does not switch to the web api`() = runTest {
+        val native = FakeCatalog(failWith = ServiceException(ServiceFailure.Network, "No internet connection"))
+        val web = FakeCatalog()
+        val catalog = catalog(native, web, online = { false })
+
+        val error = runCatching { catalog.library(LibraryFilter.LikedSongs, 0, 20) }.exceptionOrNull()
+
+        assertEquals(ServiceFailure.Network, (error as ServiceException).failure)
+        assertFalse(catalog.degraded)
+        assertEquals(0, web.libraryCalls)
     }
 
     @Test fun `a failure that is not the transport's is not degraded`() = runTest {

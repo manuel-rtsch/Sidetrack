@@ -225,7 +225,8 @@ class SpotifySession(
                     webCatalog,
                     onDegrade = {
                         playback.emitNotice("Browsing via Spotify's Web API — the access point is unreachable")
-                    }
+                    },
+                    online = { isOnline }
                 )
             } else {
                 webCatalog

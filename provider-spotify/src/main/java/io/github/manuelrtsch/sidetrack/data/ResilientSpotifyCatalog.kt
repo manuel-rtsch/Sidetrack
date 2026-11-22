@@ -31,6 +31,10 @@ import kotlinx.coroutines.sync.Mutex
  * the whole process. Playback stays on the native transport, so it keeps reporting the real reason
  * instead of pretending.
  *
+ * With no network at all, the Web API is not a fallback: it shares the same missing connection.
+ * Such a read fails as offline without latching the process into degraded mode, so the first read
+ * after the network returns tries the native transport again instead of waiting out the window.
+ *
  * Writes are not degraded: the Web API transport in this app is read-only, so callers hide the
  * save actions when [degraded] is set rather than failing them one by one.
  */
@@ -38,6 +42,8 @@ class ResilientSpotifyCatalog(
     private val native: SpotifyCatalog,
     private val web: SpotifyCatalog,
     private val onDegrade: (ServiceException) -> Unit = {},
+    /** Only a reachable network can make the Web API a useful fallback. */
+    private val online: () -> Boolean = { true },
     /** How long a degraded process waits before it lets one read try the access point again. */
     private val retryAfterMs: Long = DEGRADE_RETRY_MS,
     private val clock: () -> Long = { SystemClock.elapsedRealtime() }
@@ -167,6 +173,7 @@ class ResilientSpotifyCatalog(
                 // it answered: the access point is still what every read would otherwise hit first.
                 nextProbeAt = clock() + retryAfterMs
                 if (!unreachable(error)) SidetrackDebug.log("catalog probe refused", error)
+                if (!online()) throw error
                 webCall()
             } finally {
                 probeLock.unlock()
@@ -175,7 +182,7 @@ class ResilientSpotifyCatalog(
         return try {
             nativeCall()
         } catch (error: ServiceException) {
-            if (!unreachable(error)) throw error
+            if (!unreachable(error) || !online()) throw error
             degrade(error)
             webCall()
         }

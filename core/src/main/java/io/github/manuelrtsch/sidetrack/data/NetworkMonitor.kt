@@ -51,6 +51,10 @@ class NetworkMonitor(context: Context) {
         val manager = connectivity ?: return true
         val network = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        // INTERNET only says the network offers a path; VALIDATED says Android actually reached
+        // the internet through it. A Wi-Fi network that kept its link but lost DNS still reports
+        // INTERNET, which made offline catalog failures read as "service isn't connected".
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 }
