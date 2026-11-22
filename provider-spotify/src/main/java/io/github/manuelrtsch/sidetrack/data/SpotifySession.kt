@@ -21,6 +21,7 @@ import io.github.manuelrtsch.sidetrack.playback.PlaybackController
 import io.github.manuelrtsch.sidetrack.playback.SpotifyAudioSink
 import java.io.File
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +30,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -148,8 +151,65 @@ class SpotifySession(
 
     private val webApi by lazy { SpotifyWebApi { accessToken() } }
     private val webCatalog by lazy { SpotifyWebCatalog(webApi) }
+
+    /** Serializes a repair triggered by catalog reads, so parallel pages share one reconnect. */
+    private val catalogSessionLock = Mutex()
+
     private val nativeCatalog by lazy {
-        NativeSpotifyCatalog(native) { nativeGateway.ensureSession() }
+        NativeSpotifyCatalog(native) { ensureCatalogSession() }
+    }
+
+    /**
+     * A catalog read that finds the native session dead while a player is attached has to ask the
+     * playback path to rebuild: the old session cannot be repaired in place. The native connect
+     * keeps the current player until the replacement handshake succeeds, so a failed attempt does
+     * not interrupt buffered audio. Once the network is back, the reconnect succeeds and reloads
+     * the current item at its position.
+     */
+    private suspend fun ensureCatalogSession() {
+        try {
+            nativeGateway.ensureSession()
+            return
+        } catch (error: ServiceException) {
+            if (error.failure != ServiceFailure.NotConnected || !isOnline) throw error
+        }
+        catalogSessionLock.withLock {
+            // Another read may have repaired the transport while this one waited for the lock.
+            try {
+                nativeGateway.ensureSession()
+                return
+            } catch (error: ServiceException) {
+                if (error.failure != ServiceFailure.NotConnected || !isOnline) throw error
+            }
+            repairCatalogSession()
+            nativeGateway.ensureSession()
+        }
+    }
+
+    /**
+     * Rebuilds what the dead session owned. While audio is playing that means a forced reconnect
+     * and a reload of the current item; if the replacement session cannot be reached the native
+     * player is left untouched, so the buffered track keeps playing. While paused or empty there is
+     * nothing audible to preserve, so the dead player is dropped and the read reconnects.
+     */
+    private suspend fun repairCatalogSession() {
+        val current = playback.current
+        val uri = current?.uri
+        if (playback.isPlaying && current != null && uri != null) {
+            SidetrackDebug.log("catalog read repairing a dead session; reloading ${current.id}")
+            try {
+                play(current.key, uri, playback.position.coerceAtLeast(0L), forceReconnect = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The old player is still attached when the connect failed; the read will report
+                // the session loss and a later retry can try the replacement again.
+                SidetrackDebug.log("catalog session repair could not reconnect", e)
+            }
+        } else {
+            SidetrackDebug.log("catalog read dropping a dead session with no playback")
+            nativeGateway.disconnect()
+        }
     }
 
     val spotifyCatalog: SpotifyCatalog by lazy {

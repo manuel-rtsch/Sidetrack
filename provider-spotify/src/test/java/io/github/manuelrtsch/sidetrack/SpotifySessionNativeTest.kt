@@ -5,6 +5,8 @@ import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentialStore
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentials
 import io.github.manuelrtsch.sidetrack.auth.SpotifyTokenClient
 import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
+import io.github.manuelrtsch.sidetrack.data.ServiceException
+import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure
 import io.github.manuelrtsch.sidetrack.data.SpotifyGatewayException
 import io.github.manuelrtsch.sidetrack.data.SpotifySession
@@ -201,6 +203,65 @@ class SpotifySessionNativeTest {
         session.playback.stop()
     }
 
+    // --- catalog session recovery --------------------------------------------------------------
+
+    @Test fun `a catalog read reconnects a dead session while audio keeps playing`() = runBlocking {
+        val session = session()
+        session.queue.play(listOf(track("a"), track("b")), 0)
+        start(session, "a", positionMs = 4_000L)
+        // The access point dropped while the player stayed attached: the exact state the old
+        // catalog path could never rebuild from.
+        native.sessionValid = false
+        native.catalogArtistJson = """{"id":"ar1","name":"Aurora"}"""
+        native.calls.clear()
+
+        val artist = session.spotifyCatalog.artist("ar1")
+
+        assertEquals("ar1", artist?.id)
+        assertTrue(native.calls.contains("connect:access"))
+        assertTrue(native.calls.contains("load:spotify:track:a@4000:true"))
+        assertTrue(session.playback.isPlaying)
+        session.playback.stop()
+    }
+
+    @Test fun `a failed catalog reconnect leaves the playing session and buffer alone`() = runBlocking {
+        val session = session()
+        session.queue.play(listOf(track("a"), track("b")), 0)
+        start(session, "a", positionMs = 4_000L)
+        native.sessionValid = false
+        native.connectFails = true
+        native.catalogArtistJson = """{"id":"ar1","name":"Aurora"}"""
+        native.calls.clear()
+
+        val error = runCatching { session.spotifyCatalog.artist("ar1") }.exceptionOrNull()
+
+        assertEquals(ServiceFailure.NotConnected, (error as ServiceException).failure)
+        assertTrue(native.calls.contains("connect:access"))
+        // A failed reconnect must not detach the player that is still feeding the audio sink.
+        assertTrue(native.playerAttached)
+        assertFalse(native.calls.any { it.startsWith("load:") })
+        assertTrue(session.playback.isPlaying)
+        session.playback.stop()
+    }
+
+    @Test fun `a catalog read drops a dead session when nothing is playing`() = runBlocking {
+        val session = session()
+        start(session, "a", positionMs = 4_000L)
+        session.playback.pause()
+        awaitIdle(session)
+        native.sessionValid = false
+        native.catalogArtistJson = """{"id":"ar1","name":"Aurora"}"""
+        native.calls.clear()
+
+        val artist = session.spotifyCatalog.artist("ar1")
+
+        assertEquals("ar1", artist?.id)
+        assertTrue(native.calls.contains("disconnect"))
+        assertTrue(native.calls.contains("connect:access"))
+        // Nothing was audible, so the repair dropped the player instead of reloading the item.
+        assertFalse(native.calls.any { it.startsWith("load:") })
+    }
+
     // --- halt, stop and sign out ---------------------------------------------------------------
 
     @Test fun `halt keeps the queue and consumes the stopped event it caused`() = runBlocking {
@@ -300,6 +361,9 @@ class SpotifySessionNativeTest {
         var playerAttached = false
         var loadSucceeds = true
         var preloadFails = false
+        var sessionValid = true
+        var connectFails = false
+        var catalogArtistJson: String? = null
 
         override val isAvailable: Boolean get() = true
         override fun initialize() = true
@@ -308,18 +372,22 @@ class SpotifySessionNativeTest {
 
         override fun connect(accessToken: String): String? {
             calls += "connect:$accessToken"
+            if (connectFails) return "SESSION_CONNECT_FAILED"
             // A successful connect drops the previous player, exactly like librespot.
             playerAttached = false
+            sessionValid = true
             return null
         }
 
         override fun setAccessToken(accessToken: String): Boolean {
             calls += "setAccessToken:$accessToken"
-            return true
+            return sessionValid
         }
 
         override fun disconnect() {
             calls += "disconnect"
+            // The engine releases the player together with the session.
+            playerAttached = false
         }
         override fun hasPlayer(): Boolean = playerAttached
 
@@ -361,7 +429,7 @@ class SpotifySessionNativeTest {
         override fun pollEvent(): String? = null
         override fun catalogLibrary(filter: String, offset: Long, limit: Long): String? = null
         override fun catalogCollection(kind: String, id: String, offset: Long, limit: Long): String? = null
-        override fun catalogArtist(id: String): String? = null
+        override fun catalogArtist(id: String): String? = catalogArtistJson
         override fun catalogAlbumsBy(id: String, offset: Long, limit: Long): String? = null
         override fun catalogTopTracks(id: String, offset: Long, limit: Long): String? = null
         override fun catalogSongRadio(id: String, limit: Long): String? = null

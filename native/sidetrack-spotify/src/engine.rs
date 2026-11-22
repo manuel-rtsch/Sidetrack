@@ -146,11 +146,12 @@ pub(crate) fn with_session_and_token<T>(
 }
 
 pub fn connect(access_token: &str) -> Result<(), String> {
-    // A player is bound to the session it was created with, so rebuilding the session always
-    // drops it here. Callers have to create a new player before they load a track again; the
-    // Kotlin gateway asks `has_player` instead of remembering this on its own.
-    log::info!("engine.connect: rebuilding session, dropping any existing player");
-    disconnect();
+    // Keep the current session and player alive while the replacement session handshakes. A failed
+    // connect is common when the network is still down, and tearing the old player down first
+    // would silence buffered audio for nothing. Only a successful connect may replace it.
+    log::info!(
+        "engine.connect: connecting a replacement session; keeping playback until it succeeds"
+    );
     let rt = runtime();
     let _guard = rt.enter();
     // The OAuth token comes from the desktop/keymaster client. librespot defaults to the Android
@@ -171,9 +172,24 @@ pub fn connect(access_token: &str) -> Result<(), String> {
         Err(_) => return Err("SESSION_CONNECT_TIMEOUT".to_string()),
     }
 
-    let mut guard = state().lock().map_err(|_| "STATE_LOCK".to_string())?;
-    guard.session = Some(session);
-    guard.access_token = Some(access_token.to_string());
+    let (old_player, old_session) = {
+        let mut guard = state().lock().map_err(|_| "STATE_LOCK".to_string())?;
+        // The new session took over only now. The player is bound to the old session, so it cannot
+        // be reused; the Kotlin side creates a new one and reloads the current item.
+        let old_player = guard.player.take();
+        let old_session = guard.session.replace(session);
+        guard.events = None;
+        guard.access_token = Some(access_token.to_string());
+        (old_player, old_session)
+    };
+
+    if let Some(player) = old_player {
+        player.stop();
+    }
+    if let Some(session) = old_session {
+        // Never wait for the dead session's teardown while the caller is reconnecting.
+        std::thread::spawn(move || session.shutdown());
+    }
     Ok(())
 }
 
