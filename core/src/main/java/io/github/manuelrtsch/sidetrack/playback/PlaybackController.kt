@@ -194,7 +194,12 @@ class PlaybackController(
     init {
         engine.onFailure = ::onAudioStalled
         scope.launch {
-            engine.state.collect { state -> _buffering.value = state.isBuffering }
+            // A paused player is not loading anything the user waits for: the sink reports a
+            // starvation when a seek while paused leaves it with no PCM, and the bar then said
+            // "Loading" over a track that was deliberately stopped.
+            engine.state.collect { state ->
+                _buffering.value = state.isPlaying && state.isBuffering
+            }
         }
         // A tick only rebuilds the notification; the refresh path deliberately does not publish().
         if (context != null) {
@@ -550,7 +555,12 @@ class PlaybackController(
     val ended: Flow<String?> get() = engine.ended
 
     private fun publish() {
-        SidetrackDebug.log { "publish playing=$playing positionMs=$positionMs current=${current?.uri}" }
+        // HTTP services keep their stream URL on the source and leave the item's uri null, so
+        // logging only the item said `current=null` for every Jellyfin and Plex publish.
+        SidetrackDebug.log {
+            "publish playing=$playing positionMs=$positionMs " +
+                "current=${currentSource?.uri ?: current?.uri}"
+        }
         sessionBinder.publish(current, playing, positionMs, notificationArt)
         noisy.update(playing)
         context?.let { notifySync(it, this) }

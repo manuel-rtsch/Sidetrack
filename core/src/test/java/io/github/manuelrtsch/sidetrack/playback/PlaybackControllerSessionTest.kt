@@ -170,12 +170,25 @@ class PlaybackControllerSessionTest : PlaybackControllerTestBase() {
         controller = newController(engine)
         runCurrent()
 
-        engine.state.value = PlaybackEngineState(isBuffering = true)
+        engine.state.value = PlaybackEngineState(isPlaying = true, isBuffering = true)
         runCurrent()
         assertTrue(controller.buffering.value)
 
-        engine.state.value = PlaybackEngineState(isBuffering = false)
+        engine.state.value = PlaybackEngineState(isPlaying = true, isBuffering = false)
         runCurrent()
+        assertFalse(controller.buffering.value)
+    }
+
+    @Test fun `a paused engine never shows the loading state`() = runTest {
+        val engine = FakeEngine()
+        controller = newController(engine)
+        runCurrent()
+
+        // The field log had a seek while paused end in `Loading`: the sink reported a starvation
+        // that nobody was waiting for.
+        engine.state.value = PlaybackEngineState(isPlaying = false, isBuffering = true)
+        runCurrent()
+
         assertFalse(controller.buffering.value)
     }
 
