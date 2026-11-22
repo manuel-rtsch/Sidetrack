@@ -57,9 +57,26 @@ internal class LibraryController(
 
     fun ensureCollection(type: CollectionType, id: String) = ensureCollection(mediaKeys.media(type, id))
 
+    fun openCollection(type: CollectionType, id: String) = openCollection(mediaKeys.media(type, id))
+
     fun retryCollection(type: CollectionType, id: String) = retryCollection(mediaKeys.media(type, id))
 
     fun loadMoreCollection(type: CollectionType, id: String) = loadMoreCollection(mediaKeys.media(type, id))
+
+    /**
+     * Opens a collection page on its first page, then fetches it if it was never opened. A playlist
+     * paged deeper and left comes back as the twenty rows it opened with.
+     */
+    fun openCollection(key: MediaKey) {
+        val cacheKey = key.encode()
+        store.update {
+            val collection = it.collections[cacheKey] ?: return@update it
+            if (collection.items.size <= CATALOG_PAGE_SIZE) return@update it
+            val firstPage = collection.copy(items = collection.items.take(CATALOG_PAGE_SIZE), hasMore = true)
+            it.copy(collections = it.collections + (cacheKey to firstPage))
+        }
+        ensureCollection(key)
+    }
 
     fun ensureCollection(key: MediaKey) {
         val cacheKey = key.encode()
@@ -208,6 +225,30 @@ internal class LibraryController(
         return current
     }
 
+    /**
+     * Opens an artist page on its first page: both the albums and the tracks list are cut back to
+     * the batch they opened with, and both footers offer the rest again.
+     */
+    fun openArtist(id: String) {
+        store.update {
+            val albums = it.artistAlbums[id].orEmpty()
+            val tracks = it.artistTracks[id].orEmpty()
+            val moreAlbums = albums.size > ARTIST_PAGE_SIZE
+            val moreTracks = tracks.size > ARTIST_PAGE_SIZE
+            if (!moreAlbums && !moreTracks) {
+                it
+            } else {
+                it.copy(
+                    artistAlbums = if (moreAlbums) it.artistAlbums + (id to albums.take(ARTIST_PAGE_SIZE)) else it.artistAlbums,
+                    artistTracks = if (moreTracks) it.artistTracks + (id to tracks.take(ARTIST_PAGE_SIZE)) else it.artistTracks,
+                    artistAlbumHasMore = if (moreAlbums) it.artistAlbumHasMore + (id to true) else it.artistAlbumHasMore,
+                    artistTrackHasMore = if (moreTracks) it.artistTrackHasMore + (id to true) else it.artistTrackHasMore
+                )
+            }
+        }
+        ensureArtist(id)
+    }
+
     fun ensureArtist(id: String) {
         val snapshot = store.value
         if (id in snapshot.artists || id in snapshot.pendingArtists) return
@@ -349,7 +390,22 @@ internal class LibraryController(
         // keeps a programmatic or restored selection from landing on an empty page.
         val supported = filter.takeIf { it in supportedFilters() } ?: supportedFilters().firstOrNull() ?: LibraryFilter.LikedSongs
         store.update { if (it.filter == supported) it else it.copy(filter = supported) }
-        ensure(supported)
+        open(supported)
+    }
+
+    /**
+     * Opens one category: back to its first page, then the cache-first fetch [ensure] describes.
+     *
+     * Entry is the one moment a list may shrink. A category paged deeper and then left is opened
+     * again on the page it started with, rather than on however far the last visit scrolled, and
+     * because the first page is cached this costs no request.
+     */
+    fun open(filter: LibraryFilter = store.value.filter) {
+        store.update {
+            val page = it.libraryPages[filter] ?: return@update it
+            if (!page.isExpanded) it else it.copy(libraryPages = it.libraryPages + (filter to page.collapsed(CATALOG_PAGE_SIZE)))
+        }
+        ensure(filter)
     }
 
     /**

@@ -150,7 +150,7 @@ internal fun NavGraphBuilder.playbackGraph(
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         val artistKey = MediaKey.decode(entry.arguments?.getString("key").orEmpty())
         val artistId = artistKey?.id.orEmpty()
-        LaunchedEffect(artistKey) { artistKey?.let { vm.ensureArtist(it.id) } }
+        LaunchedEffect(artistKey) { artistKey?.let { vm.openArtist(it.id) } }
         val artist = artistKey?.let { vm.artist(it.id) }
         if (artist == null) {
             MissingCollectionScreen(

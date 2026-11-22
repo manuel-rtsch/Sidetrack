@@ -68,6 +68,22 @@ internal class PlaylistController(
         loadChoices(reset = true)
     }
 
+    /**
+     * Opens the picker on its first page.
+     *
+     * The cursor here counts catalog rows, while the list shows only the playlists that accept
+     * items, so an expanded picker cannot be truncated without breaking the offset it would page
+     * from. It is refetched from the top instead: one page of playlists, and a list that reflects
+     * what the account can add to today.
+     */
+    fun openChoices() {
+        if (store.value.playlistChoices.size > CATALOG_PAGE_SIZE) {
+            choicesOffset = 0
+            store.update { it.copy(playlistChoicesLoaded = false) }
+        }
+        ensureChoices()
+    }
+
     fun retryChoices() {
         if (store.value.playlistChoicesLoading) return
         choicesOffset = 0

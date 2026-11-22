@@ -335,7 +335,7 @@ class SidetrackViewModel(
      */
     suspend fun createPlaylist(name: String, seed: List<MediaKey> = emptyList()): Playlist? = playlists.create(name, seed)
 
-    fun ensurePlaylistChoices() = playlists.ensureChoices()
+    fun openPlaylistChoices() = playlists.openChoices()
 
     fun retryPlaylistChoices() = playlists.retryChoices()
 
@@ -459,6 +459,11 @@ class SidetrackViewModel(
 
     fun ensureCollection(key: MediaKey) = library.ensureCollection(key)
 
+    /** Opens a collection page on its first page: a list left paged deeper reopens at twenty. */
+    fun openCollection(type: CollectionType, id: String) = library.openCollection(type, id)
+
+    fun openCollection(key: MediaKey) = library.openCollection(key)
+
     fun retryCollection(type: CollectionType, id: String) = library.retryCollection(type, id)
 
     fun retryCollection(key: MediaKey) = library.retryCollection(key)
@@ -473,6 +478,9 @@ class SidetrackViewModel(
 
     fun ensureArtist(id: String) = library.ensureArtist(id)
 
+    /** Opens an artist page on its first page, albums and tracks alike. */
+    fun openArtist(id: String) = library.openArtist(id)
+
     fun retryArtist(id: String) = library.retryArtist(id)
 
     fun playCollection(collection: Collection, index: Int) = library.playCollection(collection, index)
@@ -483,8 +491,11 @@ class SidetrackViewModel(
 
     fun loadMoreLibrary() = library.loadMoreLibrary()
 
-    /** Cache-first: opening the Library only refetches a category that is missing or ageing. */
-    fun ensureLibrary() = library.ensure()
+    /**
+     * Opening the Library: the category goes back to its first page, and the cache-first fetch
+     * only runs when that category is missing or ageing.
+     */
+    fun openLibrary() = library.open()
 
     fun retryLibrary() = library.retry()
 
@@ -512,6 +523,9 @@ class SidetrackViewModel(
     fun retrySearch() = search.retrySearch()
 
     fun loadMoreSearch(scope: SearchScope) = search.loadMoreSearch(scope)
+
+    /** Opening the results: every category of the query goes back to its first page. */
+    fun openSearchResults() = search.openResults()
 
     fun setAudioQuality(quality: AudioQuality) = settings.setAudioQuality(quality)
 
