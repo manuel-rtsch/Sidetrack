@@ -29,12 +29,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.ActionMotion
 import hrln.interactive.sidekit.design.action.ActionTone
@@ -318,8 +318,7 @@ internal fun searchHint(typed: String, keyboardVisible: Boolean): String? = when
  * the field because the drawn hint is not read with the text, and is absent behind the keyboard.
  * Only while violated: an empty field keeps the placeholder's plain "Search".
  */
-internal fun searchFieldStateDescription(typed: String): String? =
-    if (typed.isNotBlank() && typed.trim().length < 2) "Keep typing, at least two letters" else null
+internal fun searchFieldStateDescription(typed: String): String? = if (typed.isNotBlank() && typed.trim().length < 2) "Keep typing, at least two letters" else null
 
 /**
  * Whether the landing field takes the keyboard on entry: a term worth refining, or a keypad that
