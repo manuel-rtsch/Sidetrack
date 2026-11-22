@@ -46,6 +46,24 @@ a guess.
 `workflow_dispatch` runs the same job for an existing tag, which is how a release is rebuilt after
 a failure without force-pushing the tag.
 
+## The app pack
+
+SP-01 users can install Sidetrack from the
+[app pack](https://manuel-rtsch.github.io/sidetrack-pack/), an F-Droid repository the
+Library app adds as a source. It carries no code: it is rebuilt from these releases on every
+run, and its signing key is separate from the APK key (it signs the index, not the app). The
+pack's own README is the runbook.
+
+The release workflow's last step asks the pack to rebuild via `repository_dispatch`. That step is
+in the workflow rather than a release-triggered workflow because an event produced with
+`GITHUB_TOKEN` does not start another workflow — the trigger would never fire. If
+`APP_PACK_DISPATCH_TOKEN` is unset the step warns and exits, and the pack's weekly cron picks the
+release up instead. A release is never failed by the pack.
+
+The pack serves the **arm64-v8a** APK, not the universal one: a release carries both, an F-Droid
+index can hold only one file per `versionCode`, and the SP-01 is arm64. The universal APK stays
+here for emulators and other phones.
+
 ## Repository secrets
 
 | Secret | Contents |
@@ -54,6 +72,7 @@ a failure without force-pushing the tag.
 | `SIDETRACK_STORE_PASSWORD` | `storePassword` |
 | `SIDETRACK_KEY_ALIAS` | `keyAlias` |
 | `SIDETRACK_KEY_PASSWORD` | `keyPassword` |
+| `APP_PACK_DISPATCH_TOKEN` | fine-grained PAT, `contents: write` on `manuel-rtsch/sidetrack-pack` only |
 
 The workflow writes `keystore.properties` (gitignored) from them, the same file
 `app/build.gradle.kts` reads locally. The certificate is pinned in `scripts/verify-apk.sh`, so an

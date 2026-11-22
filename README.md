@@ -105,6 +105,28 @@ artists through its favourite-artist flag.
 | --- | --- | --- | --- |
 | ![History](app/screenshots/sidetrack_history.png) | ![Sleep timer](app/screenshots/sidetrack_sleep_timer.png) | ![Settings](app/screenshots/sidetrack_settings.png) | ![Sign in](app/screenshots/sidetrack_sign_in.png) |
 
+## Installing
+
+On a Sidephone SP-01, the easiest route is the **Sidetrack app pack**. The stock Library app takes
+app packs, and one scan adds Sidetrack to your library with no "unknown sources" prompt and silent
+updates from then on:
+
+<p align="center">
+  <img src="https://manuel-rtsch.github.io/sidetrack-pack/fdroid/repo/index.png" width="220"
+    alt="QR code that adds the Sidetrack app pack to the SP-01 Library">
+</p>
+
+Open **Library → Settings → App Packs → +** and scan it, or add
+`https://manuel-rtsch.github.io/sidetrack-pack/fdroid/repo` by hand, and check that the signing
+fingerprint the phone shows matches `07E18BC4…FAE17488` (published in full on the
+[pack's install page](https://manuel-rtsch.github.io/sidetrack-pack/)).
+
+Every other Android 12+ phone, and anyone who would rather not add a pack, can install the APK
+directly: [Obtainium](https://github.com/ImranR98/Obtainium/releases/latest) watching this
+repository gives update notifications, or download the signed APK from the
+[latest release](https://github.com/manuel-rtsch/Sidetrack/releases/latest). All three routes ship
+the same signed app.
+
 ## Getting started
 
 1. Optionally install [Sidekit](https://github.com/HarlenPostill/Sidekit/releases/latest) to use
