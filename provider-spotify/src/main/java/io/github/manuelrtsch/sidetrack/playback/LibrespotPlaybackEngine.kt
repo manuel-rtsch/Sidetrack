@@ -43,6 +43,15 @@ class LibrespotPlaybackEngine(
      */
     private var reconfigurePending = false
 
+    /**
+     * True from the moment a rebuild issues a silent load (`autoplay = false`) until the player
+     * reports that load, so a resume arriving in between can supersede it. librespot finishes a
+     * silent load with `paused` and only then processes a queued `play`; a resume that lands in
+     * that window therefore waits for the fetch and contradicts its own lock-screen state.
+     */
+    @Volatile
+    private var silentLoadInFlight = false
+
     init {
         audio?.onBuffering = { buffering ->
             _state.update { it.copy(isBuffering = buffering) }
@@ -59,6 +68,7 @@ class LibrespotPlaybackEngine(
         // Drain the previous item's audio before loading the next: that also unblocks a player
         // thread waiting in PcmSink::write so the load command is processed. The AudioTrack itself is
         // kept, because recreating it re-configures the output route, audible as a gap on Bluetooth.
+        silentLoadInFlight = false
         val sinkKept = keepAudioSink && audio?.isRunning == true
         if (!sinkKept) {
             // A setting changed while the previous item played. This start resets the sink anyway, so
@@ -90,6 +100,16 @@ class LibrespotPlaybackEngine(
         _state.update { it.copy(isPlaying = true, positionMs = positionMs) }
         val reused = audio?.resume(positionMs) ?: false
         if (generation != commandGeneration) return@withLock false
+        val source = _state.value.source
+        if (silentLoadInFlight && source != null) {
+            // The rebuild's load is still fetching with autoplay off, so a plain `play` would queue
+            // behind it and the player would report `paused` first. Ask for the item again with
+            // autoplay: the same fetch, but it ends in `playing` instead of a contradicting pause.
+            silentLoadInFlight = false
+            SidetrackDebug.log("engine.resume superseding the silent load uri=${source.uri}")
+            gateway.load(source.uri, positionMs, autoplay = true)
+            return@withLock true
+        }
         if (!reused) {
             // The AudioTrack buffer was lost, after a long pause for instance: realign the player with
             // the UI position, or it resumes from its decoder position and skips buffered audio.
@@ -174,7 +194,12 @@ class LibrespotPlaybackEngine(
         try {
             // No native player yet: the next connect picks the new settings up.
             if (!gateway.recreatePlayer()) return false
-            if (source != null) gateway.load(source.uri, positionMs, autoplay = wasPlaying)
+            if (source != null) {
+                gateway.load(source.uri, positionMs, autoplay = wasPlaying)
+                // Nothing plays until a resume asks for it, and that resume has to know the player
+                // is still fetching this item rather than sitting paused on it.
+                if (!wasPlaying) silentLoadInFlight = true
+            }
         } catch (t: Throwable) {
             SidetrackDebug.log("engine.reconfigure failed", t)
             _state.update { it.copy(isPlaying = false) }
@@ -213,11 +238,18 @@ class LibrespotPlaybackEngine(
     }
 
     override suspend fun disconnect() {
+        silentLoadInFlight = false
         stop()
         gateway.disconnect()
     }
 
-    override suspend fun pollEvent(): PlaybackEvent? = eventSource()?.let(PlaybackEvent::fromJson)
+    override suspend fun pollEvent(): PlaybackEvent? {
+        val event = eventSource()?.let(PlaybackEvent::fromJson) ?: return null
+        // `paused` is the rebuild's silent load reporting itself; `playing` is a superseded load.
+        // Either way the window in which a resume must ask for autoplay is over.
+        if (event is PlaybackEvent.Paused || event is PlaybackEvent.Playing) silentLoadInFlight = false
+        return event
+    }
 
     override fun invalidateCommands() {
         commandGeneration++

@@ -338,6 +338,55 @@ class PlaybackControllerSessionTest : PlaybackControllerTestBase() {
         assertFalse(controller.shouldApplyEvent(isPlaying = true))
     }
 
+    /**
+     * Field log 2026-11-22 (SP-01): a resume that raced a silent rebuild load was followed by
+     * librespot's `paused` for that load 2.5 s later, outside the old 2 s window, so the session
+     * and the notification showed paused while audio was on its way. The resume stayed
+     * unconfirmed for 8.5 s in that capture.
+     */
+    @Test fun `a late paused event cannot flip the UI while a resume is unconfirmed`() = runTest {
+        focusResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        var now = 0L
+        controller = newController(FakeEngine(), context = context, elapsedTime = { now })
+        controller.setNowPlaying(track(), 0L, PlaybackSource("a", "spotify:track:a"))
+        controller.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 0L)
+        assertTrue(controller.shouldApplyEvent(isPlaying = true))
+
+        now = 1_000L
+        controller.pause()
+        assertTrue(controller.shouldApplyEvent(isPlaying = false))
+
+        now = 2_000L
+        assertTrue(controller.resume())
+        now = 4_500L
+        assertFalse(
+            "the rebuild's paused event must not override the resume the user just asked for",
+            controller.shouldApplyEvent(isPlaying = false)
+        )
+
+        now = 10_500L
+        assertTrue("the player's playing event ends the wait", controller.shouldApplyEvent(isPlaying = true))
+        assertTrue("a confirmed resume stops filtering", controller.shouldApplyEvent(isPlaying = false))
+    }
+
+    @Test fun `an unconfirmed command stops filtering after the deadline`() = runTest {
+        focusResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        var now = 0L
+        controller = newController(FakeEngine(), context = context, elapsedTime = { now })
+        controller.setNowPlaying(track(), 0L, PlaybackSource("a", "spotify:track:a"))
+        controller.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 0L)
+        assertTrue(controller.shouldApplyEvent(isPlaying = true))
+
+        now = 5_000L
+        assertTrue(controller.resume())
+        now = 5_000L + 12_001L
+
+        assertTrue(
+            "a command the player never confirms must not silence events forever",
+            controller.shouldApplyEvent(isPlaying = false)
+        )
+    }
+
     @Test fun `a stall asks the owner to recover and tells the UI`() = runTest {
         controller = newController(FakeEngine())
         controller.updateState(isPlaying = true, position = 5_000L)

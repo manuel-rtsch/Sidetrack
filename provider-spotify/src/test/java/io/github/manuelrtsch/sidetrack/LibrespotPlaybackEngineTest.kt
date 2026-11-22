@@ -96,6 +96,48 @@ class LibrespotPlaybackEngineTest {
         assertTrue(engine.state.value.isPlaying)
     }
 
+    @Test fun `a resume during a silent rebuild load asks for autoplay instead of a queued play`() = runTest {
+        // Field log 2026-11-22: pause → setting change → silent rebuild load → resume 3 s later.
+        // librespot finished the silent load first (emitting `paused`) and only then processed the
+        // queued play, so the user waited 8.5 s for audio and the lock screen showed paused.
+        val gateway = FakeGateway()
+        val engine = engine(gateway)
+        val source = PlaybackSource("a", "spotify:track:a")
+        engine.reconfigure(source, 5_000L, wasPlaying = false)
+        assertFalse(gateway.autoplay)
+        assertEquals(1, gateway.loads)
+
+        val started = engine.resume(5_000L)
+
+        assertTrue(started)
+        assertEquals("the item is fetched again with autoplay", 2, gateway.loads)
+        assertTrue(gateway.autoplay)
+        assertEquals("spotify:track:a", gateway.loadedUri)
+        assertEquals(5_000L, gateway.loadedPosition)
+        assertNull("a superseded load needs no seek", gateway.seekedTo)
+        assertEquals("and no queued play behind the fetch", 0, gateway.plays)
+    }
+
+    @Test fun `once the silent load reports, a resume is a normal seek and play`() = runTest {
+        val gateway = FakeGateway()
+        var event: String? = null
+        val engine = LibrespotPlaybackEngine(
+            gateway = gateway,
+            audio = null,
+            eventSource = { event }
+        )
+        val source = PlaybackSource("a", "spotify:track:a")
+        engine.reconfigure(source, 5_000L, wasPlaying = false)
+        event = """{"type":"paused","uri":"spotify:track:a","positionMs":5000}"""
+        assertTrue(engine.pollEvent() is PlaybackEvent.Paused)
+
+        engine.resume(5_000L)
+
+        assertEquals("no reload once the player has settled", 1, gateway.loads)
+        assertEquals(5_000L, gateway.seekedTo)
+        assertEquals(1, gateway.plays)
+    }
+
     @Test fun `reconfigure without a player reports that nothing was rebuilt`() = runTest {
         val gateway = FakeGateway(recreate = false)
         val engine = engine(gateway)

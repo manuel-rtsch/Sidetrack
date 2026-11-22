@@ -158,6 +158,19 @@ class PlaybackController(
     @Volatile
     private var lastCommandAt = 0L
 
+    /**
+     * Play/pause state a transport command asked for but that no native event has confirmed yet,
+     * or null when there is nothing outstanding. A contradicting event inside the confirmation
+     * deadline is stale, not news: librespot reports `paused` when a silent rebuild finishes
+     * loading, and that can land seconds after the user already pressed play.
+     */
+    @Volatile
+    private var awaitingState: Boolean? = null
+
+    /** When an unconfirmed [awaitingState] stops being trusted, on the [elapsedTime] clock. */
+    @Volatile
+    private var awaitingUntil = 0L
+
     /** Headphones unplugged: pause rather than play out loud. */
     fun onAudioBecomingNoisy() = pause()
 
@@ -297,13 +310,56 @@ class PlaybackController(
     }
 
     /**
-     * Whether a native playing/paused event still matches the user's latest intent. After the
-     * command window, events from other clients are accepted again.
+     * Whether a native playing/paused event still matches the user's latest intent.
+     *
+     * Two rules, in order. A command that no event has confirmed yet owns the state: a
+     * contradicting event is dropped until the deadline, because it can only be a stale report
+     * of what the player was doing before the command landed (a rebuild's `paused` arriving
+     * while a resume is still fetching, for instance). A confirming event clears the intent.
+     * Once nothing is outstanding, the short command window still absorbs rapid taps, and after
+     * that events from other clients are accepted again.
      */
     fun shouldApplyEvent(isPlaying: Boolean): Boolean {
-        val age = SystemClock.elapsedRealtime() - lastCommandAt
+        val now = elapsedTime()
+        val awaiting = awaitingState
+        if (awaiting != null) {
+            if (isPlaying == awaiting) {
+                awaitingState = null
+                SidetrackDebug.log {
+                    "command confirmed: isPlaying=$isPlaying after ${now - lastCommandAt}ms"
+                }
+                return true
+            }
+            val remaining = awaitingUntil - now
+            if (remaining > 0) {
+                SidetrackDebug.log {
+                    "stale event dropped: isPlaying=$isPlaying, command asked for $awaiting " +
+                        "(${remaining}ms of confirmation left)"
+                }
+                return false
+            }
+            awaitingState = null
+        }
+        val age = now - lastCommandAt
         if (age > COMMAND_EVENT_WINDOW_MS) return true
         return if (isPlaying) !lastCommandWasPause else lastCommandWasPause
+    }
+
+    /**
+     * Records what a transport command asked for, so [shouldApplyEvent] can tell a stale native
+     * event from a real one. Every command path must come through here.
+     */
+    private fun expectState(isPlaying: Boolean) {
+        val now = elapsedTime()
+        lastCommandWasPause = !isPlaying
+        lastCommandAt = now
+        awaitingState = isPlaying
+        awaitingUntil = now + COMMAND_CONFIRM_TIMEOUT_MS
+    }
+
+    /** A command that never reached the player must not keep filtering events. */
+    private fun clearExpectation() {
+        awaitingState = null
     }
 
     /**
@@ -320,11 +376,11 @@ class PlaybackController(
         SidetrackDebug.log("start key=${key.encode()} uri=$uri positionMs=$positionMs keepAudioSink=$keepAudioSink")
         val source = PlaybackSource(id = key.encode(), uri = uri, headers = headers)
         currentSource = source
-        lastCommandWasPause = false
-        lastCommandAt = SystemClock.elapsedRealtime()
+        expectState(isPlaying = true)
         register()
         if (focus?.request() == false) {
             SidetrackDebug.log("start aborted: audio focus denied")
+            clearExpectation()
             return
         }
         registry.activate(this)
@@ -336,6 +392,7 @@ class PlaybackController(
         } catch (t: Throwable) {
             SidetrackDebug.log("start failed", t)
             playing = false
+            clearExpectation()
             focus?.abandon()
             registry.deactivate(this)
             publish()
@@ -355,23 +412,34 @@ class PlaybackController(
             start?.invoke()
             return start != null
         }
-        lastCommandWasPause = false
-        lastCommandAt = SystemClock.elapsedRealtime()
+        expectState(isPlaying = true)
         register()
         if (focus?.request() == false) {
             SidetrackDebug.log("resume aborted: audio focus denied")
+            clearExpectation()
             return false
         }
         registry.activate(this)
         playing = true
         publish()
-        val started = engine.resume(positionMs)
+        val started = try {
+            engine.resume(positionMs)
+        } catch (t: Throwable) {
+            // A throw means the command never reached the player, so the intent must not linger.
+            clearExpectation()
+            playing = false
+            focus?.abandon()
+            registry.deactivate(this)
+            publish()
+            throw t
+        }
         if (started) sleepTimers.onPlaybackStarted()
         if (!started) {
             // An engine that cannot deliver audio has not earned the session or the focus request:
             // leaving the registry on a silent owner contradicts what [MediaSessionRegistry.active]
             // means, and holding focus keeps the app that just paused for us paused.
             playing = false
+            clearExpectation()
             focus?.abandon()
             registry.deactivate(this)
             publish()
@@ -396,8 +464,7 @@ class PlaybackController(
         playing = false
         sleepTimers.hold()
         _buffering.value = false
-        lastCommandWasPause = true
-        lastCommandAt = SystemClock.elapsedRealtime()
+        expectState(isPlaying = false)
         if (abandonFocus) focus?.abandon()
         registry.deactivate(this)
         publish()
@@ -442,8 +509,7 @@ class PlaybackController(
         clearSleepTimer()
         playing = false
         _buffering.value = false
-        lastCommandWasPause = true
-        lastCommandAt = SystemClock.elapsedRealtime()
+        expectState(isPlaying = false)
         focus?.abandon()
         registry.deactivate(this)
         engine.invalidateCommands()
@@ -484,5 +550,12 @@ class PlaybackController(
 
         /** How long after a command a contradicting native event is treated as stale. */
         const val COMMAND_EVENT_WINDOW_MS = 2_000L
+
+        /**
+         * How long an unconfirmed command may keep silencing contradicting events. librespot
+         * queues transport commands behind an in-flight load, so a resume that follows a silent
+         * rebuild can take several seconds to report `playing`; the field log shows 8.5 s.
+         */
+        const val COMMAND_CONFIRM_TIMEOUT_MS = 12_000L
     }
 }
