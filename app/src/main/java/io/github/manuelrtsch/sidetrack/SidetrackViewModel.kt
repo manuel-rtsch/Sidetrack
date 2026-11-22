@@ -437,6 +437,8 @@ class SidetrackViewModel(
 
     fun signIn() = account.signIn()
 
+    fun signInDevice() = account.signInDevice()
+
     fun signIn(serverUrl: String, username: String, password: String) = account.signIn(serverUrl, username, password)
 
     fun signOut() = account.signOut()
@@ -528,8 +530,6 @@ class SidetrackViewModel(
     fun clearCache() = settings.clearCache()
 
     fun refreshCacheSize() = settings.refreshCacheSize()
-
-    /** Drag-and-drop reorder of the upcoming tail; the current item and history never move. */
 
     private fun playbackNotice(error: Exception): String = serviceMessage(error, session?.isOnline != false)
 }

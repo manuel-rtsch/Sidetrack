@@ -48,7 +48,8 @@ class AppSessionsTest {
                 ServiceId.NextcloudMusic,
                 ServiceId.Plex,
                 ServiceId.Spotify,
-                ServiceId.Subsonic
+                ServiceId.Subsonic,
+                ServiceId.Device
             ),
             KnownServices.map { it.id }
         )

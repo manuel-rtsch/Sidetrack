@@ -17,13 +17,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * What plays next, and when the screen believes the player.
+ * What plays next, and when the screen believes the player: the queue's lifecycle — starting an
+ * item on the service, reacting to the player's events, ending a track (repeat, autoplay, end of
+ * queue) and the transport commands that drive all of it.
  *
- * This is the queue's lifecycle: starting an item on the service, reacting to the player's
- * events, ending a track (repeat, autoplay, end of queue) and the transport commands that drive
- * all of it. It owns no UI state of its own — writes go through [effects], and the position
- * claims go through [clock] — which is why the seek/resume rules and the event `when` can be read
- * without scrolling past library paging.
+ * It owns no UI state: writes go through [effects] and position claims through [clock], which keeps
+ * the seek/resume rules and the event `when` readable without scrolling past library paging.
  */
 internal class PlaybackDriver(
     private val store: UiStateStore,
@@ -54,10 +53,8 @@ internal class PlaybackDriver(
     private var autoplayJob: Job? = null
 
     /**
-     * The queue a collection tap replaced, while the bar still offers it back.
-     *
-     * [playingId] is the item that tap started. The offer only stands while that item is still the
-     * one playing, so a stale snapshot can never undo a newer choice.
+     * The queue a collection tap replaced, while the bar still offers it back. [playingId] is the
+     * item that tap started, so a stale snapshot can never undo a newer choice.
      */
     private data class ReplacedQueue(
         val snapshot: QueueRepository.Snapshot,
@@ -78,9 +75,8 @@ internal class PlaybackDriver(
             store.update { it.copy(notice = null) }
             return
         }
-        // A tap on a collection page is the only gesture in the app that throws away a queue the
-        // user lined up. Keep the outgoing queue for a few seconds so the bar can offer it back; a
-        // tail that is already empty has nothing to lose and leaves the bar alone.
+        // A collection tap is the only gesture that throws away a queue the user lined up, so keep
+        // the outgoing one for a few seconds; an empty tail has nothing to lose.
         clearReplacedQueue()
         val before = queue.snapshot
         val lost = before.upcoming.isNotEmpty()
@@ -103,10 +99,8 @@ internal class PlaybackDriver(
     /**
      * Puts back the queue the last collection tap replaced and resumes the item that was playing.
      *
-     * The album track stays in the history it earned, so the undo restores the queue the user
-     * built without rewriting what they listened to. Nothing happens once something else has
-     * started: the offer is withdrawn then, and a snapshot restored late would cut off a choice
-     * the user made on purpose.
+     * The album track stays in the history it earned, and the offer is withdrawn once something
+     * else started, so a late restore cannot cut off a choice the user made on purpose.
      */
     fun undoQueueReplaced() {
         val replaced = replacedQueue ?: return
@@ -163,8 +157,8 @@ internal class PlaybackDriver(
         scope.launch {
             try {
                 if (play && session.playback.current == null) {
-                    // A restored queue outlives the native player. Start the current item instead
-                    // of resuming a source that no longer exists, from the offset it stopped at.
+                    // A restored queue outlives the native player: start the item from the offset it
+                    // stopped at instead of resuming a source that no longer exists.
                     val resume = effects.savedPositionFor(item)
                     startRemote(item, resume, resuming = resume > 0L)
                 } else if (play) {
@@ -200,8 +194,8 @@ internal class PlaybackDriver(
         clearReplacedQueue()
         val s = store.value
         if (s.current == null) return
-        // A podcast's Previous means the previous episode. Rewinding belongs to the ±30 s
-        // controls, so the track rule (restart after three seconds) does not apply here.
+        // A podcast's Previous means the previous episode; rewinding belongs to the ±30 s controls,
+        // so the restart-after-three-seconds rule does not apply here.
         if (s.current is Episode) {
             val snapshot = queue.previous(0L)
             if (snapshot.current !== s.current) {
@@ -277,8 +271,8 @@ internal class PlaybackDriver(
         effects.markEpisodeFinished(current)
         // The sleep timer wins over repeat and autoplay: this is where the queue must stop.
         if (session?.playback?.consumeEndOfTrackTimer() == true) {
-            // Same stop as the queue end: the native player is already at the end, so leaving it
-            // there makes the drain mistake the finished track for a stalled connection.
+            // The native player is already at the end, so leaving it there makes the drain read the
+            // finished track as a stalled connection.
             effects.stopAtQueueEnd()
             return
         }
@@ -293,30 +287,26 @@ internal class PlaybackDriver(
     }
 
     /**
-     * The service refused this item, so it is not playable at all — Spotify answers a regional or
-     * removed track this way. Treat it like a finished track and move on, autoplay included, which
-     * is also what librespot does internally.
+     * The service refused this item, so it is not playable at all: Spotify answers a regional or
+     * removed track this way. Treat it like a finished track and move on, autoplay included.
      *
-     * Retrying is never useful here: the previous behaviour let the stall detector treat the
-     * rejection as a dead connection, rebuilding the session and reloading the same item until
-     * playback gave up. Repeat-track deliberately does not apply — a refused track must not loop.
+     * Retrying only lets the stall detector read the rejection as a dead connection and reload the
+     * same item until playback gives up. Repeat-track deliberately does not apply.
      */
     fun onPlaybackUnavailable() {
         val skipped = store.value.current
         SidetrackDebug.log("unavailable: skipping on from ${skipped?.key?.encode()}")
         advance(auto = true, forceContextLoop = false)
         // Announced after the advance, which clears the notice on its way in, and only when the
-        // queue really moved: running out of queue or asking for similar tracks has its own
-        // message, and this one must not overwrite it.
+        // queue really moved: the end-of-queue and autoplay messages must not be overwritten.
         if (store.value.current !== skipped) {
             store.update { it.say("Skipped — this track isn't available") }
         }
     }
 
     /**
-     * Ends a finished episode. Episodes carry no shuffle or repeat control, so a mode left over
-     * from a song must not rewind the show or loop the episode forever: with nothing queued behind
-     * it or added to the queue, the queue stops.
+     * Ends a finished episode. Episodes have no shuffle or repeat control, so a mode left over from
+     * a song must not rewind the show or loop it: with nothing queued behind, the queue stops.
      */
     fun endOfEpisode(current: MediaItem): Boolean {
         if (current !is Episode) return false
@@ -342,8 +332,7 @@ internal class PlaybackDriver(
     }
 
     fun advance(auto: Boolean, forceContextLoop: Boolean) {
-        // Playback moved on by itself, so the queue the last collection tap replaced is no longer
-        // the thing the bar is talking about.
+        // Playback moved on by itself, so the replaced queue is no longer what the bar talks about.
         clearReplacedQueue()
         val s = store.value
         val current = s.current ?: return
@@ -375,9 +364,9 @@ internal class PlaybackDriver(
     }
 
     /**
-     * The queue ran out with Autoplay on. Ask the catalog for the current artist's top tracks,
-     * drop anything already in the queue or history, and let the normal advance path start the
-     * first one. The guard keeps a slow request from hijacking a track the user started meanwhile.
+     * The queue ran out with Autoplay on: ask the catalog for the artist's top tracks, drop what the
+     * queue and history already hold, and let the advance path start the first. The guard keeps a
+     * slow request from hijacking a track the user started meanwhile.
      */
     fun autoplaySimilar(current: MediaItem) {
         if (autoplayJob?.isActive == true) return
@@ -425,10 +414,9 @@ internal class PlaybackDriver(
     }
 
     /**
-     * The audio is running at [positionMs] once the start call returns, so let the seek bar run
-     * from that offset instead of waiting for a player event. A reconnecting player can replay the
-     * previous generation's state — typically position 0 — which left the bar stuck, then watched
-     * it snap back to the start while the transport said it was playing.
+     * The audio runs at [positionMs] once the start call returns, so the seek bar starts from that
+     * offset instead of waiting for an event: a reconnecting player replays the previous
+     * generation's state — typically 0 — and the bar would stick, then snap back.
      */
     fun releaseResumeHold(item: MediaItem, positionMs: Long) {
         clock.confirmStart(positionMs)
@@ -440,11 +428,9 @@ internal class PlaybackDriver(
     fun playItem(item: MediaItem) = play(listOf(item), 0)
 
     /**
-     * Plays one track picked from a list row (Library, Search) without discarding the queue.
-     *
-     * A row tap is a request to hear that track now, not a request to throw away the tail the
-     * user built with Add to queue, so unlike [play] this keeps Up next exactly as it was and
-     * only replaces the current item.
+     * Plays one track picked from a list row without discarding the queue: hearing it now is not a
+     * request to throw away the tail the user built with Add to queue, so only the current item is
+     * replaced ([play] is the gesture that takes the collection instead).
      */
     fun playNow(item: MediaItem) {
         if (!readyToPlay(item)) return
@@ -458,11 +444,9 @@ internal class PlaybackDriver(
     }
 
     /**
-     * Plays one track from an album or playlist page without dropping the queue behind it.
-     *
-     * A row tap there plays in collection context, which throws away whatever was lined up. This
-     * is the same request read the other way round: hear this track now, then pick the queue back
-     * up where it was.
+     * Plays one track from an album or playlist page without dropping the queue behind it: a row tap
+     * there plays in collection context and throws away what was lined up. This is the same request
+     * read the other way round — hear this track now, then pick the queue back up.
      */
     fun playFirst(item: MediaItem) {
         if (!readyToPlay(item)) return
@@ -478,10 +462,9 @@ internal class PlaybackDriver(
     fun playEpisode(episode: Episode) = playItem(episode)
 
     /**
-     * Adds the pages behind a collection that is already playing. The page on screen starts the
-     * queue immediately and this only grows its tail, so a long playlist no longer spins before
-     * its first note and one failing page cannot stop playback. A load that lands after the user
-     * started something else is dropped by [QueueRepository.extendContext].
+     * Adds the pages behind a collection that is already playing: the page on screen starts the queue
+     * immediately, so a long playlist does not spin before its first note and one failing page
+     * cannot stop playback. [QueueRepository.extendContext] drops a load that lands too late.
      */
     fun extendCollection(page: List<MediaItem>, complete: List<MediaItem>) {
         val before = queue.snapshot
@@ -524,8 +507,8 @@ internal class PlaybackDriver(
     }
 
     /**
-     * librespot is the source of truth while it is playing: its position events keep the seek bar
-     * honest through buffering and seeks, and EndOfTrack advances the Sidekit queue exactly once.
+     * librespot is the source of truth while it plays: position events keep the bar honest through
+     * buffering and seeks, and EndOfTrack advances the queue exactly once.
      */
     fun handlePlaybackEvent(event: PlaybackEvent) = events.handle(event)
 

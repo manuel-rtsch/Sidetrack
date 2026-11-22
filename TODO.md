@@ -1,5 +1,17 @@
 # TODO
 
+## Per-track loudness and gapless handoff for the device library
+
+**Where:** `LocalCatalog`, `Media3ServiceRuntime`, `:core` playback
+
+`ServiceCapabilities.Device` leaves normalisation and gapless off because the shared Media3 path
+delivers neither: `Media3ServiceRuntime.setGapless` only persists the preference, and there is no
+ReplayGain stage at all. The device library is the place where both are finally worth doing — the
+files are local, so a ReplayGain tag reader can read the gain before the track starts and an
+`AudioProcessor` can apply it without a reload, and `setPauseAtEndOfMediaItems(false)` plus a
+pre-buffered next item gives the seamless handoff that only librespot has today. Turning the flags
+on before that work lands would put two controls in Settings that do nothing.
+
 ## Apply audio settings without rebuilding the player
 
 **Where:** `SpotifyPlayback.reconfigure()`, `native/sidetrack-spotify/src/engine.rs`

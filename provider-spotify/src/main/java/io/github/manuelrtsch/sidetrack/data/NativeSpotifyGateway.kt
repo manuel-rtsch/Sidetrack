@@ -18,18 +18,17 @@ class NativeSpotifyGateway(
     private val accessToken: suspend () -> String?
 ) : SpotifyGateway {
     /**
-     * Serialises everything that changes the native session.
-     *
-     * Catalog reads run in parallel: on sign-in the library tabs each ask for their own page, and
-     * every one of them called `connect` when no session existed yet. `engine.connect` starts with
-     * `disconnect`, so two of them racing tore down the session the other was still authenticating.
-     * A monitor is the right tool rather than a `Mutex`: every call guarded here is blocking JNI on
-     * an IO thread and never suspends, so nothing can deadlock on a suspended holder.
+     * Serialises everything that changes the native session: catalog reads run in parallel, and
+     * `engine.connect` starts with `disconnect`, so two of them racing tear down the session the
+     * other is authenticating. A monitor, not a `Mutex`: every guarded call is blocking JNI on an IO
+     * thread and never suspends, so nothing can deadlock on a suspended holder.
      */
     private val sessionLock = Any()
 
-    /** True when a player is attached to the live session; see [ensureConnected] for why that is
-     * not the same as "the session is connected". */
+    /**
+     * True when a player is attached to the live session; see [ensureConnected] for why that is not
+     * the same as "the session is connected".
+     */
     @Volatile
     private var connected = false
 
@@ -42,14 +41,12 @@ class NativeSpotifyGateway(
     override suspend fun connect(accessToken: String) = onIo {
         requireNative()
         synchronized(sessionLock) {
-            // `connected` alone is not enough: a session rebuilt by the catalog path drops the
-            // player without touching the flag, and returning here would leave playback without
-            // one. Re-checking under the lock also means a second caller that waited here finds
-            // the session the first one built instead of rebuilding it.
+            // `connected` alone is not enough: the catalog path rebuilds a session and drops the
+            // player without touching the flag. Re-checking under the lock also means a second
+            // caller finds the session the first one built instead of rebuilding it.
             if (connected && native.hasPlayer()) return@onIo
-            // A session that is invalid, or was opened with a different OAuth token, must be
-            // rebuilt before a player is attached to it. Otherwise the player would load tracks
-            // through a dead access-point connection and every load would fail.
+            // An invalid session, or one opened with a different OAuth token, must be rebuilt before
+            // a player is attached: otherwise it loads through a dead access point and every load fails.
             if (sessionConnected && !native.setAccessToken(accessToken)) {
                 sessionConnected = false
                 sessionToken = null
@@ -129,20 +126,17 @@ class NativeSpotifyGateway(
     }
 
     /**
-     * Connects with the current stored token, refreshing it first when needed.
+     * Connects with the stored token, refreshing it first when needed.
      *
-     * `setAccessToken` is called on every attempt, not only when the token changed: librespot can
-     * lose its access-point connection while the OAuth token is still valid, and a session that
-     * has gone invalid must be rebuilt or playback fails for every track. The native call is a
-     * cheap liveness check, so the extra round trip on each play is worth it. It also reports a
-     * changed token as a rejection: the live session holds the access point's reusable stored
-     * credential, which login5 needs, so a refreshed OAuth token must rebuild the session rather
-     * than overwrite that credential.
+     * `setAccessToken` runs on every attempt, not only when the token changed: librespot can lose its
+     * access-point connection while the OAuth token is still valid, and the native call is a cheap
+     * liveness check. It reports a changed token as a rejection, because the live session holds the
+     * access point's stored credential, which login5 needs: a refreshed token must rebuild the session
+     * rather than overwrite it.
      *
-     * The player is checked against the engine rather than trusted from [connected]: the catalog
-     * path ([ensureSession]) rebuilds the session without creating a player, and rebuilding a
-     * session always drops the existing one. Without that check every track would fail with
-     * PLAYER_NOT_CREATED until the user restarted the app.
+     * The player is checked against the engine rather than trusted from [connected], since
+     * [ensureSession] rebuilds a session without creating a player and rebuilding always drops the
+     * existing one; otherwise every load would fail with PLAYER_NOT_CREATED.
      */
     suspend fun ensureConnected(forceReconnect: Boolean = false): Boolean {
         if (!networkAvailable()) fail(SpotifyFailure.Network, "No internet connection")
@@ -152,9 +146,8 @@ class NativeSpotifyGateway(
         }
         SidetrackDebug.log("ensureConnected connected=$connected sessionConnected=$sessionConnected tokenLength=${token.length} forceReconnect=$forceReconnect")
         if (forceReconnect) {
-            // A stall can leave librespot's access-point connection dead without marking the
-            // session invalid yet. Rebuilding is the only reliable way to get a fresh connection
-            // before the keep-alive timeout would notice.
+            // A stall leaves librespot's access-point connection dead without marking the session
+            // invalid, and rebuilding is the only way to get a fresh one before keep-alive notices.
             SidetrackDebug.log("ensureConnected: forced reconnect")
             connected = false
             sessionConnected = false
@@ -163,10 +156,9 @@ class NativeSpotifyGateway(
             return true
         }
         if (!connected) {
-            // A player is process-wide while `connected` is this gateway's memory. After a
-            // runtime/gateway rebuild the flag says "nothing here" even though the native
-            // session still owns a player; adopting it avoids rebuilding the session (and
-            // dropping the current track) for nothing.
+            // A player is process-wide while `connected` is this gateway's memory: after a gateway
+            // rebuild the flag says "nothing here" although the session still owns a player.
+            // Adopting it avoids rebuilding the session and dropping the current track.
             if (playerAttached()) {
                 SidetrackDebug.log("ensureConnected: adopting the attached player")
                 connected = true
@@ -210,9 +202,9 @@ class NativeSpotifyGateway(
                 connectSessionLocked(token)
                 return@synchronized
             }
-            // The first call stores the new token. A second call therefore only reports a dead
-            // session, not a token change: a refreshed token must not tear down a live player
-            // from a catalog read, but an invalid session still has to be rebuilt.
+            // The first call stores the new token, so a second one only reports a dead session, not a
+            // token change: a catalog read must not tear down a live player, but an invalid session
+            // still has to be rebuilt.
             if (native.setAccessToken(token)) {
                 sessionToken = token
                 return@synchronized
@@ -229,12 +221,9 @@ class NativeSpotifyGateway(
     }
 
     /**
-     * A catalog read must never tear down a session that is playing.
-     *
-     * Rebuilding the session always drops the player, and the catalog path does not create a new
-     * one. When that happens while audio is running, the app keeps reporting a playing track while
-     * delivering silence (the 20:45:47 stall). Fail this read instead; the playback path owns the
-     * rebuild, recreates the player and reloads the item.
+     * A catalog read must never tear down a session that is playing: rebuilding always drops the
+     * player and the catalog path creates no new one, so audio would stop while the app still reports
+     * a playing track. Fail the read instead; the playback path owns the rebuild and the reload.
      *
      * [sessionLock] must be held.
      */
@@ -248,9 +237,9 @@ class NativeSpotifyGateway(
     private fun connectSessionLocked(token: String) {
         if (sessionConnected) return
         SidetrackDebug.log("connectSession begin")
-        // A failure here happens before any request: librespot could not reach an access point.
-        // Reporting it as an expired session sent the user to the sign-in screen for a network
-        // problem, so the reason is logged and the failure is a network one.
+        // The failure happens before any request: librespot could not reach an access point. Reporting
+        // it as an expired session sends the user to the sign-in screen for a network problem, so the
+        // reason is logged and the failure stays a network one.
         val reason = native.connect(token)
         if (reason != null) {
             SidetrackDebug.log("connectSession failed reason=$reason")
@@ -261,10 +250,9 @@ class NativeSpotifyGateway(
         SidetrackDebug.log("connectSession connected")
         sessionConnected = true
         sessionToken = token
-        // The player belongs to the session it was created with, so the native connect above
-        // dropped it. Clearing the flag matters for the catalog path ([ensureSession]), which
-        // connects without creating a player: leaving it set would make [ensureConnected] skip
-        // the player and every load would fail with PLAYER_NOT_CREATED.
+        // The player belongs to the session it was created with, so the connect above dropped it.
+        // Clearing the flag matters for [ensureSession], which connects without a player: left set,
+        // [ensureConnected] would skip the player and every load would fail with PLAYER_NOT_CREATED.
         if (connected) SidetrackDebug.log("connectSession: previous player dropped")
         connected = false
     }

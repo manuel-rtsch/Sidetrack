@@ -155,13 +155,9 @@ fun NowPlayingTile(
 }
 
 /**
- * The transient "now playing" confirmation. It replaces the action bar for a few seconds after a
- * new item starts, then the normal actions return. Tapping it opens Now Playing; the square X
- * dismisses it immediately.
- *
- * The Options key is deliberately not a dismiss: Sidekit's `ChromeState.toggleOptions()` owns that
- * key and opens the screen's options instead. A later Sidekit improvement can make Options dismiss
- * an auto-dismiss action before opening options.
+ * The transient "now playing" confirmation: it replaces the action bar for a few seconds, then
+ * the normal actions return; tap opens Now Playing, the square X dismisses. The Options key is
+ * deliberately not a dismiss — Sidekit's `ChromeState.toggleOptions()` owns it.
  */
 fun nowPlayingNoticeActions(
     item: MediaItem,
@@ -170,12 +166,9 @@ fun nowPlayingNoticeActions(
 ): List<SideAction> = listOf(
     SideAction(
         key = "nowPlayingNotice:${item.id}",
-        // The title is drawn inside the art (see [NowPlayingNoticeContent]) rather than as the
-        // bar's label. Sidekit centres an action's art and label as a pair, so a short title left
-        // the cover floating 50 dp from the button's left edge; anchoring the row here puts the
-        // cover 18 dp from the left, top and bottom instead. No trailing arrow either: it cost 50 dp
-        // of a 334 dp row, and the accent surface, the dismiss square beside it and the content
-        // description already say the button opens Now Playing.
+        // The title is drawn inside the art ([NowPlayingNoticeContent]) rather than as the bar's
+        // label: Sidekit centres art and label as a pair, which would leave a short title's cover
+        // floating. No trailing arrow: the accent surface, dismiss square and description already say it opens Now Playing.
         tone = ActionTone.Primary,
         motion = ActionMotion.Up,
         contentDescription = "Playing ${item.title}. Open Now Playing",
@@ -215,15 +208,9 @@ private val NoticeButtonGap = 10.dp
 private val NoticeArtShape = RoundedCornerShape(NoticeArtSize / 2)
 
 /**
- * The notice's whole row: cover, then the title, anchored to the button's left edge.
- *
- * Drawing the title here instead of passing `label` is what makes the spacing uniform. Sidekit
- * centres an art-and-label pair, so a short title left the cover floating far from the left edge.
- * This row fills the content slot instead, and its padding puts the cover the same distance from
- * the left, top and bottom: half the bar's spare height.
- *
- * The type rule stays Sidekit's: 36 sp while the title fits one row, 30 sp with a tighter leading
- * once it needs two, so the pair still fits the fixed bar.
+ * The notice's whole row: the title is drawn here rather than as Sidekit's `label`, which would
+ * centre art and label as a pair and leave a short title's cover floating; padding keeps the cover
+ * an equal distance from all three sides. The type stays Sidekit's 36 sp / 30 sp rule for the bar.
  */
 @Composable
 private fun NowPlayingNoticeContent(item: MediaItem) {
@@ -297,12 +284,9 @@ private val BarScrim = Color.Black.copy(alpha = 0.6f)
 private val TwoPi = 2f * PI.toFloat()
 
 /**
- * Three bars over the artwork, so the confirmation reads as playing rather than paused.
- *
- * One animation drives all three bars. A single 0..1 phase is read inside the draw lambda and each
- * bar's height is that phase shifted by its own offset, which keeps the whole picture a draw-phase
- * invalidation with one snapshot write per frame instead of three animation clocks chasing the same
- * effect. The sine's period matches the repeat, so the cycle wraps without a visible jump.
+ * Three bars over the artwork, so the confirmation reads as playing rather than paused. A single
+ * animation phase read in the draw lambda, shifted per bar, keeps one snapshot write per frame
+ * instead of three clocks; the sine's period matches the repeat, so the cycle wraps invisibly.
  */
 @Composable
 private fun PlayingBars(modifier: Modifier = Modifier) {
@@ -324,8 +308,8 @@ private fun PlayingBars(modifier: Modifier = Modifier) {
         val startX = (size.width - total) / 2f
         val bottom = size.height * 0.72f
         BarPeaks.forEachIndexed { index, peak ->
-            // 0.35..1 keeps every bar visible at the bottom of the wave, as the old reverse
-            // animation did, so the row reads as a meter rather than three blinking ticks.
+            // 0.35..1 keeps every bar visible at the bottom of the wave, so the row reads as a
+            // meter rather than three blinking ticks.
             val wave = 0.5f + 0.5f * sin(TwoPi * (phase + index * BAR_PHASE_STEP))
             val height = size.height * BAR_HEIGHT * peak * (0.35f + 0.65f * wave)
             drawRoundRect(

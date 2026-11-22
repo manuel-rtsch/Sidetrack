@@ -35,6 +35,7 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.sdk.media.RemoteArtwork
 import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
+import io.github.manuelrtsch.sidetrack.data.ArtworkImages
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -142,7 +143,7 @@ private fun RemoteArtworkContent(
             if (inspection || widthPx <= 0 || heightPx <= 0) return@LaunchedEffect
             val loaded: Bitmap? = try {
                 RemoteArtwork.cached(context, url, widthPx, heightPx, headers)
-                    ?: RemoteArtwork.load(context, url, widthPx, heightPx, headers)
+                    ?: ArtworkImages.load(context, url, widthPx, heightPx, headers)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

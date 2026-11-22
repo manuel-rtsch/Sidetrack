@@ -49,24 +49,21 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.sdk.media.RemoteArtwork
 import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
+import io.github.manuelrtsch.sidetrack.data.ArtworkImages
 import io.github.manuelrtsch.sidetrack.playback.SleepTimerState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 
 /*
- * The experimental song Now Playing layout: the cover fills the screen as a blurred backdrop, so
- * it no longer spends any of the 480 x 640 panel on itself and the title and artist can take the
- * room back.
+ * The song Now Playing layout: the cover fills the screen as a blurred backdrop, so it spends none of
+ * the 480 x 640 panel on itself and the type takes that room. A separate layout rather than a variant
+ * of [NowPlayingScreen] because the experiment is about what the screen becomes once the artwork
+ * stops being a tile; episodes keep the existing screen, where the artwork carries the show.
  *
- * It is a separate layout rather than a variant of [NowPlayingScreen] on purpose. The
- * experiment is about what the screen becomes once the artwork stops being a tile: a poster of
- * type over the record. Episodes keep the existing screen, where the artwork still carries the
- * show and the notes need the height.
- *
- * The backdrop is decorative except for one gesture: tapping it opens the album, which is what
- * tapping the artwork did on the old layout. It is not a focus target — the keypad reaches the
- * album through Options — so a 480 dp tap area never lands in the D-pad order.
+ * The backdrop is decorative except for one gesture: tapping it opens the album. It is not a focus
+ * target — the keypad reaches the album through Options — so a 480 dp tap area never lands in the
+ * D-pad order.
  */
 
 /** How much the cover is softened behind the controls. Enough to read type over it, not a glass. */
@@ -108,19 +105,13 @@ internal fun rememberNowPlayingBackdropSetting(): NowPlayingBackdropSetting {
 
 /**
  * The cover, scaled to cover the panel's width (cropped at the long axis, never letterboxed) and
- * blurred. The cover is square and the panel is 480 x 640, so the square grows past the width and
- * the sides run off the edge. It runs down to the action bar's top edge, where the transport scrim
- * is solid black, so its bottom edge is never visible.
+ * blurred. The square grows past the width and the sides run off the edge, down to the action bar's
+ * top edge, where the transport scrim is solid black.
  *
- * The blurred image is its own composable taking only the primitives of the track. The screen
- * re-composes once a second while the sleep timer ticks (it reads the timer for the Options
- * label); keeping the art behind a stable boundary means that tick does not re-record the blur.
- *
- * The remote bitmap is awaited before the blur layer is composed. A [Modifier.blur] layer records
- * its content once: while the artwork loads, Sidekit's artwork image draws a placeholder icon
- * through a draw modifier, and that placeholder is what the layer keeps, so the screen showed a
- * blurred dot instead of a cover. Keying the layer on the bitmap also gives the next track a
- * fresh layer rather than the last track's.
+ * The bitmap is awaited before the layer composes: a [Modifier.blur] layer records its content once,
+ * so the artwork placeholder would be what it kept — a blurred dot instead of a cover. Keying the
+ * layer on the bitmap gives the next track a fresh one, and the stable boundary keeps the sleep
+ * timer's once-a-second recomposition from re-recording the blur.
  */
 @Composable
 internal fun ArtworkBackdrop(
@@ -137,16 +128,14 @@ internal fun ArtworkBackdrop(
         )
     }
     BoxWithConstraints(modifier.clipToBounds()) {
-        // The image runs down to the action bar's top edge, where the transport scrim is solid
-        // black, so its bottom edge is never visible. Stopping higher left a hard line under a
-        // half-black scrim on covers with a bright bottom.
+        // Down to the action bar's top edge, where the transport scrim is solid black, so its bottom
+        // edge is never visible; stopping higher leaves a hard line under a half-black scrim.
         val spacing = SidekitTheme.spacing
         val actionBarTop = maxHeight - spacing.pagePadding - spacing.actionBarHeight
         val side = maxOf(maxWidth, actionBarTop)
         BackdropImage(item.artRes, item.artUrl, side, Modifier.align(Alignment.TopCenter))
-        // A tap on the empty screen still opens the album, as tapping the cover did on the old
-        // layout. It is pointer input rather than clickable so the 480 dp area never becomes a
-        // focus target; the keypad reaches the album through Options.
+        // Pointer input rather than clickable, so the 480 dp area never becomes a focus target; the
+        // keypad reaches the album through Options.
         val open by rememberUpdatedState(onOpenAlbum)
         Box(
             Modifier
@@ -192,12 +181,12 @@ private fun BackdropImage(artRes: Int, artUrl: String?, side: Dp, modifier: Modi
 @Composable
 private fun RemoteBackdrop(url: String, side: Dp) {
     val context = LocalContext.current.applicationContext
-    // Ask for less than the drawn size: the blur removes the detail anyway, and a 640 px cover
-    // would cost three times the bytes for a picture nobody sees sharply.
+    // Less than the drawn size: the blur removes the detail anyway, and a 640 px cover costs three
+    // times the bytes for a picture nobody sees sharply.
     val px = with(LocalDensity.current) { (side * 0.6f).roundToPx() }.coerceIn(96, 768)
     val bitmap by produceState<ImageBitmap?>(null, url, px) {
         value = try {
-            RemoteArtwork.load(context, url, px, px, ArtworkAccess.current())?.asImageBitmap()
+            ArtworkImages.load(context, url, px, px, ArtworkAccess.current())?.asImageBitmap()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

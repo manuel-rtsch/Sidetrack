@@ -39,10 +39,9 @@ data class SubsonicCredentials(
 )
 
 /**
- * Normalises a server address into the Subsonic base URL.
- *
- * These servers are commonly reached as `host:4533` on a LAN, so a missing scheme becomes
- * `http://`. The trailing slash is dropped so endpoint paths join predictably.
+ * Normalises a server address into the Subsonic base URL. These servers are commonly reached as
+ * `host:4533` on a LAN, so a missing scheme becomes `http://`; the trailing slash is dropped so
+ * endpoint paths join predictably.
  */
 fun SubsonicCredentials.normalized(): SubsonicCredentials {
     val trimmed = serverUrl.trim().trimEnd('/')
@@ -57,9 +56,9 @@ fun SubsonicCredentials.normalized(): SubsonicCredentials {
 /**
  * The Subsonic/OpenSubsonic client every family member exposes at `/rest`.
  *
- * Authentication follows the Subsonic 1.13 token rule: every request gets a fresh random salt and
- * sends `t = md5(password + salt)`, so the password itself never travels over the wire. The
- * password stays in the encrypted credential store because the token cannot be reused without it.
+ * Authentication follows the 1.13 token rule: every request gets a fresh random salt and sends
+ * `t = md5(password + salt)`, so the password never travels. It stays in the encrypted credential
+ * store because the token cannot be reused without it.
  */
 class SubsonicApi(
     credentials: SubsonicCredentials,
@@ -167,9 +166,9 @@ class SubsonicApi(
 
     suspend fun addToPlaylist(playlistId: String, songId: String): Int {
         val current = playlist(playlistId)
-        // The server decides on a playlist it did not describe. When it did describe one, do not
-        // send a write the owner rule already rules out: Subsonic has no permission flag, and a
-        // foreign playlist only publishes its owner.
+        // The server decides on a playlist it did not describe. When it did, do not send a write the
+        // owner rule already rules out: Subsonic has no permission flag, and a foreign playlist only
+        // publishes its owner.
         if (current != null && !current.actions.canAddItems) {
             throw ServiceException(ServiceFailure.NotAllowed, "This playlist belongs to another account")
         }
@@ -179,12 +178,11 @@ class SubsonicApi(
     }
 
     /**
-     * Removes one occurrence of [songId], by position.
+     * Removes one occurrence of [songId] by position.
      *
-     * Subsonic removes by index, so which occurrence is removed is decided here. The row the caller
-     * named wins when it still holds that song; otherwise the **last** match, because an append —
-     * the Undo case — leaves its copy at the end. This used to be `indexOfFirst`, so with
-     * `[A, B, C, A]` removing the second `A` deleted the first one: size preserved, order rotated.
+     * Subsonic removes by index, so the choice is made here: the row the caller named wins while it
+     * still holds that song, otherwise the last match, because an append — the Undo case — leaves its
+     * copy at the end. Picking the first match instead would rotate the order on `[A, B, C, A]`.
      */
     suspend fun removeFromPlaylist(playlistId: String, songId: String, index: Int? = null) {
         val current = playlist(playlistId)
@@ -289,10 +287,9 @@ class SubsonicApi(
 }
 
 /**
- * The read side of one Subsonic-family server behind the neutral [MediaCatalog] contract.
- *
- * Artwork and stream URLs are minted per call with a fresh token; the persisted identity is always
- * the Subsonic id inside [MediaKey], never the URL.
+ * The read side of one Subsonic-family server behind the neutral [MediaCatalog] contract. Artwork and
+ * stream URLs are minted per call with a fresh token, so the persisted identity is always the
+ * Subsonic id inside [MediaKey], never the URL.
  */
 class SubsonicCatalog(
     private val family: SubsonicFamily = SubsonicFamily.Navidrome,
@@ -386,10 +383,9 @@ class SubsonicCatalog(
             throw ServiceException(ServiceFailure.TrackUnavailable, "This item belongs to another service")
         }
         val current = settings()
-        // High is the app default; leave the server free to pick its best bitrate so an
-        // existing FLAC stream is not silently capped at 160 kbps. Only an explicit Normal or
-        // Max choice forces a transcode ceiling. The selected ceiling applies to the next track;
-        // the playing one keeps the source it started with.
+        // High is the app default: the server picks its best bitrate, so an existing FLAC stream is not
+        // silently capped at 160 kbps. Only an explicit Normal or Max forces a ceiling, and it applies
+        // to the next track — the playing one keeps the source it started with.
         val maxBitRateKbps = when (current.audioQuality) {
             AudioQuality.Normal -> 96
             AudioQuality.High -> null

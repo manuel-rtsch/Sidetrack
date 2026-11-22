@@ -43,6 +43,7 @@ dependencyResolutionManagement {
 rootProject.name = "Sidetrack"
 include(":app")
 include(":core")
+include(":provider-local")
 include(":provider-subsonic")
 include(":provider-jellyfin")
 include(":provider-plex")

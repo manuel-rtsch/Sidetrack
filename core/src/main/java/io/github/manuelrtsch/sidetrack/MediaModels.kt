@@ -19,6 +19,13 @@ value class ServiceId(val value: String) {
         val NextcloudMusic = ServiceId("nextcloud-music")
         val Subsonic = ServiceId("subsonic")
 
+        /**
+         * The music library already on the device, read through MediaStore: a real service like
+         * any other, so it keeps its own queue, history and resume files. Deliberately not [Local],
+         * which marks the context-free fixtures the driver treats as a simulation with no URI.
+         */
+        val Device = ServiceId("device")
+
         /** A context-free fixture, used by previews and unit tests that have no signed-in service. */
         val Local = ServiceId("local")
     }
@@ -28,11 +35,10 @@ value class ServiceId(val value: String) {
 enum class MediaType { Track, Episode, Album, Playlist, Artist, Show }
 
 /**
- * Stable identity across the queue, history, resume points, routes and persistence.
- *
- * A service id alone is not enough: two services can use the same opaque id, and a track and an
- * episode can share one too. [encode] is the on-disk and playback-source form; [decode] is its
- * inverse and returns null for anything this build cannot understand.
+ * Stable identity across the queue, history, resume points, routes and persistence: a service id
+ * alone is not enough, as two services can share an opaque id and a track and an episode can too.
+ * [encode] is the on-disk and playback-source form; [decode] returns null if this build cannot
+ * understand it.
  */
 data class MediaKey(
     val service: ServiceId,
@@ -66,17 +72,9 @@ sealed interface LibraryEntry {
 enum class LibrarySection { Liked, Playlists, Albums, Artists, Shows }
 
 /**
- * What the signed-in user may do to one playlist.
- *
- * Add and remove are separate because a service can allow one and refuse the other. A followed
- * Spotify playlist, for example, is read-only; a collaborative one accepts additions even though
- * the account does not own it. [unconfirmed] marks a service that cannot state permissions up
- * front (Jellyfin): the UI may offer the action, and the server's refusal is reported back.
- *
- * This is deliberately item-level. Whether the *service* can edit playlists at all is
- * [ServiceCapabilities.supportsPlaylistEdit]; whether a *particular* playlist can be changed is
- * this type. Rename and delete are separate permissions because a service can allow one without
- * the other (and collaborators may add items without owning the playlist).
+ * Per-playlist permissions: the service-level question is [ServiceCapabilities.supportsPlaylistEdit];
+ * add/remove and rename/delete stay separate, as a service can allow one and refuse the other;
+ * [unconfirmed] (Jellyfin) cannot state permissions, so the UI offers and reports the refusal.
  */
 data class PlaylistActions(
     val canAddItems: Boolean = false,
@@ -111,8 +109,8 @@ data class PlaylistActions(
 }
 
 /**
- * The actions a playlist page may offer. The service's own capability flags gate the per-playlist
- * answer, so the UI has one place to ask and a service that cannot do something never offers it.
+ * The service's own capability flags gate the per-playlist answer: the UI has one place to ask,
+ * and a service that cannot do something never offers it.
  */
 fun ServiceCapabilities.playlistActions(playlist: Playlist): PlaylistActions = playlist.actions.gatedBy(this)
 
@@ -164,10 +162,9 @@ data class ServiceCapabilities(
         )
 
         /**
-         * The Subsonic family — Navidrome, Nextcloud Music and Subsonic itself —
-         * has albums, playlists, artists and similar-song radio. Podcast endpoints are 501 stubs
-         * on Navidrome and absent elsewhere, loudness maps onto ReplayGain, and gapless is
-         * engine-level, so no member of the family turns it on.
+         * The Subsonic family — Navidrome, Nextcloud Music, Subsonic — has albums, playlists, artists
+         * and similar-song radio. Podcast endpoints are 501 stubs on Navidrome and absent elsewhere;
+         * loudness maps onto ReplayGain; gapless is engine-level, so no member turns it on.
          */
         val Subsonic = ServiceCapabilities(
             librarySections = setOf(
@@ -194,10 +191,9 @@ data class ServiceCapabilities(
         )
 
         /**
-         * Jellyfin has albums, playlists, artists and instant mixes. Music libraries carry no
-         * podcast type, the API has no loudness parameter, and gapless is engine-level — the same
-         * reason the Subsonic family leaves it off. Follow maps onto the favorite-artist flag, because that
-         * is the only artist-level "keep this" state the server has (decision D2).
+         * Jellyfin has albums, playlists, artists and instant mixes. Music libraries carry no podcast
+         * type and the API has no loudness parameter; gapless is engine-level, as in the Subsonic family.
+         * Follow maps onto the favorite-artist flag, the server's only artist-level "keep this" state (D2).
          */
         val Jellyfin = ServiceCapabilities(
             librarySections = setOf(
@@ -224,11 +220,35 @@ data class ServiceCapabilities(
         )
 
         /**
-         * Plex exposes music libraries, playlists, artists and albums. It has no real radio
-         * endpoint, no loudness parameter and no gapless handoff; playlist creation needs a
-         * non-empty item URI, so the create form is left out. Liked/saved state is Plex's rating
-         * convention (`userRating == 10`), and playback progress is reported through
-         * `/:/timeline` and `/:/scrobble`.
+         * The device's own music library; there is no server behind it, so radio has no seed graph,
+         * podcasts and artist follow are undefined, and quality, progress or scrobbles go nowhere —
+         * resume and history still work, being the app's own stores, and normalisation and gapless
+         * stay off as Media3 applies neither without engine support.
+         */
+        val Device = ServiceCapabilities(
+            librarySections = setOf(
+                LibrarySection.Liked,
+                LibrarySection.Playlists,
+                LibrarySection.Albums,
+                LibrarySection.Artists
+            ),
+            searchScopes = setOf(
+                SearchScope.Tracks,
+                SearchScope.Artists,
+                SearchScope.Albums,
+                SearchScope.Playlists
+            ),
+            supportsPlaylistEdit = true,
+            supportsPlaylistCreate = true,
+            supportsPlaylistRename = true,
+            supportsPlaylistDelete = true
+        )
+
+        /**
+         * Plex exposes music libraries, playlists, artists and albums. No real radio endpoint, no
+         * loudness parameter, no gapless handoff; playlist creation needs a non-empty item URI, so the
+         * create form is left out. Liked/saved state is the rating convention (`userRating == 10`);
+         * progress and scrobbles go through `/:/timeline` and `/:/scrobble`.
          */
         val Plex = ServiceCapabilities(
             librarySections = setOf(
@@ -253,9 +273,8 @@ data class ServiceCapabilities(
 }
 
 /**
- * The library categories a service can fill. The row keeps the other buttons in place but mutes
- * them: a category the service cannot fill has nothing to show and no setting that would change
- * that, so it must not look selectable.
+ * The row keeps the other buttons in place but mutes them: a category the service cannot fill
+ * has nothing to show and no setting would change that, so it must not look selectable.
  */
 val ServiceCapabilities.availableLibraryFilters: Set<LibraryFilter>
     get() = LibraryFilter.entries.filterTo(LinkedHashSet()) { it.section() in librarySections }

@@ -49,6 +49,12 @@ internal class AccountController(
         startSignIn(AuthInput.Browser(openBrowser))
     }
 
+    /**
+     * A device library: the screen has already asked for the media permission, and the provider
+     * checks it again here, so a refused grant reports the same way a refused sign-in does.
+     */
+    fun signInDevice() = startSignIn(AuthInput.Device)
+
     /** A self-hosted flow: server URL, username and password instead of a browser. */
     fun signIn(serverUrl: String, username: String, password: String) {
         if (serverUrl.isBlank() || username.isBlank()) {

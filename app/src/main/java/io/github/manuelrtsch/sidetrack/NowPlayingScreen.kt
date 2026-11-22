@@ -117,19 +117,16 @@ fun NowPlayingScreen(
         emptyList()
     } else {
         sidetrackOptions(
-            // Open queue and the episode notes are the two playback shortcuts, and they stay
-            // icon-only: this bar sits beside the five transport tiles and reads as transport. Song
-            // radio stays in the middle in both layouts; the backdrop layout opens the album by
-            // tapping the artwork, so it does not need a square of its own. The art backdrop toggle
-            // itself lives in Settings.
+            // Open queue and the episode notes are the two shortcuts, icon-only because this bar sits
+            // beside the five transport tiles and reads as transport. Song radio stays in the middle,
+            // and the backdrop layout opens the album by tapping the artwork.
             openQueueOption(onOpenQueue),
             when (current) {
                 is Track -> songRadioOption(onRadio)
                 is Episode -> episodeNotesOption(onEpisodeNotes)
             },
-            // The timer is a square like the two shortcuts above it. A label cannot fit beside
-            // them (the three squares and the close square leave nothing), so the state is carried
-            // by the glyph's colour and by the screen's own countdown row, which says it in words.
+            // A square like the two shortcuts above it: three squares and the close square leave no
+            // room for a label, so the glyph's colour and the screen's countdown row carry the state.
             sleepTimerShortcutOption(timer.active, onSleepTimer)
         )
     }
@@ -138,12 +135,10 @@ fun NowPlayingScreen(
             // The artwork is the screen: behind the scaffold, so it can run under the chrome,
             // which the canvas paints after the screens. The body has no cover tile of its own.
             ArtworkBackdrop(current, onOpenAlbum = onAlbum, modifier = Modifier.matchParentSize())
-            // Full-bleed transport scrim, anchored to the real chrome rather than a fraction of
-            // the screen: solid black from the bottom edge to the action bar's top, then a fade
-            // from black there to transparent at the top of the five-tile transport row, where
-            // the backdrop starts. The body's transport row is the last thing in the content, so
-            // its top is the content bottom less one item height. Measuring here instead of on the
-            // whole screen keeps the scaffold out of this subcomposition.
+            // Full-bleed scrim anchored to the real chrome, not a fraction of the screen: black from
+            // the bottom edge to the action bar's top, then a fade to transparent where the transport
+            // row starts, since the body's transport is the last thing in the content. Measured here
+            // instead of on the whole screen, which keeps the scaffold out of this subcomposition.
             BoxWithConstraints(Modifier.matchParentSize()) {
                 val spacing = SidekitTheme.spacing
                 val actionBarTop = maxHeight - spacing.pagePadding - spacing.actionBarHeight
@@ -297,10 +292,9 @@ private fun SongNowPlayingBody(
             }
         }
         NowPlayingSleepTimer(sleepTimer)
-        // Only the seek bar subscribes to the playback position flow, so the 10x/s position ticks
-        // recompose just this small composable, not the whole screen. The seek block owns its own
-        // height, so the labels can sit close to the artist line while the bar keeps a little air
-        // above the transport row.
+        // Only the seek bar reads the position flow, so its ticks recompose this small composable
+        // rather than the screen. The block owns its own height, so the labels sit near the artist
+        // line while the bar keeps some air above the transport row.
         NowPlayingSeek(
             playbackPositionMs,
             track.durationMs,

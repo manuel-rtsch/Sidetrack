@@ -22,20 +22,9 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * Pick-up-and-drop reordering for the queue's upcoming tail, touch only.
- *
- * A long press lifts the row under the finger ([from]); dragging translates it and opens a gap at
- * the slot it would drop into ([to]). Releasing commits `from` to `to`.
- *
- * The same lifted state backs keypad reordering, but the keypad steps the song through the data
- * instead of sliding a copy: [step] commits one-row moves as they happen, which is what lets the
- * screen scroll the moved row into view in the same measure pass (see Sidekit's Arrange apps). The
- * original index is kept in [origin] so Back can put the track back.
- *
- * Every queue row is exactly one media-row pitch (`row height + itemOuterGap`) tall, so the drop slot is derived from
- * how many rows the picked-up row has travelled rather than from layout hit-testing. That distance
- * is the finger's own travel plus the pixels the auto-scroll loop scrolled: on screen the row stays
- * under the finger while the rows behind it flow past.
+ * Pick-up-and-drop reordering of the queue's upcoming tail, touch only; the keypad works the same
+ * state, [step]ping the data so the row scrolls into view in the same measure pass ([origin] for
+ * Back). Rows span one media-row pitch, so the drop slot is rows travelled, not layout hit-testing.
  */
 @Stable
 class QueueReorderState internal constructor(
@@ -87,13 +76,9 @@ class QueueReorderState internal constructor(
     }
 
     /**
-     * Moves the picked-up row with the finger and hands back the move the caller must commit, or
-     * null while the row stays in its slot.
-     *
-     * The queue itself is reordered as the finger crosses each row, so the row's slot travels with
-     * it. That is what keeps a long drag alive: a row whose slot is left behind scrolls out of the
-     * list and is disposed, which cancels the gesture. The translation is then whatever puts the
-     * row back under the finger, so the row still follows the touch exactly.
+     * Moves the picked-up row with the finger, handing back the move the caller commits, or null.
+     * The queue reorders as the finger crosses each row so its slot travels with it — a left-behind
+     * slot scrolls out and cancels the drag; translation then puts the row back under the finger.
      */
     internal fun drag(dy: Float): Pair<Int, Int>? {
         val current = from ?: return null
@@ -214,11 +199,9 @@ fun QueueReorderAutoScroll(state: QueueReorderState) {
 }
 
 /**
- * Long press to pick the row at [index] up, drag to choose a slot, release to drop.
- *
- * The detector sits outside the row's horizontal swipe, so a horizontal move is consumed by the
- * swipe first and cancels the pending long press; a vertical move after the press is consumed here
- * and cancels the row's tap, so picking a track up never also opens it.
+ * Long press to pick the row at [index] up, drag, release to drop. The detector is outside the
+ * row's horizontal swipe: a horizontal move cancels the pending long press, a vertical one after
+ * the press cancels the row's tap, so picking a track up never also opens it.
  */
 @Composable
 fun Modifier.queueReorder(

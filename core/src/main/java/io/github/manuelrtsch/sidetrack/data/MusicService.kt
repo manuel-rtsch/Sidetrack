@@ -48,10 +48,8 @@ enum class ServiceFailure {
 }
 
 /**
- * What the sign-in screen must offer for this service.
- *
- * A provider describes its own sign-in instead of the UI comparing service ids, so a new
- * service can reuse an existing form without editing shared code.
+ * What the sign-in screen must offer for this service. A provider describes its own sign-in instead
+ * of the UI comparing service ids, so a new service can reuse an existing form.
  */
 sealed interface SignInKind {
     /** OAuth/custom tab, no fields. */
@@ -59,6 +57,12 @@ sealed interface SignInKind {
 
     /** Server address, username and password. [defaults] pre-fills a public demo, if any. */
     data class Password(val defaults: PasswordDefaults? = null) : SignInKind
+
+    /**
+     * A storage access grant instead of an account. The screen asks the platform for the media
+     * permission and then signs in; there is no field to type into, and no secret to store.
+     */
+    data object Device : SignInKind
 }
 
 /** The values a public demo prefills on a password sign-in form. */
@@ -81,6 +85,12 @@ sealed interface AuthInput {
         val username: String,
         val password: String
     ) : AuthInput
+
+    /**
+     * A device library sign-in. The provider itself asks the platform whether the media permission
+     * is held, so the screen can request it first and then hand over without passing a secret.
+     */
+    data object Device : AuthInput
 }
 
 /** Provider-owned authentication. The registry never sees tokens or passwords. */
@@ -93,9 +103,8 @@ interface ServiceAuth {
 /**
  * A [ServiceAuth] whose local credential state a runtime may inspect and drop.
  *
- * The runtime asks once at construction whether a session exists, and forgets it on sign-out.
- * Keeping the two calls on the auth object means a device whose keystore refused the session can
- * still be signed in for this process without pretending the credentials were stored.
+ * The runtime asks once at construction whether a session exists and forgets it on sign-out, so a
+ * device whose keystore refused the session can stay signed in for this process.
  */
 interface RuntimeAuth : ServiceAuth {
     fun hasCredentials(): Boolean
@@ -103,11 +112,9 @@ interface RuntimeAuth : ServiceAuth {
 }
 
 /**
- * Read side of a music service, expressed in the neutral domain model. Each provider maps its
- * own catalog onto this contract; the UI never sees a provider-specific type.
- *
- * This is the only catalog the UI sees. Service-specific ids live inside [MediaKey]; nothing here
- * assumes a particular service's URI or collection vocabulary.
+ * Read side of a music service in the neutral domain model: each provider maps its own catalog onto
+ * it, and the UI never sees a provider-specific type. Service ids live inside [MediaKey], and nothing
+ * here assumes a particular service's URI or collection vocabulary.
  */
 interface MediaCatalog {
     val capabilities: ServiceCapabilities
@@ -140,11 +147,9 @@ interface MediaLibraryWriter {
     suspend fun addToPlaylist(playlist: MediaKey, item: MediaItem): Int? = null
 
     /**
-     * Removes one occurrence of [item] from [playlist].
-     *
-     * [index] is the row the caller acted on. A playlist can hold the same track twice and every
-     * backend removes by position, so a call without an index has to pick an occurrence: the
-     * providers remove the **last** match, which is the copy an Undo of [addToPlaylist] means.
+     * Removes one occurrence of [item] from [playlist]. [index] is the row the caller acted on; since
+     * every backend removes by position and a playlist can hold a track twice, a call without an
+     * index removes the last match, which is the copy an Undo of [addToPlaylist] means.
      */
     suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int? = null) = Unit
 
@@ -161,25 +166,22 @@ interface MediaLibraryWriter {
     suspend fun deletePlaylist(playlist: MediaKey): Boolean = false
 
     /**
-     * Creates a playlist named [name], optionally seeded with [seed] in that order, and returns it.
-     * Null when the service cannot create playlists (the app never creates playlists it owns on a
-     * service that does not support it).
+     * Creates a playlist named [name], optionally seeded with [seed] in that order. Null when the
+     * service cannot create playlists, so the app never claims one it does not own.
      */
     suspend fun createPlaylist(name: String, seed: List<MediaKey> = emptyList()): Playlist? = null
 }
 
 /**
- * A service this build can provision, whether or not it is the selected one.
- *
- * The picker needs a name before any runtime exists, so identity and label live here rather than
- * on [MusicServiceProvider]. Both come from the same constants the provider uses, so a name can
- * never drift between the picker and the running service.
+ * A service this build can provision, whether or not it is the selected one. The picker needs a name
+ * before any runtime exists, so identity and label live here; both come from the provider's own
+ * constants, so a name cannot drift between the picker and the running service.
  */
 data class ServiceChoice(val id: ServiceId, val displayName: String)
 
 /**
- * One music service. The app owns exactly one selected provider; the UI asks the provider's
- * [capabilities] instead of asking which service is running.
+ * One music service. The app owns exactly one selected provider, and the UI asks its [capabilities]
+ * instead of asking which service is running.
  */
 interface MusicServiceProvider {
     val id: ServiceId

@@ -66,19 +66,17 @@ fun QueueScreen(
     val undoWindow = rememberUndoWindow { pendingUndo = null }
     UndoWindowLifecycle(undoWindow) { pendingUndo = null }
     var reorderMode by remember { mutableStateOf(false) }
-    // The current item and tail size at the start of a reorder. If either changes (playback moves
-    // on, another surface edits the queue, radio loads), the lift no longer describes the row it
-    // started on, so the mode abandons instead of moving a stranger.
+    // The current item and tail size when the lift started. If either changes, the lift no longer
+    // describes its row, so the mode abandons instead of moving a stranger.
     var reorderCurrentId by remember { mutableStateOf<String?>(null) }
     var reorderSize by remember { mutableStateOf(0) }
-    // The list and the reorder state live above the scaffold: the key handler on the scaffold needs
-    // them, and the rows below share the same list playback.
+    // Above the scaffold because its key handler needs them, and the rows share the same list state.
     val listState = rememberLazyListState()
     val rowActions = rememberRowActionBarState()
     rowActions.DismissOnScroll(listState)
     val reorder = rememberQueueReorderState(listState)
-    // Touch swipes and the keypad gutter share the same right edge. Keep one group here so a
-    // keypad move can dismiss an open swipe instead of leaving two action buttons on screen.
+    // Touch swipes and the keypad gutter share the right edge: one group lets a keypad move dismiss
+    // an open swipe instead of leaving two action buttons on screen.
     val swipes = rememberSwipeRevealGroup()
     val hasUpcoming = playback.upcoming.isNotEmpty()
     val hasCurrent = playback.current != null
@@ -87,19 +85,16 @@ fun QueueScreen(
         playback.upcoming.take(shownUpcoming.intValue)
     }
     val canReorder = visibleUpcoming.size > 1
-    // Current row, then the "Up next" header when there is a tail. The header is the visible home
-    // of shuffle state, so the mode no longer exists only in an icon's content description. Its own
-    // top padding is the separation from the now-playing row: no extra spacer is needed.
+    // Current row, then the "Up next" header when there is a tail. The header is the visible home of
+    // shuffle state, and its own top padding is the separation from the now-playing row.
     val currentRow = if (hasCurrent) 1 else 0
     val queueHeader = if (hasUpcoming) 1 else 0
     val firstQueueItem = currentRow + queueHeader
-    // Keys are the track's identity, not its position: a row that moves keeps its node, so it
-    // keeps focus and never blinks out and back in. Duplicates get an occurrence suffix because
-    // the queue may legitimately hold the same track twice.
+    // Keys are the track's identity, not its position, so a row that moves keeps its node and its
+    // focus. Duplicates get an occurrence suffix: the queue may hold the same track twice.
     val upcomingKeys = remember(visibleUpcoming) { mediaRowKeys(visibleUpcoming) }
-    // Focus state is keyed, not indexed: a shuffle or a move can change every index while the
-    // row under the focus ring stays the same. This is what used to let a gutter land on the
-    // wrong track after shuffle.
+    // Keyed, not indexed: a shuffle or a move changes every index while the row under the focus ring
+    // stays the same.
     var focusedKey by remember { mutableStateOf<String?>(null) }
     var gutterKey by remember { mutableStateOf<String?>(null) }
     var focusPending by remember { mutableStateOf(false) }
@@ -169,8 +164,8 @@ fun QueueScreen(
         clearFocusPending = true
     }
     val back = remember { sidetrackBack("Back", onBack).first() }
-    // Removing a track offers Undo in the bar but drops the focus: the list must not choose a
-    // neighbour for the user. The index identifies the occurrence, so duplicates are safe.
+    // Removing offers Undo in the bar but drops the focus: the list must not choose a neighbour for
+    // the user. The index identifies the occurrence, so duplicates are safe.
     val removeFromQueue: (Int, MediaItem) -> Unit = { index, item ->
         val removed = onRemove(index)
         if (removed >= 0) {
@@ -251,9 +246,8 @@ fun QueueScreen(
             )
         )
     }
-    // The bar keeps the screen's own controls: Back, and the list-wide Shuffle toggle. Everything
-    // that leads somewhere else — including the one destructive list-wide action — lives in
-    // Options, so the bar is never a menu of destinations and its buttons never sit in two places.
+    // The bar keeps the screen's own controls, Back and the Shuffle toggle; everything that leads
+    // elsewhere, including the destructive action, lives in Options, so no button sits in two places.
     val shuffleAction = if (playback.upcoming.size > 1 && !reorderMode) {
         toggleAction(
             key = "shuffle",
@@ -309,8 +303,8 @@ fun QueueScreen(
 
         else -> normal
     }
-    // Reordering is a list mode, not a row menu. Options holds the list-wide destinations and the
-    // list-wide destructive action; the toggle it would otherwise hold sits in the bar itself.
+    // Reordering is a list mode, not a row menu: Options holds the destinations and the clear action,
+    // while the toggle it would otherwise hold sits in the bar itself.
     val clearOption = if (hasUpcoming && !reorderMode) {
         SideAction(
             key = "clearUpcoming",
@@ -346,15 +340,11 @@ fun QueueScreen(
     ) { padding ->
         val view = LocalView.current
         QueueReorderAutoScroll(reorder)
-        // Keep the moved row in view. As in Sidekit's Arrange apps, the scroll is requested in the
-        // same measure pass as the reorder, so the row never draws at its old position for a frame
-        // and can never end up outside the viewport. The row is parked one place down rather than
-        // at the very top, so the track it is about to pass stays visible above it; at the top of
-        // the queue that neighbour is the now-playing row.
-        // Sidekit's list scrolls a focused row into view with an animation. A held key repeats
-        // faster than that animation can finish, so the focus outruns the scroll, the focused row
-        // leaves the viewport, the list disposes it and the focus is lost. Parking the row in the
-        // same measure pass keeps the scroll level with the key, exactly as the keypad lift does.
+        // Keep the moved row in view, parked one place down rather than at the very top so the track
+        // it is about to pass stays visible above it (at the head of the queue that neighbour is the
+        // now-playing row). The scroll is requested in the same measure pass as the reorder, because
+        // Sidekit's list animates a focused row into view: a held key repeats faster than that
+        // animation finishes, and the focus would outrun the scroll until the row lost focus.
         val band = rememberQueueRowBand(padding, listState, firstQueueItem)
         val keepRowInBand: (Int, Any) -> Unit = { index, key -> band.keep(index, key) }
         val keepInView = if (reorderMode) reorder.to else -1

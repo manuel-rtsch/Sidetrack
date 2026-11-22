@@ -20,22 +20,22 @@ leads to an empty page.
 
 ## Overview
 
-| Capability | Spotify | Subsonic family | Jellyfin | Plex |
-| --- | :---: | :---: | :---: | :---: |
-| Library sections | Liked, Playlists, Albums, Artists, Shows | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists |
-| Search scopes | Tracks, Artists, Albums, Playlists, Shows | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists |
-| Podcasts / shows | ✅ | ❌ | ❌ | ❌ |
-| Song radio | ✅ | ✅ | ✅ | ❌ |
-| Follow artist | ✅ | ❌ | ✅ | ❌ |
-| Playlist item edits | ✅ per playlist | ✅ owned playlists | ✅ offered unconfirmed | ✅ writable playlists |
-| Playlist creation | ❌ | ✅ | ✅ | ❌ |
-| Playlist rename / delete | ✅ owner only | ✅ owner only | offered unconfirmed | ✅ non-smart |
-| Loudness normalization | ✅ | ✅ | ❌ | ❌ |
-| Gapless playback | ✅ | ❌ | ❌ | ❌ |
-| Quality selection | ✅ | ✅ | ✅ | ❌ |
-| Progress reporting (resume) | ✅ | ✅ | ✅ | ✅ |
-| Scrobbling | ✅ | ✅ | ✅ | ✅ |
-| Sign-in | OAuth (PKCE) in browser | Username/password against a `ping` | Username/password against the SDK | PIN via plex.tv in browser |
+| Capability | Spotify | Subsonic family | Jellyfin | Plex | This device |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| Library sections | Liked, Playlists, Albums, Artists, Shows | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists |
+| Search scopes | Tracks, Artists, Albums, Playlists, Shows | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists |
+| Podcasts / shows | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Song radio | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Follow artist | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Playlist item edits | ✅ per playlist | ✅ owned playlists | ✅ offered unconfirmed | ✅ writable playlists | ✅ Sidetrack-owned files |
+| Playlist creation | ❌ | ✅ | ✅ | ❌ | ✅ as `.m3u8` |
+| Playlist rename / delete | ✅ owner only | ✅ owner only | offered unconfirmed | ✅ non-smart | ✅ Sidetrack-owned files |
+| Loudness normalization | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Gapless playback | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Quality selection | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Progress reporting (resume) | ✅ | ✅ | ✅ | ✅ | ❌ (resume is local) |
+| Scrobbling | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Sign-in | OAuth (PKCE) in browser | Username/password against a `ping` | Username/password against the SDK | PIN via plex.tv in browser | Media-storage permission |
 
 ## Playlist actions are per playlist, not just per service
 
@@ -227,3 +227,50 @@ one. See [plex-integration.md](plex-integration.md) for the wire decisions.
 Not supported: podcasts, song radio (the server generation returns no mix), follow artist,
 playlist creation, loudness normalization, gapless, quality selection (v1 plays the original
 part).
+
+## This device
+
+The music already on the phone, read through `MediaStore` rather than a directory walk: the media
+database is the index over the music directory, it is what scoped storage lets an app read, and its
+ids are the identity a queue and a resume point can persist across a rescan. Playback resolves to
+`content://media/external/audio/media/<id>`, which Media3 plays like any other source, so the media
+session, notification, audio focus, queue, history and resume point are the shared runtime's.
+
+Implemented:
+
+- **Sign-in**: `SignInKind.Device` — no account, no server, no stored secret. The screen asks for
+  `READ_MEDIA_AUDIO` (Android 13+) or `READ_EXTERNAL_STORAGE` (12), and `LocalAuth` re-checks the
+  grant, so a refused dialog reports the same way a refused password does. Signed out for the
+  process only; the platform keeps the grant.
+- **Library**: albums and artists are groupings of the same track rows (an album is its
+  `ALBUM_ID`, an artist its name), so the sections cannot disagree while a rescan runs. Liked is a
+  local id list — the device has no favourite flag — and liking an album likes its tracks.
+- **Search**: one pass over the snapshot, filtered per requested scope. Playlist scope matches the
+  playlist's name.
+- **Playback**: the MediaStore row, through the shared Media3 path. Duration, title, artist, album
+  and album art (`content://media/external/audio/albumart/<albumId>`) come from the database.
+- **Playlists, read**: system playlists (`MediaStore.Audio.Playlists`) are listed as
+  `store:<id>`, with `PlaylistActions.None`. Since Android 11 only the app that created a playlist
+  row may change it, and membership writes vary by OEM, so this adapter does not pretend otherwise.
+- **Playlists, written**: Sidetrack-owned `.m3u8` files in `Music/Sidetrack`, listed as
+  `file:<id>` with `PlaylistActions.All` — create, add, remove, rename and delete. No write
+  permission is needed because the app created those files. Each file carries a
+  `#SIDETRACK-ID:` comment, so renaming keeps every open page and cached row pointing at the same
+  playlist; every other player reads the file as a plain m3u8.
+- **Isolation**: separate settings, queue, history and resume files, named for `device`.
+- **Offline**: every item is a file on the phone, so the runtime reports online even in airplane
+  mode; the UI must not offer "retry" for playback that never needed a network.
+
+Not supported:
+
+- **Radio** — there is no seed graph to walk. A local shuffle is not a station, and offering the
+  flag would surface a page the adapter cannot fill.
+- **Podcasts / shows** — MediaStore has no episode typing.
+- **Follow artist** — nothing to follow.
+- **Quality selection** — nothing transcodes; there is one original file.
+- **Loudness normalization** — Media3 has no ReplayGain processor, so it needs a tag reader and a
+  gain stage before the flag can be honest.
+- **Gapless** — the shared Media3 engine restarts per item; the Spotify path is the only one that
+  hands over seamlessly today.
+- **Progress reporting and scrobbling** — there is no server to report to. Resume and history still
+  work, because those are the app's own stores.

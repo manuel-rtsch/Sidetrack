@@ -60,10 +60,8 @@ import io.github.manuelrtsch.sidetrack.ui.rememberSwipeRevealGroup
 /**
  * The search landing screen: type a term, choose where to look, or pick a recent search.
  *
- * This screen is deliberately about making a search, not about browsing one. Submitting hands the
- * query to [SearchResultsScreen]; Back from there returns here with the term still in the field,
- * so the term and the categories can be changed without losing the results page to a half-typed
- * query. The history lives below "Search in" and scrolls with the page.
+ * Submitting hands the query to [SearchResultsScreen]; Back returns here with the term still in the
+ * field. The history lives below "Search in" and scrolls with the page.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -84,9 +82,8 @@ fun SearchScreen(
     onRestoreHistory: (List<String>) -> Unit = {},
     focusDismissed: Boolean = false,
     /**
-     * Whether the on-screen keyboard is up. Read from the window by default; the soft keyboard is an
-     * overlay and this screen gives up everything but the field and the category row to it. Passed
-     * explicitly by tests, because WindowInsets cannot be faked and Sidekit's own seam is internal.
+     * Whether the on-screen keyboard is up. The screen yields everything but the field and the
+     * category row to it. Tests pass it explicitly: WindowInsets cannot be faked.
      */
     keyboardVisible: Boolean = WindowInsets.isImeVisible,
     onDismissFocus: () -> Unit = {},
@@ -98,52 +95,40 @@ fun SearchScreen(
     val keypad = LocalKeypad.current
     val term = typed.trim()
     val canSearch = term.length >= 2
-    // One way to submit, shared by the Search action, the IME's Done and the keypads that have no
-    // letters of their own (A on the game controller, centre on the Sundial).
+    // One submit path for the Search action, the IME's Done and the letterless keypads.
     val focusManager = LocalFocusManager.current
     val submit = {
         if (canSearch) {
             field.setTextAndPlaceCursorAtEnd(term)
             onSearch(term)
         } else {
-            // Done below two letters means "I have finished typing", not "search anyway": there is
-            // nothing to search. Taking the keyboard away is the only visible answer to it, and it
-            // gives the bar back — the screen keeps no actions while the keyboard is up, so Done
-            // was otherwise a key that did nothing. The keypads already behave this way: their
-            // typing bar's Done leaves the field whatever the term is.
+            // Done below two letters has nothing to search, so it drops the keyboard instead of
+            // doing nothing: the screen keeps no actions while the keyboard is up.
             focusManager.clearFocus()
         }
     }
-    // A term too short to search is told to the field rather than only to the page: Done does
-    // nothing with it, and the hint that would have said why is the first thing the keyboard
-    // covers.
+    // A too-short term is told to the field: the hint that would explain it is what the IME covers.
     val tooShort = searchFieldStateDescription(typed)
-    // The field's label is only spelled out once the placeholder is gone. BasicTextField merges its
-    // decoration box, so the empty field's placeholder is already its own node's text and reads as
-    // "Search"; describing it as "Search" as well made TalkBack say the word twice.
+    // Spelled out only once the placeholder is gone: the empty field's placeholder already reads as
+    // "Search", and labelling it too made TalkBack say the word twice.
     val fieldLabel = if (typed.isEmpty()) null else "Search"
-    // Keep an abandoned draft in the shared state: leaving to change categories (or going back to
-    // Home and returning) must show the text that was typed, not the last submitted term.
+    // Keep an abandoned draft, so returning to change categories shows the typed text, not the
+    // last submitted term.
     LaunchedEffect(typed) { onDraftQuery(typed) }
     val searchFocus = remember { FocusRequester() }
-    // The field takes the keyboard when there is a term to refine, or when the keypad itself types
-    // (there the keypad is the input, not a hint). An empty field on a screen with history leaves
-    // the keyboard down, and a field the user put away stays away for this visit. Clearing the
-    // history therefore never opens the keyboard over the Undo that was just offered.
+    // Only a term to refine or a keypad that types takes the keyboard; a dismissal lasts the visit,
+    // so clearing the history never reopens it over the Undo that was just offered.
     val keypadTypes = rememberT9Active()
     val autoFocus = searchFieldAutoFocus(search.query, keypadTypes, focusDismissed)
-    // Clearing every term is one press and one Undo, like the other list-wide deletions in the app.
+    // One press and one Undo, like the app's other list-wide deletions.
     var clearedHistory by remember { mutableStateOf<List<String>?>(null) }
     val undoWindow = rememberUndoWindow { clearedHistory = null }
     UndoWindowLifecycle(undoWindow) { clearedHistory = null }
-    // The offer lives in the bar, and the bar is not what is drawn while the keyboard owns the
-    // screen: without this the five seconds ran out behind the IME and the Undo that came back was
-    // already gone. The typing keypad's bar replaces this one the same way and is not covered.
+    // The bar is not what is drawn while the IME owns the screen, so the window must pause rather
+    // than run out unseen behind it.
     PauseUndoWhileHidden(undoWindow, shown = !keyboardVisible, pending = clearedHistory != null)
-    // The summary describes what the next search will actually look at: a category the service
-    // cannot answer is never part of the choice, so all of the answerable ones in means
-    // "Everything". The right side must stay on one line, so when one category is left out it is
-    // named instead of listing the rest.
+    // The summary names what the next search reads: all answerable categories in is "Everything",
+    // and a single omission is named rather than listed, because the right side holds one line.
     val pickedScopes = SearchScope.entries.filter { it in supportedScopes && it in search.searchScopes }
     val leftOutScopes = SearchScope.entries.filter { it in supportedScopes && it !in search.searchScopes }
     val scopeSummary = when {
@@ -154,8 +139,7 @@ fun SearchScreen(
         leftOutScopes.size == 1 -> "All but " + leftOutScopes.single().label
         else -> pickedScopes.joinToString(", ") { it.label }
     }
-    // A notice or the queue-replaced offer owns the bar; Clear is part of the screen's own bar and
-    // steps aside with it.
+    // Clear belongs to the screen's own bar, and steps aside with it when a notice owns the bar.
     val notice = chrome.notice != null || chrome.nowPlayingNotice != null || chrome.queueReplaced
     val clearHistory = if (typed.isEmpty() && !keyboardVisible && !notice && search.searchHistory.isNotEmpty()) {
         SideAction(
@@ -220,8 +204,7 @@ fun SearchScreen(
             onUndoQueueReplace = onUndoQueueReplace
         )
     }
-    // One row may be swiped open at a time, like the queue: opening a history row's Remove closes
-    // the one before it.
+    // One row may be swiped open at a time, like the queue.
     val swipes = rememberSwipeRevealGroup()
     SidekitScaffold(
         title = null,
@@ -239,8 +222,7 @@ fun SearchScreen(
                         if (fieldLabel != null) contentDescription = fieldLabel
                         if (tooShort != null) stateDescription = tooShort
                     }
-                        // Coming back to the field is the user asking for the keyboard; leaving it
-                        // after typing is the user putting it away.
+                        // Coming back to the field asks for the keyboard; leaving it puts it away.
                         .onFocusChanged { focus ->
                             if (focus.hasFocus) {
                                 onRestoreFocus()
@@ -249,8 +231,7 @@ fun SearchScreen(
                             }
                         }
                         .onPreviewKeyEvent { event ->
-                            // Let the typing keypads keep Enter for their own completion engine: their
-                            // OK both takes a suggestion and submits the field.
+                            // The typing keypads own Enter: their OK takes the suggestion and submits.
                             if (event.type != KeyEventType.KeyDown || event.nativeKeyEvent.repeatCount != 0) {
                                 false
                             } else if (isSearchSubmitKey(event.key, keypad?.module)) {
@@ -263,13 +244,11 @@ fun SearchScreen(
                     textStyle = SidekitTheme.typography.title,
                     placeholder = "Search",
                     focusRequester = searchFocus,
-                    // The field is the keypad's input only while it has focus. autoFocus gives it
-                    // that on entry, but typing after Up / Down must not take focus back: the
-                    // keypad is then navigating the page, not entering a term.
+                    // Only while focused: after Up / Down the keypad navigates the page, so typing
+                    // must not take focus back.
                     focusOnKeypad = false,
                     singleLine = true,
-                    // The rule above decides; see searchFieldAutoFocus for why history wins on an
-                    // empty field.
+                    // Decided above; see searchFieldAutoFocus for why history wins on an empty field.
                     autoFocus = autoFocus,
                     onDone = submit
                 )
@@ -284,8 +263,7 @@ fun SearchScreen(
                     "Search in",
                     modifier = Modifier.listFade(listState, 0),
                     secondary = scopeSummary,
-                    // The badge is a green success surface. The muted surface tone disappears on
-                    // it; the value has to read as bright as the label beside it.
+                    // The badge is a green success surface; the muted tone disappears on it.
                     secondaryColor = SidekitTheme.colors.light,
                     onClick = onScopes
                 )
@@ -302,8 +280,7 @@ fun SearchScreen(
                             Modifier.listFade(listState, index + 2),
                             onOpen = {
                                 field.setTextAndPlaceCursorAtEnd(term)
-                                // Picking a remembered term is not typing: the results page is the
-                                // next thing to read, not the keyboard.
+                                // Picking a remembered term is not typing: the results are next.
                                 onDismissFocus()
                                 onSearch(term)
                             },
@@ -327,9 +304,7 @@ fun SearchScreen(
 /**
  * The line under "Search in" while there is no history to show, or null when there is nothing to
  * say. With the on-screen keyboard up the hint would sit under the IME, cut in half: the body is
- * only as tall as the keyboard leaves it, and the hint is what falls past the edge. Nothing is
- * lost by dropping it there, since the field and the IME's own Done are the whole interaction; a
- * keypad screen never puts the keyboard over the page.
+ * only as tall as the keyboard leaves it. A keypad never puts the keyboard over the page.
  */
 internal fun searchHint(typed: String, keyboardVisible: Boolean): String? = when {
     keyboardVisible -> null
@@ -339,26 +314,22 @@ internal fun searchHint(typed: String, keyboardVisible: Boolean): String? = when
 }
 
 /**
- * What the field itself says about a term that is not searchable yet, or null when it is.
- *
- * The hint below "Search in" is drawn, so a screen reader only hears it by exploring there, and
- * with the keyboard up it is not drawn at all. The rule lives on the field instead, where it is
- * read with the text it applies to, and only while it is violated: an empty field keeps the
- * placeholder's plain "Search" rather than repeating the standing instruction.
+ * What the field says about a term that is not searchable yet, or null when it is. The rule lives on
+ * the field because the drawn hint is not read with the text, and is absent behind the keyboard.
+ * Only while violated: an empty field keeps the placeholder's plain "Search".
  */
 internal fun searchFieldStateDescription(typed: String): String? =
     if (typed.isNotBlank() && typed.trim().length < 2) "Keep typing, at least two letters" else null
 
 /**
- * Whether the landing field takes the keyboard when the screen opens. A term already there is
- * worth refining; a keypad that types letters is the input itself. Everything else leaves the
- * history readable, and a dismissal lasts the visit.
+ * Whether the landing field takes the keyboard on entry: a term worth refining, or a keypad that
+ * types. Everything else leaves the history readable, and a dismissal lasts the visit.
  */
 internal fun searchFieldAutoFocus(query: String, keypadTypes: Boolean, dismissed: Boolean): Boolean = !dismissed && (query.isNotEmpty() || keypadTypes)
 
 /**
- * Keys that submit the field on the attached keypad. T9 and QWERTY own Enter while they type
- * (Sidekit's completion bar takes it first), so only the letterless keypads are handled here.
+ * Keys that submit the field. T9 and QWERTY own Enter while they type, so only the letterless
+ * keypads are handled here.
  */
 internal fun isSearchSubmitKey(key: Key, module: KeypadModule?): Boolean {
     if (module?.typesOnKeypad == true) return false
@@ -371,9 +342,8 @@ internal fun isSearchSubmitKey(key: Key, module: KeypadModule?): Boolean {
 }
 
 /**
- * One remembered term. Swipe left (or focus it with the keypad) to reveal Remove; tapping the row
- * searches for it again. This is the SDK's compact item on the SDK's swipe row, so it behaves like
- * every other removable row in the app.
+ * One remembered term: tap to search it again, swipe (or focus with the keypad) to reveal Remove.
+ * The SDK's compact item on the SDK's swipe row, so it behaves like every other removable row.
  */
 @Composable
 private fun SearchHistoryRow(
@@ -396,9 +366,8 @@ private fun SearchHistoryRow(
 }
 
 /**
- * The results page for the submitted query. The term is the page's title and cannot be edited
- * here: changing it means going back one step, where the field still holds it. Categories can be
- * changed from Options without losing the term, and toggling one searches again in place.
+ * The results page for the submitted query. The term is the title and cannot be edited here: Back
+ * returns to the field holding it. Options changes the categories, and toggling one searches again.
  */
 @Composable
 fun SearchResultsScreen(
@@ -445,12 +414,10 @@ fun SearchResultsScreen(
     )
     val filterFocus = remember { SearchScope.entries.associateWith { FocusRequester() } }
     val moreFocus = rememberLoadMoreFocus()
-    // Artist/album/playlist/show rows share one gutter state so their action squares behave like
-    // the library's, and the list settles under the cursor into a reading position.
+    // One gutter state for every result row, so their action squares behave like the library's.
     val searchGutters = rememberRowGutterState()
-    // The gate outlives any one row: after a held arrow switches scope, the list may rebuild and
-    // move focus before the physical key comes up. The screen root uses the same gate to swallow
-    // the repeats and the release so the switch cannot walk sideways through every scope.
+    // The gate outlives any one row: a held arrow may rebuild the list before the key comes up.
+    // The screen root uses it to swallow the repeats and the release.
     val holdGate = remember { CategoryHoldGate() }
     var scope by rememberSaveable { mutableStateOf(SearchScope.Tracks) }
     val query = search.query.trim()
@@ -458,11 +425,10 @@ fun SearchResultsScreen(
     val loading = hasQuery && search.searchPending && results.isEmpty
     val failed = hasQuery && !search.searchPending && search.searchError != null && results.isEmpty
     val showFilters = hasQuery && !loading && !failed
-    // The categories that are both in the queried set and answerable by the connected service.
-    // Moving the row (and the selection) only ever walks these.
+    // Moving the row and the selection only walks the categories that are both queried and answerable.
     val includedScopes = SearchScope.entries.filter { it in supportedScopes && it in search.searchScopes }.toSet()
-    // A failed search replaces the list with the retry body. Drop a page that was in flight so a
-    // later retry cannot mistake its larger result set for a page that just arrived.
+    // A failure replaces the list, so drop an in-flight page: a retry must not read its result set
+    // as a page that just arrived.
     LaunchedEffect(failed) { if (failed) moreFocus.reset() }
     SidekitScaffold(
         title = query.ifBlank { "Search" },
@@ -493,9 +459,8 @@ fun SearchResultsScreen(
         val holdSwitch = viewport.holdSwitch
         val restoreFocus = viewport.restoreFocus
         val restoreFocusIndex = viewport.restoreFocusIndex
-        // A new query shows a different page from the top; keeping the old scroll offset would open
-        // it in the middle. A scope change is handled by the viewport, which also keeps the cursor
-        // on the category row.
+        // A new query opens from the top; a scope change is handled by the viewport, which also
+        // keeps the cursor on the category row.
         LaunchedEffect(search.query) {
             moreFocus.reset()
             listState.scrollToItem(0)
@@ -538,8 +503,8 @@ fun SearchResultsScreen(
         LoadMoreFocus(moreFocus, listState, items.size, morePending, firstItemListIndex = 1)
         val rowKeys = remember(items) { mediaRowKeys(items) }
         SidekitList(padding, state = listState) {
-            // Like the library, the category row is the first list item: it scrolls away with
-            // the content and one category's list is shown at a time.
+            // Like the library, the category row is the first list item, so it scrolls away with
+            // the content.
             item(key = "filters") {
                 ContentFilterRow(
                     filters = SearchScope.entries,
@@ -548,12 +513,11 @@ fun SearchResultsScreen(
                     label = { it.label },
                     onSelect = viewport.switchScope,
                     focusRequesters = filterFocus,
-                    // A row action bar owns the focus while it is open. Leaving the category
-                    // buttons focusable let Android's exit from touch mode land on the first
-                    // one, select it, and dispose the very row whose bar had just opened.
+                    // A row action bar owns the focus while it is open: leaving the category
+                    // buttons focusable let touch-mode exit select one and dispose that very row.
                     acceptsFocus = rows.bar.selection == null,
-                    // A category the service cannot answer stays in the row but takes no
-                    // click and no focus: it would only ever show an empty list.
+                    // An unanswerable category stays for the row's shape but takes no click and no
+                    // focus: it would only ever show an empty list.
                     enabled = { it in supportedScopes && it in search.searchScopes },
                     disabledLabel = { if (it in supportedScopes) "off" else "not available" },
                     modifier = Modifier.listFade(listState, 0)
@@ -575,9 +539,8 @@ fun SearchResultsScreen(
                     contentType = { _, item -> mediaContentType(item) }
                 ) { index, item ->
                     // Every result row carries its own focus target, so the load-more requester
-                    // travels with a row requester instead of riding a wrapper that has no
-                    // focusable. A held-arrow switch may restore exactly one row, which takes
-                    // the shared restore requester for its one index.
+                    // travels with a row instead of riding a wrapper that has no focusable. A
+                    // restored row takes the shared restore requester.
                     val focusRequester = if (index == restoreFocusIndex) {
                         restoreFocus
                     } else {
@@ -718,13 +681,11 @@ fun SearchScopesScreen(
             }
             SearchScope.entries.forEachIndexed { index, scope ->
                 item(key = scope.name) {
-                    // A category the service cannot answer is shown, not hidden: the list keeps
-                    // its shape on every service, and "Not available" says why it cannot be
-                    // turned on instead of leaving the user to guess.
+                    // An unanswerable category is shown, not hidden: the list keeps its shape on
+                    // every service, and "Not available" explains it instead of a gap.
                     val available = scope in supportedScopes
                     val included = available && scope in search.searchScopes
-                    // Never let the last category be turned off: the search page has no list to
-                    // show without one, and an empty scope set used to mean "everything". The row
+                    // Never turn the last category off: the page has no list without one. The row
                     // stays focusable so its checked, disabled state is still announced.
                     val locked = included &&
                         search.searchScopes.count { it in supportedScopes } == 1

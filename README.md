@@ -15,7 +15,7 @@
 
 Sidetrack is a music player for Android 12 and later, built around the keypad of the [Sidephone SP-01](https://www.sidephone.com/).
 
-It plays from Spotify, Plex, Jellyfin or any Subsonic-compatible server such as Navidrome. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), a launcher for the SP-01, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
+It plays from Spotify, Plex, Jellyfin, any Subsonic-compatible server such as Navidrome, or the music already on the phone. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), a launcher for the SP-01, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
 
 > Sidetrack is an independent project, not made by or affiliated with Sidephone, Spotify, Plex, Jellyfin or any other service it connects to.
 
@@ -52,18 +52,18 @@ Open `Library → Settings → App Packs → +` and scan the code, or enter `htt
 
 ## Supported services
 
-Sidetrack remembers your service until you sign out. Spotify and Plex sign in through the browser; the others take a server address, a username and a password. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
+Sidetrack remembers your service until you sign out. Spotify and Plex sign in through the browser; the server entries take a server address, a username and a password; **This device** asks for access to the phone's music library. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
 
-| | Spotify | Subsonic family | Jellyfin | Plex |
-| --- | --- | --- | --- | --- |
-| Radio | Song radio from any seed | Similar songs | Instant Mix | — |
-| Podcasts | ✅ | ❌ | ❌ | ❌ |
-| Follow artists | ✅ | ❌ | ✅ | ❌ |
-| Create playlists | ❌ | ✅ | ✅ | ❌ |
-| Edit playlists | ✅ | ✅ | ✅ | ✅ |
-| Loudness normalisation | ✅ | ✅ | ❌ | ❌ |
-| Gapless playback | ✅ | ❌ | ❌ | ❌ |
-| Quality selection | ✅ | ✅ | ✅ | ❌ |
+| | Spotify | Subsonic family | Jellyfin | Plex | This device |
+| --- | --- | --- | --- | --- | --- |
+| Radio | Song radio from any seed | Similar songs | Instant Mix | — | — |
+| Podcasts | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Follow artists | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Create playlists | ❌ | ✅ | ✅ | ❌ | ✅ |
+| Edit playlists | ✅ | ✅ | ✅ | ✅ | ✅ (Sidetrack's own files) |
+| Loudness normalisation | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Gapless playback | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Quality selection | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 Spotify needs a Premium account for playback. Jellyfin needs a 12.x server with a music library. Plex needs a claimed Plex Media Server.
 

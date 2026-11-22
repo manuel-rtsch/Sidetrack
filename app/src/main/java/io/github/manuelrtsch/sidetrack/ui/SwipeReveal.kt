@@ -109,10 +109,6 @@ private class SwipeMetrics {
  * - With [onLongPress], holding the row reports a long press instead of the tap it would otherwise
  *   become. This is the touch route to a row's other actions: a touch screen has no focus border
  *   for a gutter to follow.
- *
- * Cost per drag frame: one float state write, a RenderNode translation for the row (no
- * re-record of its contents) and a redraw of the button behind it. Nothing recomposes except
- * when the row crosses open/closed or armed/unarmed.
  */
 @Composable
 fun SidekitSwipeRow(

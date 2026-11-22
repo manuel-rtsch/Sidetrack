@@ -37,17 +37,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * The one-time welcome shown after sign-in. It teaches the three keypad actions a new listener
- * needs before Home, keeps the module and Back-key status compact, and leaves the full key guide
- * on the Keyboard screen instead of asking the user to explore a diagram first.
- *
- * The same body is the picker's Help page ([onBack] non-null): it then reads the same way but
- * returns instead of starting the app, and the onboarding flag stays unwritten so the real welcome
- * still happens once a service is chosen.
- *
- * The page teaches the module that is attached right now. It follows Sidekit's detection while it
- * is open, and a tap on the Keyboard row steps to the next module by hand, so a keypad Sidekit
- * guessed wrong can be corrected without leaving the page the instructions are on.
+ * One-time welcome; the same body doubles as the picker's Help page and keeps the onboarding flag
+ * unwritten so the real welcome still happens once a service is chosen. It follows Sidekit's
+ * re-detection while open, so a keypad guessed wrong can be corrected without leaving the page.
  */
 @Composable
 fun SidetrackOnboardingScreen(
@@ -176,12 +168,9 @@ internal fun SidetrackOnboardingContent(
 }
 
 /**
- * The key presses the page answers, and the modifier that lets it hear them.
- *
- * A page that only reads the attached module still teaches silently: press a key and get nothing
- * back and it reads as "not recognised". The screen therefore watches the keys that reach it,
- * asks Sidekit to re-detect the module from them, and lights up the row the press demonstrated.
- * The modifier never consumes an event, so every key keeps its normal job.
+ * Watching the keys the page receives stops it teaching silently — an unanswered press reads as
+ * "not recognised" — and lets Sidekit re-detect the module from them. The modifier never consumes
+ * an event, so every key keeps its normal job.
  */
 private class WelcomeKeys(val pressed: KeypadHabit?, val modifier: Modifier)
 
@@ -189,8 +178,8 @@ private class WelcomeKeys(val pressed: KeypadHabit?, val modifier: Modifier)
 private fun rememberWelcomeKeys(module: KeypadModule): WelcomeKeys {
     val focus = remember { FocusRequester() }
     var pressed by remember { mutableStateOf<KeypadHabit?>(null) }
-    // Compose only receives key events for a focused node, and this screen started with none: the
-    // first press went to the platform and the page looked deaf until focus was moved by hand.
+    // Compose only delivers key events to a focused node, and this screen starts with none — move
+    // focus so the first press is not lost to the platform.
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     LaunchedEffect(pressed) {
         if (pressed == null) return@LaunchedEffect

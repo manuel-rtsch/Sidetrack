@@ -26,27 +26,20 @@ import kotlinx.coroutines.flow.StateFlow
  * The podcast Now Playing layout: the show's cover beside the episode's name, then the notes, the
  * sleep-timer record, the seek bar and the 30 s transport.
  *
- * It is a separate file for the same reason [NowPlayingBackdrop] is: it is an adaptation of the
- * screen, not the screen. The chrome, the Options bar and the widgets every layout shares (the seek
- * bar, the sleep-timer record, the song transport row) stay in [NowPlayingScreen]; what is specific
- * to an episode lives here.
+ * A separate file for the same reason [NowPlayingBackdrop] is: an adaptation of the screen, not
+ * the screen; the shared chrome and widgets stay in [NowPlayingScreen].
  */
 
 /**
- * The show's cover in the episode header. A third of the square a song spends on its artwork:
- * enough to recognise the show at a glance, small enough that the episode's name and notes are
- * what the panel is about.
+ * The show's cover in the episode header: enough to recognise the show at a glance, small enough
+ * that the episode's name and notes are what the panel is about.
  */
 private val EpisodeCoverSize = 100.dp
 
 /**
- * An episode on Now Playing.
- *
- * A podcast is read as much as it is heard, so the show's cover moves beside the episode's name
- * instead of taking the top square for itself: the notes are the one thing this screen has more of
- * than a song, and the lines the old cover cost them now belong to the notes. The card is read from
- * the top and the transport stays pinned above the action bar; the air in between is the slack the
- * shorter header won back.
+ * An episode on Now Playing. A podcast is read as much as it is heard, so the show's cover sits
+ * beside the episode's name instead of taking the top square for itself: the notes are the one
+ * thing this screen has more of than a song.
  */
 @Composable
 internal fun EpisodeNowPlayingBody(
@@ -96,21 +89,17 @@ internal fun EpisodeNowPlayingBody(
 }
 
 /**
- * The show's cover beside the episode's identity, read as one card. Both the cover and the show
- * name open the show, which is what tapping the artwork did when it was the top of the screen.
- *
- * The show name is set one step below the title, in the notes' own size, because the card has to
- * fit beside the cover: the title keeps `body` (36) for two lines, the show drops to `caption` (28),
- * which is what keeps a name like "The Long Way Home" (256 dp) on one line in the ~264 dp the cover
- * and the header's Options corner leave.
+ * The show's cover beside the episode's identity, read as one card; both open the show. The show
+ * name sits one step below the title, in the notes' own size, so the card fits beside the cover:
+ * the title keeps `body` (36) for two lines, the show drops to `caption` (28), which keeps a long
+ * name on one line in the ~264 dp left by the cover and the header's Options corner.
  */
 @Composable
 private fun EpisodeHeader(episode: Episode, onOpenShow: () -> Unit) {
     Row(
-        // The card sits under the shared header, so its top line shares the row with the touch
-        // Options button. Now Playing publishes no title, so the space the button takes is not
-        // reserved for it: Sidekit publishes that reservation and the card takes it here. It is
-        // zero on the keypad, which has no button to avoid, so the card gets the width back.
+        // The card sits under the shared header, sharing its row with the touch Options button.
+        // Now Playing publishes no title, so the button's space is not reserved for it: Sidekit
+        // publishes the inset and the card takes it here. Zero on the keypad, which has no button.
         Modifier.fillMaxWidth().padding(end = LocalHeaderOptionsInset.current),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically

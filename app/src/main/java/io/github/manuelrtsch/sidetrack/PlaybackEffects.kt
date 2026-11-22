@@ -13,11 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The writes that follow a queue change: what the screen shows, what the history remembers, and
- * what the podcast resume points record.
- *
- * Every play path ends here, whether it came from a row tap, a transport button, an autoplay fill
- * or a player event. Keeping these effects in one place is what makes them consistent: the
+ * All play paths end here — row tap, transport button, autoplay fill, player event — so the
  * episode offset is saved on the same rule no matter which path left the item.
  */
 internal class PlaybackEffects(
@@ -136,12 +132,9 @@ internal class PlaybackEffects(
     }
 
     /**
-     * Offers the queue a collection tap just replaced for a few seconds.
-     *
-     * The timer lives here for the same reason the now-playing confirmation's does: the bar is not
-     * rendered on every screen, so the offer has to expire even while the user is elsewhere.
-     * [onExpire] lets the caller drop the queue it is offering to put back, so a stale snapshot
-     * cannot be restored after the bar has moved on.
+     * Offers the queue a collection tap just replaced for a few seconds. The timer lives here
+     * because the bar is not rendered on every screen, so the offer expires even while the user is
+     * elsewhere; [onExpire] drops the offered queue so a stale snapshot cannot be restored.
      */
     fun showQueueReplaced(onExpire: () -> Unit) {
         queueReplacedJob?.cancel()

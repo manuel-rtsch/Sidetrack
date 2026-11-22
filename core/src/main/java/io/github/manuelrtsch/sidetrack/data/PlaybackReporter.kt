@@ -14,20 +14,9 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 /**
- * Keeps a server's session and play history in step with Sidetrack's shared player.
- *
- * Jellyfin and Plex need the same machine: a start report per item, akin to a periodic progress
- * report, one stop report per item, and — D12 — a play marked only when the player reports that
- * the track actually ended, never when the user skips. Only the request shape differs.
- *
- * Nothing here is on the playback path: every request is fire-and-forget, failures are swallowed
- * by the provider, and a slow server can never stall audio. Two signals drive it:
- *
- * - the engine's [PlaybackEngineState], which says which source is loaded, whether it is playing
- *   and how far it has got;
- * - the engine's end-of-track flow, which is the only reliable "finished" signal.
- *
- * The reporter only claims tracks ([MediaType.Track]); neither service's music model has episodes.
+ * Jellyfin and Plex need the same machine — start, periodic progress, one stop, and (D12) a play
+ * marked only when the track actually ended, never on a skip. Requests stay off the playback
+ * path, and it claims tracks only ([MediaType.Track]) as neither music model has episodes.
  */
 abstract class PlaybackReporter<A : PlaybackReporter.Active>(
     private val service: ServiceId,

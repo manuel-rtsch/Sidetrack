@@ -44,16 +44,13 @@ data class JellyfinCredentials(
 }
 
 /**
- * Trims a typed server address into the base URL the SDK expects.
+ * Trims a typed server address into the base URL the SDK expects: the scheme is added when missing, a
+ * trailing slash dropped, and a missing port becomes Jellyfin's default, so a bare `192.168.1.20`
+ * reaches a default install.
  *
- * Deliberately plain (decision D9): the scheme is added when missing, a trailing slash is dropped,
- * and a missing port becomes Jellyfin's default. This is what makes a bare `192.168.1.20` or
- * `music.example.org` reach a default install, which listens on 8096 and nothing else.
- *
- * Only `http` gets the default filled in. A `https://` address keeps its implicit 443: 8920 is
- * Jellyfin's HTTPS port only when the certificate is configured inside Jellyfin itself, while a
- * proxied server — the public demo included — answers on 443, so appending 8920 would turn a
- * working address into a dead one.
+ * Only `http` gets the default filled in. An `https://` address keeps its implicit 443, because 8920
+ * is Jellyfin's HTTPS port only when the certificate is configured inside Jellyfin itself, while a
+ * proxied server answers on 443: appending 8920 would turn a working address into a dead one.
  */
 fun normalizeJellyfinServerUrl(value: String): String {
     val trimmed = value.trim().trimEnd('/')
@@ -63,8 +60,8 @@ fun normalizeJellyfinServerUrl(value: String): String {
         throw ServiceException(ServiceFailure.NotConnected, "Enter the Jellyfin server address")
     }
     if (parsed.protocol != "http" || parsed.port != -1) return withScheme
-    // Insert the port at the end of the authority so a typed base path survives: a proxied server
-    // can sit under one (the demo's `/stable`), and that path belongs after the port.
+    // The port goes at the end of the authority so a typed base path survives: a proxied server can
+    // sit under one (the demo's `/stable`), and that path belongs after the port.
     val authorityStart = withScheme.indexOf("://") + 3
     val authorityEnd = withScheme.indexOf('/', authorityStart).let { if (it == -1) withScheme.length else it }
     return withScheme.substring(0, authorityEnd) + ":" + DEFAULT_HTTP_PORT + withScheme.substring(authorityEnd)
@@ -74,9 +71,9 @@ fun normalizeJellyfinServerUrl(value: String): String {
 private const val DEFAULT_HTTP_PORT = 8096
 
 /**
- * Jellyfin signs in with a password once and keeps the resulting token, unlike Navidrome, which
- * needs the password for every request. So the store holds the token — never the password — in
- * the same encrypted, write-through store as the other providers' sessions.
+ * Jellyfin signs in with a password once and keeps the token, unlike Navidrome, which needs the
+ * password for every request. So the store holds the token — never the password — in the same
+ * encrypted store as the other providers' sessions.
  */
 class JellyfinCredentialStore(store: JsonStore) : EncryptedJsonCredentialStore<JellyfinCredentials>(store) {
     /** Production wiring: the encrypted, write-through store under a provider-specific name. */
@@ -109,8 +106,8 @@ class JellyfinCredentialStore(store: JsonStore) : EncryptedJsonCredentialStore<J
 }
 
 /**
- * The one call the adapter needs from the SDK during sign-in. Keeping it an interface means the
- * auth tests need no server, no `Context` and no Robolectric.
+ * The one call the adapter needs from the SDK during sign-in, as an interface so the auth tests need
+ * no server, no `Context` and no Robolectric.
  */
 fun interface JellyfinAuthenticator {
     /** Authenticates and returns the session, or throws [ServiceException]. */
@@ -120,16 +117,15 @@ fun interface JellyfinAuthenticator {
 /**
  * The SDK-backed authenticator. One `createJellyfin` per instance; an `ApiClient` per server.
  *
- * The authorization header is built by the SDK's own [AuthorizationHeaderBuilder] so the device id
- * (derived from `Settings.Secure.ANDROID_ID`) matches the one the API client sends. Jellyfin keys a
- * session on it, so a hand-rolled header would create a second session per request.
+ * The authorization header comes from the SDK's own [AuthorizationHeaderBuilder] so the device id
+ * matches the one the API client sends: Jellyfin keys a session on it, and a hand-rolled header
+ * would create a second session per request.
  */
 class SdkJellyfinAuthenticator(private val context: Context) : JellyfinAuthenticator {
     /**
      * The SDK's suspend API is generated for multiplatform use and runs OkHttp synchronously on the
-     * calling thread, so it has to be moved off the main one: the sign-in screen calls this from
-     * `viewModelScope`, and Android throws [android.os.NetworkOnMainThreadException] once the
-     * response body is read.
+     * calling thread: called from `viewModelScope`, it would throw
+     * [android.os.NetworkOnMainThreadException] once the response body is read.
      */
     override suspend fun signIn(serverUrl: String, username: String, password: String): JellyfinCredentials = withContext(Dispatchers.IO) { signInBlocking(serverUrl, username, password) }
 
@@ -143,8 +139,8 @@ class SdkJellyfinAuthenticator(private val context: Context) : JellyfinAuthentic
         } catch (error: Throwable) {
             throw jellyfinFailure(error)
         }
-        // Before the password travels: a server older than 12.0 accepts the sign-in and then fails
-        // every read (see [requireJellyfinVersion]), which is worse than this refusal.
+        // Asked before the password travels: a server older than 12.0 accepts the sign-in and then
+        // fails every read, which is worse than this refusal.
         val version = try {
             api.systemApi.getPublicSystemInfo().content.version
         } catch (error: Throwable) {
@@ -159,8 +155,8 @@ class SdkJellyfinAuthenticator(private val context: Context) : JellyfinAuthentic
         val token = result.accessToken
             ?: throw ServiceException(ServiceFailure.AuthenticationExpired, "Jellyfin did not return a session")
         val user = result.user
-        // Positional on purpose: the SDK names every argument "client…"/"device…" and can rename
-        // them between minor releases without this line noticing.
+        // Positional on purpose: the SDK can rename its "client…"/"device…" parameters between minor
+        // releases without this line noticing.
         val header = AuthorizationHeaderBuilder.buildHeader(
             api.clientInfo.name,
             api.clientInfo.version,
@@ -188,8 +184,8 @@ class JellyfinAuth(
     private val authenticator: JellyfinAuthenticator
 ) : RuntimeAuth {
     /**
-     * The session for this process. A device that cannot persist the store still stays signed in
-     * until the app closes, the same behaviour Navidrome and Spotify have.
+     * The session for this process: a device that cannot persist the store still stays signed in until
+     * the app closes, as Navidrome and Spotify do.
      */
     @Volatile
     private var current: JellyfinCredentials? = null
@@ -207,8 +203,8 @@ class JellyfinAuth(
         val password = input as? AuthInput.Password
             ?: throw ServiceException(ServiceFailure.NotConnected, "Jellyfin needs a server, username and password")
         val serverUrl = normalizeJellyfinServerUrl(password.serverUrl)
-        // The password is optional on purpose: a public demo server can have accounts without one,
-        // and Jellyfin answers an empty password the same way it answers any other.
+        // No password requirement: a public demo server can have accounts without one, and Jellyfin
+        // answers an empty password like any other.
         if (password.username.isBlank()) {
             throw ServiceException(ServiceFailure.NotConnected, "Enter your Jellyfin username")
         }
@@ -244,21 +240,16 @@ class JellyfinAuth(
 /** The oldest server Sidetrack speaks: 12.0. See [requireJellyfinVersion]. */
 private const val MINIMUM_JELLYFIN_MAJOR = 12
 
-/**
- * The major version of a Jellyfin version string, or null when it cannot be read.
- *
- * `"12.4.0"`, `"12"` and `"12.0.0-beta5"` all give 12; `"unstable"` and null give null.
- */
+/** The major version of a Jellyfin version string, or null when it cannot be read (`"unstable"`). */
 internal fun jellyfinMajorVersion(version: String?): Int? = version?.trim()?.takeWhile { it.isDigit() }?.takeIf { it.isNotEmpty() }?.toIntOrNull()
 
 /**
  * Refuses a server the 12.x SDK cannot read, naming it.
  *
- * Verified against `jellyfin/jellyfin:10.9.11` on 2026-11-19: the password sign-in **succeeds**, and
- * the first `GET /Items` then dies in deserialization — 10.9's `UserItemDataDto` carries no
- * `ItemId`, which the SDK requires — surfacing as "Sidetrack needs Jellyfin 12.0 or newer" on every
- * screen of a session that looked fine. Asking `/System/Info/Public` first (anonymous, one small
- * request) turns that into a refusal on the sign-in form, before any password is sent.
+ * A 10.9 server accepts the password sign-in and then fails deserialization on the first
+ * `GET /Items`, because its `UserItemDataDto` carries no `ItemId`: every screen of a session that
+ * looked fine reports "needs Jellyfin 12.0 or newer". Asking `/System/Info/Public` first turns that
+ * into a refusal on the sign-in form, before any password is sent.
  *
  * An unreadable version string is let through: a fork or a proxy can answer something we did not
  * anticipate, and its reads still fail honestly through [jellyfinFailure].

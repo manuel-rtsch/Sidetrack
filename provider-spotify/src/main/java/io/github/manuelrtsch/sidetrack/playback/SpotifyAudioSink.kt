@@ -23,42 +23,28 @@ import org.json.JSONObject
 /**
  * Drains PCM from librespot into a streaming [AudioTrack].
  *
- * The native sink uses a bounded channel and blocks when this consumer stops. That backpressure
- * is what keeps librespot's decode position tied to the speaker instead of racing through the
- * track. The important consequence is that the player thread can only process pause/play/load
- * commands while this drain is running, so pause/stop must keep draining until the player has
- * acknowledged the command.
+ * The native sink's bounded channel blocks when this consumer stops, and that backpressure keeps
+ * librespot's decode position tied to the speaker. The consequence shapes this class: the player
+ * thread only processes pause/play/load while the drain runs, so pause and stop must keep draining
+ * until the player acknowledges. Pause therefore keeps the [AudioTrack] alive and retains the PCM
+ * still queued behind it, which makes resume sample-continuous.
  *
- * Pause keeps the [AudioTrack] alive and captures the PCM still queued in the native channel.
- * On resume the track's own buffer plays first, then the captured PCM, then new PCM from the
- * player. Nothing is discarded, so the audio continues exactly where it stopped.
- *
- * Three rules keep item changes from turning into audible gaps, each of them a failure seen on
- * a device:
- *  - A track is primed before it plays. Starting one empty underruns as soon as the first PCM
- *    takes longer than the buffer length to arrive, which Android then reports as "disabled due
- *    to previous underrun, restarting" and the listener hears as a hole at the start.
- *  - A track is reused across items of the same format. Releasing and recreating it per item
- *    tears down the AudioFlinger track and re-configures the output route, which costs a few
- *    hundred milliseconds of silence on Bluetooth and showed up as repeated create/stop cycles
- *    that never wrote a single frame.
- *  - Writes never block inside the HAL. `WRITE_BLOCKING` on a paused or stuck track cannot be
- *    interrupted, and joining that write to change track froze the caller — which is a
- *    foreground-service start with nowhere left to run.
+ * Three rules keep item changes from becoming audible gaps:
+ *  - Prime a track before it plays: starting one empty underruns and Android restarts it.
+ *  - Reuse a track across items of the same format: releasing it tears down the AudioFlinger track
+ *    and re-configures the output route, which costs hundreds of milliseconds on Bluetooth.
+ *  - Never write blocking inside the HAL: `WRITE_BLOCKING` cannot be interrupted, so a track change
+ *    would sit in the HAL and freeze the caller.
  */
 class SpotifyAudioSink(
     private val native: SpotifyNative = NativeBridge,
     private val scope: CoroutineScope,
-    /**
-     * Reports a drain that stopped making progress. Reassigned by the session that owns the
-     * native player: a dead librespot session can only be restarted there, not from the sink.
-     */
+    /** Reports a drain that stopped making progress; reassigned by the session that owns the player. */
     var onFailure: (Throwable) -> Unit = {},
 
     /**
-     * Reports when the drain has no PCM to play (`true`) and when audio is flowing again
-     * (`false`). The UI freezes the seek bar during the gap instead of pretending the track is
-     * advancing while the speaker is silent.
+     * Reports when the drain has no PCM (`true`) and when audio flows again (`false`), so the UI can
+     * freeze the seek bar instead of pretending the track advances.
      */
     var onBuffering: (Boolean) -> Unit = {}
 ) {
@@ -67,17 +53,13 @@ class SpotifyAudioSink(
     private var track: AudioTrack? = null
     private var drain: Job? = null
 
-    /**
-     * Set when the current track must not be reused: a failed write left it in an unknown state.
-     * Written by the drain coroutine, read by the next start on whichever thread calls it.
-     */
+    /** Set when a failed write left the track in an unknown state, so the next start builds one. */
     @Volatile
     private var trackStale = false
 
     /**
-     * Serializes track lifecycle operations. The drain job writes to the AudioTrack on its own
-     * coroutine; releasing or flushing the track while that write is in flight crashes inside
-     * libaudioclient. Every public operation takes this lock and stops the drain first.
+     * Serializes track lifecycle operations: releasing or flushing while the drain coroutine writes
+     * crashes inside libaudioclient. Every public operation takes it and stops the drain first.
      */
     private val lock = Mutex()
 
@@ -102,16 +84,15 @@ class SpotifyAudioSink(
     private suspend fun startLocked(positionMs: Long) {
         stopDrain()
         pendingPcm.clear()
-        // Unblock a player thread that may still be waiting in PcmSink::write for the previous
-        // track. The load command cannot be processed until that thread is free.
+        // Unblock a player thread still waiting to write to the previous track: the load command
+        // cannot be processed until it is free.
         native.drainAudio()
 
         val format = audioTrack.readFormat()
         SidetrackDebug.log("audio.start format=${format.sampleRate}Hz channels=${format.channels}")
         val reused = track?.takeIf { canReuse(it, format) }
         val output = if (reused != null) {
-            // Same PCM format: keep the AudioTrack. Flushed because the next item starts at a
-            // position that has nothing to do with what is still buffered here.
+            // Same PCM format: keep the track, flushed, since the next item starts elsewhere.
             runCatching { reused.pause() }
             runCatching { reused.flush() }
             reused
@@ -135,8 +116,8 @@ class SpotifyAudioSink(
     /**
      * Resumes the paused track, replaying the PCM captured at pause before new PCM.
      *
-     * @return true when the existing AudioTrack (and therefore its buffered audio) was reused.
-     *   false means the buffer was lost and the player must be realigned with [positionMs].
+     * @return true when the existing AudioTrack was reused; false means the buffer was lost and the
+     *   player must be realigned with [positionMs].
      */
     suspend fun resume(positionMs: Long): Boolean = lock.withLock {
         val output = track
@@ -152,8 +133,8 @@ class SpotifyAudioSink(
     }
 
     /**
-     * Pauses the track without releasing it. The AudioTrack buffer and the PCM still queued in
-     * the native channel are both preserved, so resume is sample-continuous.
+     * Pauses without releasing: the track's buffer and the PCM still queued in the channel both
+     * survive, so resume is sample-continuous.
      */
     suspend fun pause() = lock.withLock {
         stopDrain()
@@ -163,8 +144,8 @@ class SpotifyAudioSink(
     }
 
     /**
-     * Drops the current item's audio but keeps the AudioTrack, so the next item can start on a
-     * track that is already wired into AudioFlinger and its output route.
+     * Drops the item's audio but keeps the track, so the next item starts on one already wired into
+     * AudioFlinger and its output route.
      */
     suspend fun reset() = lock.withLock {
         stopDrain()
@@ -184,13 +165,13 @@ class SpotifyAudioSink(
     }
 
     /**
-     * The actual audio position, taken from the AudioTrack playback head. This is the hardware
-     * clock, so the UI can follow it without guessing from librespot's event cadence.
+     * The hardware clock: the AudioTrack playback head, so the UI can follow it instead of guessing
+     * from librespot's event cadence.
      */
     fun currentPositionMs(): Long? {
         val output = track ?: return null
-        // A release racing this read makes both the head and the sample rate throw; the position
-        // is advisory for the UI, so a lost sample just means "no clock right now".
+        // A release racing this read makes both the head and the sample rate throw; the position is
+        // only advisory for the UI, so a lost sample means "no clock right now".
         return runCatching {
             val head = output.playbackHeadPosition.toLong()
             val sampleRate = output.sampleRate
@@ -208,8 +189,7 @@ class SpotifyAudioSink(
         val wasPlaying = output.playState == AudioTrack.PLAYSTATE_PLAYING
         stopDrain()
         pendingPcm.clear()
-        // Discard PCM decoded for the old position and unblock the player so it can process the
-        // seek command.
+        // Discard PCM decoded for the old position and unblock the player so it can process the seek.
         native.drainAudio()
         runCatching { output.pause() }
         runCatching { output.flush() }
@@ -315,10 +295,9 @@ class SpotifyAudioSink(
     /**
      * Writes the whole buffer without ever blocking inside the HAL.
      *
-     * `WRITE_BLOCKING` waits for the track to drain, and that wait is not interruptible: a pause
-     * or track change would then sit in `cancelAndJoin` until the audio HAL felt like returning,
-     * which is how a playback action blocked the main thread past the foreground-service
-     * deadline. A full buffer simply means the consumer is the clock, so this sleeps and retries.
+     * `WRITE_BLOCKING` waits for the track to drain and that wait is not interruptible, so a pause or
+     * track change would sit in `cancelAndJoin` until the HAL returned. A full buffer instead means
+     * the consumer is the clock, so this sleeps and retries.
      */
     private suspend fun write(output: AudioTrack, pcm: ByteArray) {
         var offset = 0
@@ -343,9 +322,8 @@ class SpotifyAudioSink(
         val job = drain ?: return
         drain = null
         job.cancel()
-        // The write loop checks for cancellation between retries, so this returns in a few
-        // milliseconds. The bound is a safety net for a track that refuses to come back: the
-        // caller must never be left waiting on the audio HAL.
+        // The loop checks for cancellation between retries, so this returns in milliseconds; the
+        // bound only covers a track that refuses to come back.
         if (withTimeoutOrNull(DRAIN_JOIN_TIMEOUT_MS) { job.join() } == null) {
             SidetrackDebug.log("audio drain ignored cancellation; abandoning track")
             trackStale = true
@@ -397,8 +375,8 @@ class SpotifyAudioSink(
         const val STARVE_TIMEOUT_MS = 15_000L
 
         /**
-         * Once audio is flowing, silence for this long is a dead connection. Recovering here
-         * costs a short reload; waiting for 15 s costs the listener the whole gap.
+         * Once audio flows, this much silence is a dead connection: recovering costs a reload, where
+         * waiting for 15 s costs the listener the whole gap.
          */
         const val PLAYING_STARVE_TIMEOUT_MS = 3_000L
 

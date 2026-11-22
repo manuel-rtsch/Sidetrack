@@ -63,6 +63,12 @@ fun SignInScreen(
     serviceName: String = "your music service",
     passwordAuth: Boolean = false,
     defaults: PasswordSignInDefaults? = null,
+    /**
+     * The service is the device's own library: signing in is granting the media permission, so
+     * the screen has no fields and the primary action asks the platform instead of a server.
+     */
+    deviceAuth: Boolean = false,
+    onDeviceSignIn: () -> Unit = {},
     onPasswordSignIn: (serverUrl: String, username: String, password: String) -> Unit = { _, _, _ -> }
 ) {
     val colors = SidekitTheme.colors
@@ -87,12 +93,14 @@ fun SignInScreen(
     } else {
         onSignIn
     }
-    val baseActions = remember(passwordAuth, onBack) {
+    val primary = if (deviceAuth) onDeviceSignIn else submit
+    val primaryLabel = if (deviceAuth) "Allow access" else "Sign in"
+    val baseActions = remember(passwordAuth, deviceAuth, onBack, primary) {
         listOf(
             // Back, not About: the picker is the step behind this screen, so the left action is the
             // way to a different service and the bar needs no second, overlapping affordance.
             SideAction.back("back", "Back", onBack),
-            SideAction.forward("signIn", "Sign in", submit)
+            SideAction.forward("signIn", primaryLabel, primary)
         )
     }
     val actions = withNotice(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
@@ -112,17 +120,17 @@ fun SignInScreen(
                 SidekitCard(modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SidekitText(
-                            "Connect your $serviceName account",
+                            if (deviceAuth) "Play the music already on this phone" else "Connect your $serviceName account",
                             style = SidekitTheme.typography.bodySmall,
                             maxLines = DESCRIPTION_MAX_LINES
                         )
                         // One sentence per case: what the app does with the secret, nothing else.
                         // A demo needs no mention here — its values sit in the placeholders.
                         SidekitText(
-                            if (passwordAuth) {
-                                "The password is stored encrypted on this device."
-                            } else {
-                                "Sidetrack never sees your password."
+                            when {
+                                deviceAuth -> "Sidetrack reads your music library and nothing else."
+                                passwordAuth -> "The password is stored encrypted on this device."
+                                else -> "Sidetrack never sees your password."
                             },
                             style = SidekitTheme.typography.caption,
                             color = colors.surfaceA6,
