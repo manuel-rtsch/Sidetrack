@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -31,7 +32,7 @@ class ExoPlayerMedia3Player(
      * ExoPlayer builds its data source per load, so the current source's headers are read here
      * instead of rebuilding the player for every track.
      */
-    private val headers = HeaderDataSourceFactory(userAgent)
+    private val headers = HeaderDataSourceFactory(context, userAgent)
 
     private val player: ExoPlayer = ExoPlayer.Builder(context)
         .setMediaSourceFactory(DefaultMediaSourceFactory(headers))
@@ -113,17 +114,23 @@ class ExoPlayerMedia3Player(
     }
 
     private class HeaderDataSourceFactory(
+        private val context: Context,
         private val userAgent: String
     ) : DataSource.Factory {
         @Volatile
         var headers: Map<String, String> = emptyMap()
 
-        override fun createDataSource(): DataSource = DefaultHttpDataSource.Factory()
-            .setUserAgent(userAgent)
-            // Subsonic servers commonly redirect to a CDN or another host.
-            .setAllowCrossProtocolRedirects(true)
-            .setDefaultRequestProperties(headers)
-            .createDataSource()
+        override fun createDataSource(): DataSource {
+            val http = DefaultHttpDataSource.Factory()
+                .setUserAgent(userAgent)
+                // Subsonic servers commonly redirect to a CDN or another host.
+                .setAllowCrossProtocolRedirects(true)
+                .setDefaultRequestProperties(headers)
+            // Streams arrive over HTTP, but a catalog can also hand us a local `content://`
+            // MediaStore URI. DefaultHttpDataSource cannot open one, so the scheme dispatch has
+            // to stay in front of it.
+            return DefaultDataSource.Factory(context, http).createDataSource()
+        }
     }
 
     private companion object {
