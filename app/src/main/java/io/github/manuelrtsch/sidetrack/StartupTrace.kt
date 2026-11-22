@@ -23,16 +23,23 @@ object StartupTrace {
         return SystemClock.elapsedRealtime() - start
     }
 
-    /** Phases already recorded; a recomposition must not turn one launch into fifty lines. */
-    private val seen = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    /**
+     * Phases already recorded; a recomposition must not turn one launch into fifty lines.
+     * Allocated on first mark, which a consumer build never reaches.
+     */
+    private val seen by lazy { java.util.Collections.synchronizedSet(mutableSetOf<String>()) }
 
     /** Records [phase] once per process, for marks inside composables. */
     fun once(phase: String) {
+        if (!SidetrackDebug.enabled) return
         if (seen.add(phase)) mark(phase)
     }
 
     /** Records [phase] with its distance from process start. */
     fun mark(phase: String) {
+        // The tag is off in a consumer build: reading the clocks and formatting a line that no
+        // one will see would be work on the launch path for nothing.
+        if (!SidetrackDebug.enabled) return
         val age = ageMs()
         SidetrackDebug.log(if (age >= 0) "startup $phase at +${age}ms" else "startup $phase")
     }
@@ -42,6 +49,7 @@ object StartupTrace {
      * rather than only on the total. Returns the block's value.
      */
     inline fun <T> measure(phase: String, block: () -> T): T {
+        if (!SidetrackDebug.enabled) return block()
         val began = SystemClock.elapsedRealtime()
         val value = block()
         SidetrackDebug.log { "startup $phase took ${SystemClock.elapsedRealtime() - began}ms" }
