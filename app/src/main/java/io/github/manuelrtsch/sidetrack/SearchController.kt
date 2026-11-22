@@ -104,6 +104,20 @@ internal class SearchController(
         search(debounceMs = 0L)
     }
 
+    /**
+     * Opens the result set on its first page. Every category of this query is cut back to
+     * [SEARCH_PAGE_SIZE] rows and reports more again, so re-entering the results never lands on a
+     * longer list than the one they opened with, and no request is made for it: the first page of
+     * each category is already cached under the query.
+     */
+    fun openResults() {
+        val query = store.value.query
+        val pages = store.value.searchPages[query] ?: return
+        val collapsed = pages.mapValues { (_, page) -> page.collapsed(SEARCH_PAGE_SIZE) }
+        if (collapsed == pages) return
+        store.update { it.copy(searchPages = it.searchPages + (query to collapsed)) }
+    }
+
     fun loadMoreSearch(scope: SearchScope) {
         val snapshot = store.value
         val query = snapshot.query

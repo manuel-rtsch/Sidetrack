@@ -62,7 +62,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         // Opening the Library paints from the cached category and only refetches when that
         // category is missing, failed, or older than the cache window. Coming back from a
         // playlist is therefore a repaint, not a round trip.
-        LaunchedEffect(Unit) { vm.ensureLibrary() }
+        LaunchedEffect(Unit) { vm.openLibrary() }
         LibraryScreen(
             library,
             saved,
@@ -129,7 +129,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val playlists by vm.playlistState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         val track = SidetrackPlaylistAdd.get(entry.arguments?.getString("key"))
-        LaunchedEffect(Unit) { vm.ensurePlaylistChoices() }
+        LaunchedEffect(Unit) { vm.openPlaylistChoices() }
         AddToPlaylistScreen(
             track,
             playlists,
@@ -156,7 +156,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val mediaKey = MediaKey.decode(entry.arguments?.getString("key").orEmpty())
         val type = mediaKey?.type?.toCollectionType()
         val id = mediaKey?.id.orEmpty()
-        LaunchedEffect(mediaKey) { mediaKey?.let { vm.ensureCollection(it) } }
+        LaunchedEffect(mediaKey) { mediaKey?.let { vm.openCollection(it) } }
         val collection = mediaKey?.let { vm.collection(it) }
         if (collection == null) {
             val key = mediaKey?.encode()
@@ -300,7 +300,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         val artistKey = MediaKey.decode(entry.arguments?.getString("key").orEmpty())
         val artistId = artistKey?.id.orEmpty()
-        LaunchedEffect(artistKey) { artistKey?.let { vm.ensureArtist(it.id) } }
+        LaunchedEffect(artistKey) { artistKey?.let { vm.openArtist(it.id) } }
         val artist = artistKey?.let { vm.artist(it.id) }
         if (artist == null) {
             MissingCollectionScreen(
@@ -388,6 +388,9 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val search by vm.searchState.collectAsStateWithLifecycle()
         val saved by vm.savedState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
+        // Opening the results puts every category back on its first page: a result set left paged
+        // deeper is not the list it was entered on.
+        LaunchedEffect(Unit) { vm.openSearchResults() }
         SearchResultsScreen(
             search,
             saved,

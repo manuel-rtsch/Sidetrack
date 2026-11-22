@@ -61,6 +61,31 @@ class PlaylistControllerTest {
     }
 
     @Test
+    fun `the picker reopens on its first page`() = runTest {
+        val firstPage = (1..CATALOG_PAGE_SIZE).map { playlist("p$it", PlaylistActions.All) }
+        val secondPage = (CATALOG_PAGE_SIZE + 1..CATALOG_PAGE_SIZE + 5).map { playlist("p$it", PlaylistActions.All) }
+        val catalog = FakeCatalog(
+            playlistPages = mapOf(0 to firstPage, CATALOG_PAGE_SIZE to secondPage)
+        )
+        val store = store()
+        val controller = controller(catalog, store, this)
+
+        controller.ensureChoices()
+        advanceUntilIdle()
+        controller.loadMoreChoices()
+        advanceUntilIdle()
+        assertEquals(CATALOG_PAGE_SIZE + 5, store.value.playlistChoices.size)
+
+        controller.openChoices()
+        advanceUntilIdle()
+
+        // The picker's cursor counts catalog rows, so an expanded list is refetched from the top
+        // rather than truncated: it opens on one page, with the rest offered again.
+        assertEquals(CATALOG_PAGE_SIZE, store.value.playlistChoices.size)
+        assertEquals(listOf(0, CATALOG_PAGE_SIZE, 0), catalog.requestedOffsets)
+    }
+
+    @Test
     fun `add reports the index and invalidates the target collection`() = runTest {
         val target = playlist("target", PlaylistActions.All)
         val cacheKey = target.key.encode()
@@ -80,7 +105,7 @@ class PlaylistControllerTest {
         assertEquals(second, writer.addedItem)
         assertTrue(cacheKey !in store.value.collections)
         assertEquals(2, store.value.playlistRow("target").trackCount)
-        assertEquals("Added ${second.title} to ${target.name}", store.value.notice)
+        assertEquals("Added track to ${target.name}", store.value.notice)
         assertEquals(NoticeKind.Success, store.value.noticeKind)
     }
 

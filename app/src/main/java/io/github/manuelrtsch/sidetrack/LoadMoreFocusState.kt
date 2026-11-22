@@ -30,6 +30,10 @@ import hrln.interactive.sidekit.design.components.SidekitTile
 import hrln.interactive.sidekit.design.components.container
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import io.github.manuelrtsch.sidetrack.ui.LinkArrow
+import io.github.manuelrtsch.sidetrack.ui.VinylSpinner
+
+/** What a screen reader hears where a footer is drawing its spinner. */
+private const val LOADING_DESCRIPTION = "Loading…"
 
 /**
  * A compact navigation row for list-level actions such as "See more", "Search in" and the
@@ -37,8 +41,16 @@ import io.github.manuelrtsch.sidetrack.ui.LinkArrow
  * draws its link arrow at `spacing.iconSize` and Sidetrack rows share a narrower one.
  *
  * [linkArrow] defaults to showing the arrow only when the row has no [secondary] value beside it:
- * a row with something on the right reads as a value, not as a link; a row that cannot be pressed
- * never shows one.
+ * a row that already shows something on the right ("Search in" with its scope) reads as a value,
+ * not as a link. A footer that reports a status in [secondary] passes `true` to keep its arrow.
+ * A row that cannot be pressed never shows one.
+ *
+ * [loading] puts the record spinner where the arrow sits and takes the arrow away for the duration.
+ * A footer that says "Loading…" in words has a title of unknown length beside it, so the words
+ * were the first thing to be truncated at exactly the moment the row had something to say. The
+ * spinner is a fixed square: it cannot be squeezed, and it reads the same on every list. While it
+ * turns the row shows one picture, the record, rather than a record beside an arrow that does
+ * nothing until the page has arrived.
  */
 @Composable
 fun TerminalRow(
@@ -47,7 +59,8 @@ fun TerminalRow(
     secondary: String? = null,
     /** Overrides the muted trailing value, e.g. on a coloured surface where it would disappear. */
     secondaryColor: Color? = null,
-    linkArrow: Boolean = secondary == null,
+    loading: Boolean = false,
+    linkArrow: Boolean = secondary == null && !loading,
     onClick: (() -> Unit)? = null
 ) {
     SidekitTile(
@@ -63,10 +76,18 @@ fun TerminalRow(
         ) {
             SidekitText(
                 label,
+                // While loading the spinner keeps its size beside the label, so the label is the
+                // part that gives way. Left unweighted it would take the whole row, and the fixed
+                // square after it would measure to nothing.
+                if (loading) Modifier.weight(1f) else Modifier,
                 style = SidekitTheme.typography.bodySmall,
                 maxLines = 1
             )
-            if (secondary != null) {
+            if (loading) {
+                // The label above carries the weight while loading, so the spinner is pushed to the
+                // end of the row: the arrow's slot, held by the thing that is actually happening.
+                VinylSpinner(describeAs = LOADING_DESCRIPTION)
+            } else if (secondary != null) {
                 SidekitText(
                     secondary,
                     Modifier.weight(1f),
@@ -78,7 +99,7 @@ fun TerminalRow(
                     textAlign = TextAlign.End
                 )
             }
-            if (linkArrow && onClick != null) {
+            if (linkArrow && !loading && onClick != null) {
                 // Without a value beside it the arrow takes the slack and sits at the end; with one
                 // it keeps its own width so the value is not squeezed into half the row.
                 Box(
@@ -192,9 +213,9 @@ fun LoadMoreRow(
     TerminalRow(
         label,
         modifier = rowModifier,
-        secondary = if (loading) "Loading…" else null,
-        // The arrow stays while the page is in flight: the row is still the thing the user pressed,
-        // and the status sits beside it rather than in place of it.
+        loading = loading,
+        // The arrow is only for the idle row; TerminalRow swaps the spinner into its slot while the
+        // page is in flight, so the footer never shows both.
         linkArrow = true,
         // Keep the row clickable while the page is in flight. A non-clickable row is not
         // focusable, so turning it off would drop the keypad and let focus search land up the
@@ -209,7 +230,7 @@ fun SeeMoreRow(label: String, loading: Boolean, onClick: () -> Unit, modifier: M
     TerminalRow(
         label,
         modifier = modifier,
-        secondary = if (loading) "Loading…" else null,
+        loading = loading,
         linkArrow = true,
         // Same rule as the Load more row: a row that turns non-clickable while loading also stops
         // being focusable, which drops the keypad off the footer.

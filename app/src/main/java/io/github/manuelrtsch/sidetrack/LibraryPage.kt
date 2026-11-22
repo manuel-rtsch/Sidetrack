@@ -35,3 +35,13 @@ data class LibraryPage(
      */
     val isExpanded: Boolean get() = items.size > CATALOG_PAGE_SIZE
 }
+
+/**
+ * The page as its list opens: the first [pageSize] rows and the footer back in place.
+ *
+ * A cached list that was paged deeper is dropped to its first page when its screen is opened
+ * again, so coming back to Library, to a playlist or to a search result set never lands on a
+ * longer list than the one it opened with. Nothing has to be fetched for that: the first page is
+ * already here, and the footer offers the rest back on request.
+ */
+internal fun LibraryPage.collapsed(pageSize: Int): LibraryPage = if (items.size <= pageSize) this else copy(items = items.take(pageSize), hasMore = true)
