@@ -182,6 +182,34 @@ class PlaybackControllerTest {
         assertEquals(2, gateway.loads)
     }
 
+    @Test fun `a deferred reconfigure says it will apply on pause`() = runTest {
+        val gateway = FakeGateway()
+        val playback = librespotPlaybackController(
+            gateway,
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            MediaSessionRegistry()
+        )
+        playback.setNowPlaying(
+            Track(
+                id = "a",
+                title = "A",
+                artist = "Artist",
+                artistId = "artist",
+                albumId = "album",
+                artRes = 0,
+                durationMs = 180_000L,
+                uri = "spotify:track:a"
+            ),
+            12_000L
+        )
+        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 12_000L)
+
+        playback.reconfigure()
+
+        // The audible effect is postponed, so the toggle has to say something or it reads as broken.
+        assertEquals("Audio settings apply when playback pauses", playback.notice.value)
+    }
+
     @Test fun `a deferred reconfigure applies on pause`() = runTest {
         val gateway = FakeGateway()
         val playback = librespotPlaybackController(

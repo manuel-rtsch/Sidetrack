@@ -65,6 +65,13 @@ interface PlaybackEngine {
     /** Rebuilds the player after a settings change and reloads [source] when present. */
     suspend fun reconfigure(source: PlaybackSource?, positionMs: Long, wasPlaying: Boolean): Boolean
 
+    /**
+     * True when [reconfigure] returned false because the change is waiting for a silent moment
+     * rather than because there was nothing to rebuild. Engines that always apply immediately
+     * leave it false.
+     */
+    val reconfigureDeferred: Boolean get() = false
+
     suspend fun disconnect()
 
     /** One engine event, or null when nothing has happened since the last poll. */

@@ -499,7 +499,15 @@ class PlaybackController(
         val wasPlaying = playing
         SidetrackDebug.log("reconfigure uri=${source?.uri} positionMs=$position wasPlaying=$wasPlaying")
         val rebuilt = engine.reconfigure(source, position, wasPlaying)
-        if (!rebuilt) return
+        if (!rebuilt) {
+            // A bitrate or normalization change that does nothing and says nothing reads as a
+            // broken control; it is applied at the next moment the sink is silent.
+            if (engine.reconfigureDeferred) {
+                SidetrackDebug.log("reconfigure deferred; telling the user")
+                emitNotice(NOTICE_RECONFIGURE_DEFERRED)
+            }
+            return
+        }
         playing = wasPlaying
         publish()
     }
@@ -560,5 +568,8 @@ class PlaybackController(
          * rebuild can take several seconds to report `playing`; the field log shows 8.5 s.
          */
         const val COMMAND_CONFIRM_TIMEOUT_MS = 12_000L
+
+        /** Said once when an audio setting cannot be applied until playback goes silent. */
+        const val NOTICE_RECONFIGURE_DEFERRED = "Audio settings apply when playback pauses"
     }
 }

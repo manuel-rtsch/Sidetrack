@@ -41,6 +41,7 @@ class LibrespotPlaybackEngine(
      * the sink and fetches the item again, which is audible, so it waits for a moment that is already
      * silent: the next start that resets the sink, or the next pause.
      */
+    @Volatile
     private var reconfigurePending = false
 
     /**
@@ -163,6 +164,8 @@ class LibrespotPlaybackEngine(
         runCatching { gateway.preload(source.uri) }
             .onFailure { SidetrackDebug.log("engine.preload failed", it) }
     }
+
+    override val reconfigureDeferred: Boolean get() = reconfigurePending
 
     override suspend fun reconfigure(
         source: PlaybackSource?,
