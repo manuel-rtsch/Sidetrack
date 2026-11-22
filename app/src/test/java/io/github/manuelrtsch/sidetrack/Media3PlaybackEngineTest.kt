@@ -90,17 +90,18 @@ class Media3PlaybackEngineTest {
         assertEquals(PlaybackEvent.Ended("http://host/a"), engine.pollEvent())
     }
 
-    @Test fun `a player error reports unavailable and notifies the controller`() = runTest {
+    @Test fun `a player error reports unavailable without taking the stall path`() = runTest {
         val player = FakeMedia3Player()
         val engine = Media3PlaybackEngine { player }
         var failure: Throwable? = null
         engine.onFailure = { failure = it }
         engine.start(PlaybackSource("a", "http://host/a"), 0L)
 
-        val error = IllegalStateException("decoder")
-        player.emitError(error)
+        player.emitError(IllegalStateException("decoder"))
 
-        assertSame(error, failure)
+        // The owner skips the item from the event; treating it as a silent drain would stop the
+        // player and retry the same unplayable source.
+        assertNull(failure)
         assertFalse(engine.state.value.isPlaying)
         assertEquals(PlaybackEvent.Unavailable("http://host/a"), engine.pollEvent())
     }

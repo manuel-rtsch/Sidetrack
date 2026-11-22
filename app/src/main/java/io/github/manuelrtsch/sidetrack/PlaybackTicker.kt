@@ -1,7 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
 import io.github.manuelrtsch.sidetrack.data.ServiceRuntime
-import io.github.manuelrtsch.sidetrack.data.nativeAvailable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -13,9 +12,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Drives the playback clock. With a native player it polls events and advances the seek bar only
- * while the UI is on screen and playing; without one it simulates progress so local fixtures still
- * move.
+ * Drives the playback clock. A real player (librespot or Media3) reports its own events, so the
+ * ticker polls them and advances the seek bar only while the UI is on screen and playing. A
+ * fixture, or a build without a player, falls back to a simulated clock.
  */
 internal class PlaybackTicker(
     private val scope: CoroutineScope,
@@ -28,9 +27,9 @@ internal class PlaybackTicker(
 ) {
     fun start() {
         val runtime = session
-        if (runtime == null || !runtime.nativeAvailable) {
+        if (runtime == null || !runtime.drivesPlaybackEvents) {
             if (simulatePlayback) {
-                // Local fixtures and builds without the native library still need a moving progress bar.
+                // Local fixtures and builds without a player still need a moving progress bar.
                 scope.launch {
                     // Suspend on the playing flag instead of polling: a paused player costs no wakeups.
                     while (true) {
@@ -44,7 +43,7 @@ internal class PlaybackTicker(
             }
         } else {
             scope.launch {
-                // Native events only matter while something is playing. Poll tight when active, back
+                // Player events only matter while something is playing. Poll tight when active, back
                 // off to a slow heartbeat when idle so this does not run forever on the main path.
                 while (true) {
                     delay(if (store.value.isPlaying) 300L else 3_000L)

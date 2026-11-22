@@ -18,12 +18,12 @@ class MusicServiceTest {
         assertEquals(
             listOf(
                 ServiceId.Jellyfin,
+                ServiceId.Device,
                 ServiceId.Navidrome,
                 ServiceId.NextcloudMusic,
                 ServiceId.Plex,
                 ServiceId.Spotify,
-                ServiceId.Subsonic,
-                ServiceId.Device
+                ServiceId.Subsonic
             ),
             KnownServices.map { it.id }
         )
@@ -33,7 +33,7 @@ class MusicServiceTest {
         assertEquals("Nextcloud Music", KnownServices.first { it.id == ServiceId.NextcloudMusic }.displayName)
         assertEquals("Subsonic", KnownServices.first { it.id == ServiceId.Subsonic }.displayName)
         assertEquals("Jellyfin", KnownServices.first { it.id == ServiceId.Jellyfin }.displayName)
-        assertEquals("This device", KnownServices.first { it.id == ServiceId.Device }.displayName)
+        assertEquals("Local library", KnownServices.first { it.id == ServiceId.Device }.displayName)
         // The picker sorts by the label it renders, so the welcome list reads A–Z.
         assertEquals(
             KnownServices.map { it.displayName }.sortedBy { it.lowercase() },

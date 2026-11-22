@@ -44,12 +44,12 @@ class AppSessionsTest {
         assertEquals(
             listOf(
                 ServiceId.Jellyfin,
+                ServiceId.Device,
                 ServiceId.Navidrome,
                 ServiceId.NextcloudMusic,
                 ServiceId.Plex,
                 ServiceId.Spotify,
-                ServiceId.Subsonic,
-                ServiceId.Device
+                ServiceId.Subsonic
             ),
             KnownServices.map { it.id }
         )

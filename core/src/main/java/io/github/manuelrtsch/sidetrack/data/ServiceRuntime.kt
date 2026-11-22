@@ -34,6 +34,15 @@ interface ServiceRuntime {
     val signedIn: StateFlow<Boolean>
     val network: NetworkMonitor?
     val isOnline: Boolean
+
+    /**
+     * True when this runtime's player reports its own lifecycle events (loading, playing, paused,
+     * ended, errors). The ticker polls those runtimes instead of advancing a simulated clock, so
+     * the bar, the media session and the end-of-track advance follow the real player rather than
+     * a stopwatch. Fixtures and remote-control sessions leave it false.
+     */
+    val drivesPlaybackEvents: Boolean get() = false
+
     val resumePoint: ResumePoint?
     val episodeProgress: EpisodeProgressRepository
     val episodeMeta: EpisodeMetaRepository

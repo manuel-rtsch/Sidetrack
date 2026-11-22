@@ -129,6 +129,9 @@ class SpotifySession(
 
     override val nativeAvailable: Boolean get() = native.isAvailable
 
+    /** librespot is the player only while the bridge is loadable; otherwise Web API control wins. */
+    override val drivesPlaybackEvents: Boolean get() = nativeAvailable
+
     /** One line per failed access-point connection, in a file the user can share. */
     private val connectDiagnostics by lazy { appContext?.let(::ConnectDiagnostics) }
 

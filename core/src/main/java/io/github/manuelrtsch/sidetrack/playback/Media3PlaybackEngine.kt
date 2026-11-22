@@ -121,8 +121,10 @@ class Media3PlaybackEngine(
         override fun onPlayerError(error: Throwable) {
             SidetrackDebug.log("media3 player error", error)
             _state.update { it.copy(isPlaying = false, isBuffering = false) }
+            // A refused item is queued as Unavailable so the owner skips it. It must not go through
+            // onFailure: that is the librespot drain's reconnect path, and this player has no drain
+            // to reconnect — it would stop playback and leave the item in place.
             events.add(PlaybackEvent.Unavailable(activeSource?.uri))
-            onFailure(error)
         }
     }
 

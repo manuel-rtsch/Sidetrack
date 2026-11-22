@@ -54,6 +54,9 @@ abstract class Media3ServiceRuntime(
      */
     open override val isOnline: Boolean get() = network.isOnline
 
+    /** ExoPlayer reports loading, playing, ended and errors through [PlaybackController.pollEvent]. */
+    override val drivesPlaybackEvents: Boolean get() = true
+
     private val settingsStore = PlaybackSettingsStore(appContext, stores.settings)
 
     /**

@@ -58,6 +58,9 @@ class PlaybackController(
     var current: MediaItem? = null
         private set
 
+    /** The queue the platform session advertises, so lock-screen transport has a real list. */
+    private var queueItems: List<MediaItem> = emptyList()
+
     /**
      * The resolved source for [current]. HTTP services keep their stream URL and auth headers
      * here; a service's source is just its URI. [reconfigure] reloads this, not the item's URI.
@@ -242,6 +245,7 @@ class PlaybackController(
         engine.updatePosition(position)
         artJob?.cancel()
         notificationArt = null
+        sessionBinder.setQueue(queueItems, current)
         sessionBinder.updateMetadata(current, notificationArt)
         publish()
         val artUrl = item?.artUrl.mediaTextOrNull()
@@ -273,10 +277,23 @@ class PlaybackController(
         publish()
     }
 
-    /** Keeps the playback owner's position in step with the UI clock without publishing. */
+    /**
+     * Keeps the owner and the media session on the UI clock's position. Metadata is not re-sent;
+     * the binder throttles the state write.
+     */
     fun updatePosition(position: Long) {
         positionMs = position
         engine.updatePosition(position)
+        sessionBinder.publishPosition(position, playing)
+    }
+
+    /**
+     * Replaces the queue the platform session shows and marks [current] as its active item. Only
+     * a changed queue triggers a state write here; a track change publishes in [setNowPlaying].
+     */
+    fun setSessionQueue(items: List<MediaItem>, current: MediaItem?) {
+        queueItems = items
+        if (sessionBinder.setQueue(items, current)) publish()
     }
 
     /**

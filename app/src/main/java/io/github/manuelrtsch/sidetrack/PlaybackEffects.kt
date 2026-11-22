@@ -74,6 +74,12 @@ internal class PlaybackEffects(
                 recent = if (historyChanged) history.items() else it.recent
             )
         }
+        // Lock-screen and external controllers read the queue from the session. Previous items
+        // come first so the active id still points at the item playing now.
+        playback()?.setSessionQueue(
+            snapshot.history.reversed() + listOfNotNull(snapshot.current) + snapshot.upcoming,
+            snapshot.current
+        )
         if (syncNowPlaying) {
             playback()?.setNowPlaying(snapshot.current, positionMs ?: clock.value)
         }

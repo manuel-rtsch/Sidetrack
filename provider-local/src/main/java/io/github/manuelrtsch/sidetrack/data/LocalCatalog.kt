@@ -325,7 +325,7 @@ class LocalCatalog(
         return Playlist(
             id = STORE_PREFIX + id,
             name = name,
-            owner = "This device",
+            owner = "Local library",
             ownerId = null,
             artRes = 0,
             tracks = tracks,

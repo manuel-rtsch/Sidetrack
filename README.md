@@ -52,9 +52,9 @@ Open `Library → Settings → App Packs → +` and scan the code, or enter `htt
 
 ## Supported services
 
-Sidetrack remembers your service until you sign out. Spotify and Plex sign in through the browser; the server entries take a server address, a username and a password; **This device** asks for access to the phone's music library. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
+Sidetrack remembers your service until you sign out. Spotify and Plex sign in through the browser; the server entries take a server address, a username and a password; **Local library** asks for access to the phone's music library. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
 
-| | Spotify | Subsonic family | Jellyfin | Plex | This device |
+| | Spotify | Subsonic family | Jellyfin | Plex | Local library |
 | --- | --- | --- | --- | --- | --- |
 | Radio | Song radio from any seed | Similar songs | Instant Mix | — | — |
 | Podcasts | ✅ | ❌ | ❌ | ❌ | ❌ |

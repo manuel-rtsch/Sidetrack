@@ -20,7 +20,7 @@ leads to an empty page.
 
 ## Overview
 
-| Capability | Spotify | Subsonic family | Jellyfin | Plex | This device |
+| Capability | Spotify | Subsonic family | Jellyfin | Plex | Local library |
 | --- | :---: | :---: | :---: | :---: | :---: |
 | Library sections | Liked, Playlists, Albums, Artists, Shows | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists | Liked, Playlists, Albums, Artists |
 | Search scopes | Tracks, Artists, Albums, Playlists, Shows | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists | Tracks, Artists, Albums, Playlists |
@@ -228,7 +228,7 @@ Not supported: podcasts, song radio (the server generation returns no mix), foll
 playlist creation, loudness normalization, gapless, quality selection (v1 plays the original
 part).
 
-## This device
+## Local library
 
 The music already on the phone, read through `MediaStore` rather than a directory walk: the media
 database is the index over the music directory, it is what scoped storage lets an app read, and its

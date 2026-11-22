@@ -71,6 +71,6 @@ class LocalAuth(private val context: Context) : RuntimeAuth {
     )
 
     companion object {
-        const val DISPLAY_NAME = "This device"
+        const val DISPLAY_NAME = "Local library"
     }
 }
