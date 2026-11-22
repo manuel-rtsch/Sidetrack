@@ -36,3 +36,7 @@ panic = "abort"
 
 [patch.crates-io]
 librespot-core = { path = "../vendor/librespot-core" }
+# hyper-proxy2 0.1.0 is the only published release and pins hyper-rustls 0.26, which drags in
+# rustls 0.22 and rustls-webpki 0.102. Upstream main already moved to hyper-rustls 0.27 but was
+# never released, so the bump is carried here.
+hyper-proxy2 = { path = "../vendor/hyper-proxy2" }

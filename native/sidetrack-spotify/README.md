@@ -38,3 +38,22 @@ incompatible `vergen-lib`. Do not update that crate without rebuilding Android t
 One minimal librespot-core patch is applied through `native/vendor/librespot-core` (platform
 constant set to `"linux"` so Login5/client-token requests match the desktop client id).
 Upstream MIT licence: `LICENSE-librespot`.
+
+`native/vendor/hyper-proxy2` carries the other patch, and it exists to keep one TLS stack in the
+APK. librespot-core routes every request through `hyper-proxy2` for proxy support, and the only
+published release (0.1.0, Jan 2024) pins `hyper-rustls` 0.26, which resolves to `rustls` 0.22 and
+`rustls-webpki` 0.102. Those two carried seven Dependabot advisories while librespot's own
+`hyper-rustls` 0.27 already shipped the fixed `rustls` 0.23. Upstream moved to 0.27 in commit
+`ey/bump-tokio-rustls` but never cut a release, so the bump is vendored here:
+
+- `hyper-rustls` 0.27, `tokio-rustls` 0.26, `rustls-native-certs` 0.8, `webpki-roots` 1.0.
+- `hyper-rustls` and `tokio-rustls` are taken with `default-features = false` and `ring` enabled.
+  Both switched their default crypto provider to `aws-lc-rs` in these majors, which would drag
+  `aws-lc-sys` and `cmake` into the NDK build; librespot already selects `ring`.
+- The `webpki` 0.22 dependency is dropped. Nothing in the crate references it — it was only ever
+  listed in the `rustls-base` feature — and it is the crate the advisories were about.
+
+The `Cargo.lock` now resolves a single `rustls` 0.23.46 and `rustls-webpki` 0.103.16. When
+librespot is upgraded, drop this patch if the release depends on a `hyper-proxy2` that already
+uses `hyper-rustls` 0.27, or re-apply the same bump to the new source.
+Upstream MIT licence: `LICENSE-hyper-proxy2`.
