@@ -1,6 +1,9 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelectable
 import androidx.compose.ui.test.assertIsSelected
@@ -25,6 +28,15 @@ class AccessibilitySemanticsTest {
         }
 
         compose.onNodeWithText("Autoplay").assertIsToggleable().assertIsOn()
+    }
+
+    @Test
+    fun sectionLabelsExposeAHeading() {
+        compose.setContent { SidekitPreviewFrame { SectionLabel("Recent searches") } }
+
+        // The label is drawn uppercase; the heading flag is what the reading gesture reads.
+        compose.onNodeWithText("RECENT SEARCHES")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Heading, Unit))
     }
 
     @Test

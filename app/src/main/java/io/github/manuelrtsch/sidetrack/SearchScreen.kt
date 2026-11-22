@@ -33,6 +33,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.ActionMotion
 import hrln.interactive.sidekit.design.action.ActionTone
@@ -47,6 +49,7 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.input.KeypadModule
 import hrln.interactive.sidekit.design.input.LocalKeypad
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import hrln.interactive.sidekit.sdk.ui.PauseUndoWhileHidden
 import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
 import io.github.manuelrtsch.sidetrack.ui.SidekitSwipeRow
@@ -80,6 +83,12 @@ fun SearchScreen(
     onClearHistory: () -> Unit = {},
     onRestoreHistory: (List<String>) -> Unit = {},
     focusDismissed: Boolean = false,
+    /**
+     * Whether the on-screen keyboard is up. Read from the window by default; the soft keyboard is an
+     * overlay and this screen gives up everything but the field and the category row to it. Passed
+     * explicitly by tests, because WindowInsets cannot be faked and Sidekit's own seam is internal.
+     */
+    keyboardVisible: Boolean = WindowInsets.isImeVisible,
     onDismissFocus: () -> Unit = {},
     onRestoreFocus: () -> Unit = {},
     onUndoQueueReplace: () -> Unit = {}
@@ -91,15 +100,28 @@ fun SearchScreen(
     val canSearch = term.length >= 2
     // One way to submit, shared by the Search action, the IME's Done and the keypads that have no
     // letters of their own (A on the game controller, centre on the Sundial).
+    val focusManager = LocalFocusManager.current
     val submit = {
         if (canSearch) {
             field.setTextAndPlaceCursorAtEnd(term)
             onSearch(term)
+        } else {
+            // Done below two letters means "I have finished typing", not "search anyway": there is
+            // nothing to search. Taking the keyboard away is the only visible answer to it, and it
+            // gives the bar back — the screen keeps no actions while the keyboard is up, so Done
+            // was otherwise a key that did nothing. The keypads already behave this way: their
+            // typing bar's Done leaves the field whatever the term is.
+            focusManager.clearFocus()
         }
     }
-    // The soft keyboard is an overlay, and this screen is small: with it up, the only things worth
-    // the remaining height are the field and the category row. The bar returns when it is down.
-    val keyboardVisible = WindowInsets.isImeVisible
+    // A term too short to search is told to the field rather than only to the page: Done does
+    // nothing with it, and the hint that would have said why is the first thing the keyboard
+    // covers.
+    val tooShort = searchFieldStateDescription(typed)
+    // The field's label is only spelled out once the placeholder is gone. BasicTextField merges its
+    // decoration box, so the empty field's placeholder is already its own node's text and reads as
+    // "Search"; describing it as "Search" as well made TalkBack say the word twice.
+    val fieldLabel = if (typed.isEmpty()) null else "Search"
     // Keep an abandoned draft in the shared state: leaving to change categories (or going back to
     // Home and returning) must show the text that was typed, not the last submitted term.
     LaunchedEffect(typed) { onDraftQuery(typed) }
@@ -114,6 +136,10 @@ fun SearchScreen(
     var clearedHistory by remember { mutableStateOf<List<String>?>(null) }
     val undoWindow = rememberUndoWindow { clearedHistory = null }
     UndoWindowLifecycle(undoWindow) { clearedHistory = null }
+    // The offer lives in the bar, and the bar is not what is drawn while the keyboard owns the
+    // screen: without this the five seconds ran out behind the IME and the Undo that came back was
+    // already gone. The typing keypad's bar replaces this one the same way and is not covered.
+    PauseUndoWhileHidden(undoWindow, shown = !keyboardVisible, pending = clearedHistory != null)
     // The summary describes what the next search will actually look at: a category the service
     // cannot answer is never part of the choice, so all of the answerable ones in means
     // "Everything". The right side must stay on one line, so when one category is left out it is
@@ -209,7 +235,10 @@ fun SearchScreen(
             ) {
                 SidekitTextField(
                     field,
-                    Modifier.fillMaxWidth().semantics { contentDescription = "Search" }
+                    Modifier.fillMaxWidth().semantics {
+                        if (fieldLabel != null) contentDescription = fieldLabel
+                        if (tooShort != null) stateDescription = tooShort
+                    }
                         // Coming back to the field is the user asking for the keyboard; leaving it
                         // after typing is the user putting it away.
                         .onFocusChanged { focus ->
@@ -286,20 +315,39 @@ fun SearchScreen(
                     }
                 }
             } else {
-                item(key = "hint") {
-                    EmptyMessage(
-                        when {
-                            typed.isBlank() -> "Type at least two letters"
-                            typed.trim().length < 2 -> "Keep typing"
-                            else -> "Press Done to search"
-                        },
-                        Modifier.listFade(listState, 1)
-                    )
+                val hint = searchHint(typed, keyboardVisible)
+                if (hint != null) {
+                    item(key = "hint") { EmptyMessage(hint, Modifier.listFade(listState, 1)) }
                 }
             }
         }
     }
 }
+
+/**
+ * The line under "Search in" while there is no history to show, or null when there is nothing to
+ * say. With the on-screen keyboard up the hint would sit under the IME, cut in half: the body is
+ * only as tall as the keyboard leaves it, and the hint is what falls past the edge. Nothing is
+ * lost by dropping it there, since the field and the IME's own Done are the whole interaction; a
+ * keypad screen never puts the keyboard over the page.
+ */
+internal fun searchHint(typed: String, keyboardVisible: Boolean): String? = when {
+    keyboardVisible -> null
+    typed.isBlank() -> "Type at least two letters"
+    typed.trim().length < 2 -> "Keep typing"
+    else -> "Press Done to search"
+}
+
+/**
+ * What the field itself says about a term that is not searchable yet, or null when it is.
+ *
+ * The hint below "Search in" is drawn, so a screen reader only hears it by exploring there, and
+ * with the keyboard up it is not drawn at all. The rule lives on the field instead, where it is
+ * read with the text it applies to, and only while it is violated: an empty field keeps the
+ * placeholder's plain "Search" rather than repeating the standing instruction.
+ */
+internal fun searchFieldStateDescription(typed: String): String? =
+    if (typed.isNotBlank() && typed.trim().length < 2) "Keep typing, at least two letters" else null
 
 /**
  * Whether the landing field takes the keyboard when the screen opens. A term already there is

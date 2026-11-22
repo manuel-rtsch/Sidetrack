@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.components.SidekitText
 import hrln.interactive.sidekit.design.components.SidekitTile
@@ -29,7 +31,12 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     SidekitText(
         text.uppercase(),
         // Keep the label sitting the same distance inside the row content it heads.
-        modifier.padding(start = rememberMediaRowMetrics().horizontalPadding + 3.dp, top = 7.dp, bottom = 1.dp),
+        modifier
+            .padding(start = rememberMediaRowMetrics().horizontalPadding + 3.dp, top = 7.dp, bottom = 1.dp)
+            // Uppercase and the gap above carry the section start for the eye only. Heading is what
+            // a screen reader's heading gesture jumps between, and every call site is a section
+            // start: recently played, top tracks, albums, up next, recent searches, categories.
+            .semantics { heading() },
         style = SidekitTheme.typography.small,
         color = SidekitTheme.colors.surfaceA6
     )
