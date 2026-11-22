@@ -464,6 +464,17 @@ class SpotifyViewModelEventTest {
         assertNull(vm.state.value.notice)
     }
 
+    @Test fun `next at the end of the queue says so instead of doing nothing`() = runTest(dispatcher) {
+        val vm = viewModel()
+        val track = MockSpotifyDataSource.recentlyPlayed.first()
+        vm.playItem(track)
+
+        vm.next()
+
+        assertEquals(track.id, vm.state.value.current?.id)
+        assertEquals("End of queue", vm.state.value.notice)
+    }
+
     private fun event(raw: String): PlaybackEvent = PlaybackEvent.fromJson(raw)
 
     private fun viewModel() = SidetrackViewModel(SpotifyMediaCatalog(MockSpotifyDataSource), simulatePlayback = false).also { viewModels += it }

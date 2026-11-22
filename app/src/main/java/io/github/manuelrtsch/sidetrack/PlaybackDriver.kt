@@ -182,12 +182,20 @@ internal class PlaybackDriver(
         clearReplacedQueue()
         val before = store.value.current
         val snapshot = queue.next(auto = false)
-        if (snapshot.current !== before) {
-            val next = snapshot.current
-            val resume = next?.let(effects::itemStartPosition) ?: 0L
-            effects.applyQueue(snapshot, positionMs = resume, playing = next?.playable == true)
-            next?.let { startRemote(it, resume, resuming = resume > 0L) }
+        if (snapshot.current === before) {
+            // The repository has nothing to move to, which is the last item of the queue unless
+            // repeat is on. Staying silent made a working key look broken; a press on a finished
+            // queue is still a request for the next track.
+            if (before != null) {
+                SidetrackDebug.log("next refused: end of queue id=${before.id}")
+                notifier.say("End of queue")
+            }
+            return
         }
+        val next = snapshot.current
+        val resume = next?.let(effects::itemStartPosition) ?: 0L
+        effects.applyQueue(snapshot, positionMs = resume, playing = next?.playable == true)
+        next?.let { startRemote(it, resume, resuming = resume > 0L) }
     }
 
     fun previous() {
