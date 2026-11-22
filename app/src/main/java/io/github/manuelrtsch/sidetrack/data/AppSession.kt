@@ -14,12 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Every service this build can provision, in the order the picker offers them.
- *
- * The Subsonic family is listed once per server product even though one adapter serves them all,
- * because the entry a user picks is what they recognise; the id keeps their credentials, library
- * and local stores apart from the other entries. The picker sorts alphabetically by what the row
- * says, so a new entry lands where a user would look for it instead of at the end of a list.
+ * Every service this build can provision. The Subsonic family is listed once per server product even
+ * though one adapter serves them all, because the entry is what a user recognises, while the id keeps
+ * their credentials and stores apart. The picker sorts alphabetically by label.
  */
 val KnownServices: List<ServiceChoice> = buildList {
     add(ServiceChoice(SpotifyService.id, SpotifyService.DISPLAY_NAME))
@@ -34,9 +31,9 @@ fun serviceChoice(id: ServiceId): ServiceChoice? = KnownServices.firstOrNull { i
 /**
  * Process-wide app session for the one selected service.
  *
- * A service is chosen once, before sign-in, and remembered. Only that service's runtime is ever
- * built, so no other provider keeps a media session, a queue or a store open behind the UI.
- * Changing services means signing out first, which is the only way back to the picker.
+ * A service is chosen once, before sign-in, and remembered, so no other provider keeps a media
+ * session, a queue or a store open behind the UI. Changing services means signing out first, which
+ * is the only way back to the picker.
  */
 class AppSession internal constructor(
     private val store: ActiveServiceStore?
@@ -62,8 +59,8 @@ class AppSession internal constructor(
     val runtimeOrNull: ServiceRuntime? get() = installed?.runtime
 
     /**
-     * The selected runtime. Only screens behind provisioning may ask for this; the launch path
-     * checks [provisioned] first, so a missing service is a programming error, not a user state.
+     * Only screens behind provisioning may ask for this: the launch path checks [provisioned] first,
+     * so a missing service is a programming error, not a user state.
      */
     val runtime: ServiceRuntime
         get() = installed?.runtime ?: error("No music service is selected yet")
@@ -137,13 +134,13 @@ object AppSessions {
     fun select(context: Context, id: ServiceId): Boolean {
         val app = get(context)
         val choice = serviceChoice(id) ?: return false
-        // Re-selecting the service that is already installed keeps its runtime: signing out
-        // cleared the credentials, and rebuilding a native session to show the same form is waste.
+        // Re-selecting the installed service keeps its runtime: signing out cleared the credentials,
+        // and rebuilding a native session to show the same form is waste.
         if (app.provisioned && app.active.value == id) return true
         val selection = build(context.applicationContext, choice) ?: return false
         synchronized(this) {
-            // The picker is only reachable signed out, so nothing should be playing. Drop the old
-            // runtime anyway: only one service may hold a media session.
+            // The picker is only reachable signed out, so nothing should be playing; the old runtime
+            // is dropped anyway, because only one service may hold a media session.
             runCatching { app.runtimeOrNull?.pause() }
             app.install(choice, selection.provider, selection.runtime)
         }
@@ -151,8 +148,8 @@ object AppSessions {
     }
 
     private fun create(context: Context): AppSession {
-        // A session that cannot be built must not take the launch down with it: without a stored
-        // selection the app opens at the picker, and the next launch retries the real store.
+        // A session that cannot be built must not take the launch down: without a stored selection
+        // the app opens at the picker, and the next launch retries the real store.
         val store = runCatching { ActiveServiceStore(context) }
             .onFailure { Log.w("SidetrackSession", "Could not read the selected service", it) }
             .getOrNull()
@@ -164,12 +161,10 @@ object AppSessions {
     }
 
     /**
-     * Spotify for an install that predates the picker.
-     *
-     * Nothing stored the selection before this screen existed, so a signed-in user would
-     * otherwise be sent to the picker on the first launch after updating. A stored Spotify
-     * session is the one thing such an install must have, so it decides the answer and
-     * [AppSession.install] records it. A fresh install has no session and starts at the picker.
+     * Spotify for an install that predates the picker: nothing stored the selection before this
+     * screen existed, so a signed-in user would otherwise land on the picker after updating. A stored
+     * Spotify session decides the answer and [AppSession.install] records it; a fresh install has
+     * none and starts at the picker.
      */
     private fun adoptedSpotify(context: Context): ServiceChoice? {
         val signedIn = runCatching {

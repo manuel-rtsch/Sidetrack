@@ -7,16 +7,13 @@ package io.github.manuelrtsch.sidetrack.playback
  * Kept away from the audio sink so the rules can be exercised without an AudioTrack, a
  * device or a real clock. Every timestamp is `SystemClock.elapsedRealtime()` milliseconds.
  *
- * The two rules exist for two observed failures:
- *  - A track that starts playing before it holds any PCM underruns as soon as the first buffer
- *    takes longer than the buffer length to arrive, which Android reports as "disabled due to
- *    previous underrun, restarting" and the listener hears as a gap at the start of a track.
- *    The prefill deadline used to start the track on whatever it had, including nothing, which
- *    is that same underrun one fetch stall later; the deadline now only gives up on the *full*
- *    prefill, never on having something in hand.
- *  - A drain that keeps polling an empty native channel forever looks exactly like playback from
- *    the UI's point of view while it is silent. After a dead access-point connection the app
- *    stayed in that state for half an hour, so the silence needs a deadline.
+ * Two rules exist because a drain and an idle channel look alike:
+ *  - Starting a track before it holds PCM underruns once the first buffer takes longer than the
+ *    buffer length to arrive; Android reports "disabled due to previous underrun, restarting"
+ *    and the listener hears a gap at the start of a track. The deadline only gives up on the
+ *    full prefill, never on having something in hand.
+ *  - A drain that polls an empty native channel forever looks exactly like playback to the UI
+ *    while it is silent, so the silence needs a deadline.
  */
 class DrainPolicy(
     /** Bytes to buffer before playback starts; half the AudioTrack buffer in practice. */
@@ -31,8 +28,7 @@ class DrainPolicy(
      * How long a drain that was already playing may go silent before it counts as starved.
      *
      * Much shorter than [starveTimeoutMs]: once audio has flowed, a multi-second hole is a dead
-     * access point, not a slow first fetch. The old single 15 s budget turned a dropped
-     * connection into 16 s of silence before recovery even started.
+     * access point, not a slow first fetch.
      */
     private val playingStarveTimeoutMs: Long = starveTimeoutMs
 ) {
@@ -49,7 +45,6 @@ class DrainPolicy(
         this.playing = playing
     }
 
-    /** Records PCM handed to the AudioTrack. */
     fun onData(bytes: Int, nowMs: Long) {
         bufferedBytes += bytes
         lastDataAtMs = nowMs
@@ -59,11 +54,8 @@ class DrainPolicy(
      * True exactly once: when the buffered audio reached the prefill target, or the prefill
      * deadline expired with at least [minStartBytes] to play.
      *
-     * A late first buffer is a stall to report, but starting the track to report it is worse than
-     * waiting: an empty track underruns before anything is audible, AudioFlinger notes it as
-     * "disabled due to previous underrun, restarting", and the track is dead until it is
-     * rewritten. So the deadline relaxes the target down to [minStartBytes] and no further; a
-     * source that delivers nothing at all is caught by [starved] instead.
+     * The deadline only relaxes the target down to [minStartBytes] and no further: starting an
+     * empty track underruns it dead, so a source that delivers nothing is caught by [starved].
      */
     fun mayPlay(nowMs: Long): Boolean {
         if (playing) return false
@@ -77,13 +69,12 @@ class DrainPolicy(
         return true
     }
 
-    /** How long the drain has gone without receiving PCM. */
     fun idleFor(nowMs: Long): Long = nowMs - lastDataAtMs
 
     /**
-     * True once the drain has received no PCM for the whole stall budget, playing or not: a
-     * track that never gets enough to start is the same silence from the listener's side, and
-     * waiting for it forever is what put the app into half an hour of silence.
+     * True once the drain has received no PCM for the whole stall budget, playing or not: a track
+     * that never gets enough to start is the same silence from the listener's side, so it must
+     * not be waited for forever.
      */
     fun starved(nowMs: Long): Boolean {
         val budget = if (playing) playingStarveTimeoutMs else starveTimeoutMs

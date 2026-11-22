@@ -6,9 +6,8 @@ import androidx.annotation.DrawableRes
  * Text as it can safely travel through a navigation route.
  *
  * org.json's `optString` returns the literal string "null" for a JSON null, and Navigation's
- * `NavType.StringType` parses the literal "null" back into a real null. A route argument that
- * does not allow nulls then fails verification while navigating and takes the process down, so
- * route-bound text is normalised here before it reaches a route.
+ * `NavType.StringType` parses it back into a real null, so a route argument that does not allow
+ * nulls fails verification while navigating and takes the process down.
  */
 fun String?.mediaTextOrNull(): String? = this?.takeIf { it.isNotBlank() && it != "null" }
 
@@ -251,8 +250,8 @@ enum class SearchScope(val label: String) {
 }
 
 /**
- * Toggles one category of the search scope, but always keeps at least one. An empty set has no
- * result list to show, and the native catalog used to read it as "search everything".
+ * Toggles one category of the search scope, but always keeps at least one: an empty set has no
+ * result list to show, and the native catalog would read it as "search everything".
  */
 fun toggledSearchScopes(current: Set<SearchScope>, scope: SearchScope): Set<SearchScope> = when {
     scope !in current -> current + scope

@@ -10,8 +10,8 @@ import io.github.manuelrtsch.sidetrack.playback.debugName
 import kotlin.math.abs
 
 /**
- * Applies one engine event to the clock, the queue and the store. The event `when` is kept apart
- * from the driver so the seek/resume rules can be read without paging through the queue lifecycle.
+ * Applies one engine event to the clock, the queue and the store, kept apart from the driver so
+ * the seek/resume rules can be read without paging through the queue lifecycle.
  */
 internal class PlaybackEvents(
     private val clock: PlaybackClock,
@@ -139,11 +139,9 @@ internal class PlaybackEvents(
                 // echo can arrive later, after a recreated ViewModel has restored that offset.
                 // Ignoring it keeps the restored position and leaves the queue untouched.
                 if (session?.consumeHaltStop(event.uri, event.playRequestId) == true) return
-                // The old generation's stop can arrive after the user already started the next
-                // item (or the same item again). When the shared queue still has a current item,
-                // the player is being replaced, not stopped: clearing here made Now Playing lose
-                // the track while the new audio kept playing. A real notification stop clears the
-                // queue first, so it still falls through.
+                // The old generation's stop can arrive after the user started the next item; with
+                // a current still in the shared queue the player is being replaced, not stopped —
+                // and a real notification stop clears the queue first, so it still falls through.
                 if (clock.awaitingStartConfirmation && queue.snapshot.current != null) return
                 // Stop from the notification or lock screen: clear both the UI and the queue so
                 // reopening Sidetrack cannot restore the track that was stopped.
@@ -161,9 +159,8 @@ internal class PlaybackEvents(
                 )
             }
 
-            // librespot refuses the item and moves on internally. Leaving the queue where it is
-            // made the drain see 15 s of silence, "recover" the same track with a fresh session
-            // and retry a load that can never succeed, so the queue has to advance here.
+            // librespot moves on internally after refusing the item, so the queue must advance
+            // here — leaving it would retry a load that can never succeed.
             is PlaybackEvent.Unavailable -> if (matchesCurrent(event.uri)) {
                 clock.endStart()
                 clock.clearSeek()

@@ -9,12 +9,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Paging for everything the library shows: the five category previews, the open category, a
- * collection page and an artist page.
- *
- * All of them follow the same rules — the first page replaces, later pages append, a response for
- * a category the user left is dropped, and one failing category must not erase the others. Those
- * rules used to be spread over the ViewModel between unrelated save and playback code.
+ * Paging for everything the library shows — category previews, open category, collection and
+ * artist pages — under one rule set: the first page replaces, later pages append, a response for
+ * a category the user left is dropped, and one failing category must not erase the others.
  */
 internal class LibraryController(
     private val store: UiStateStore,

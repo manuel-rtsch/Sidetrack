@@ -22,17 +22,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Process-scoped playback owner. The activity and screens may come and go; this object holds the
- * platform media session, the foreground notification, audio focus and the sleep timer.
+ * Process-scoped playback owner: the media session, the foreground notification, audio focus and
+ * the sleep timer outlive the activity and its screens.
  *
- * The audio pipeline and player commands live behind [PlaybackEngine]. This controller is
- * engine-agnostic: librespot and the future Media3 engine both plug in here.
+ * The pipeline behind it is replaceable ([PlaybackEngine]), and the notification is app-owned:
+ * rather than depending on a concrete service, the controller asks the app-installed
+ * [PlaybackNotificationHooks] to refresh or start it. Overridable per instance for tests.
  *
- * Main-thread only, like [MediaSessionOwner]. Long-running engine work is moved onto [scope].
- *
- * The media notification is app-owned: rather than depending on a concrete service from core, the
- * controller asks the app-installed [PlaybackNotificationHooks] to refresh or start it. The
- * callbacks default to the app hooks and can be overridden per instance (e.g. in tests).
+ * Main-thread only, like [MediaSessionOwner]; long-running engine work runs on [scope].
  */
 class PlaybackController(
     val engine: PlaybackEngine,
@@ -104,12 +101,11 @@ class PlaybackController(
     override val isActive: Boolean get() = playing
 
     /**
-     * Queue ops normally live in the ViewModel so its screen state stays in sync. When the
-     * ViewModel is gone, [fallbackNext]/[fallbackPrevious] keep the notification and lock-screen
-     * transport working by advancing the process-wide queue instead.
+     * Queue ops live in the ViewModel so its screen state stays in sync; when it is gone,
+     * [fallbackNext]/[fallbackPrevious] keep the notification and lock-screen transport working by
+     * advancing the process-wide queue.
      *
-     * librespot 0.8 has no shuffle/repeat setters. Sidetrack's queue repository owns those, and
-     * native shuffle/repeat events are adopted by the ViewModel when another client changes them.
+     * librespot 0.8 has no shuffle/repeat setters: the queue repository owns those.
      */
     var onNext: (() -> Unit)? = null
     var onPrevious: (() -> Unit)? = null
@@ -127,9 +123,8 @@ class PlaybackController(
     var fallbackResume: (() -> Unit)? = null
 
     /**
-     * Recovery for an audio pipeline that went silent, installed by the session that owns the
-     * native player. The engine cannot restart a dead librespot session; only the gateway owner
-     * can reconnect and reload.
+     * Recovery for a pipeline that went silent, installed by the session that owns the native
+     * player: only the gateway owner can reconnect a dead librespot session.
      */
     var onStalled: ((Long) -> Unit)? = null
 
@@ -151,8 +146,8 @@ class PlaybackController(
     private val noisy = NoisyAudioGuard(context) { onAudioBecomingNoisy() }
 
     /**
-     * The last play/pause intent. librespot events can arrive out of order after rapid taps;
-     * this lets the UI ignore an event that belongs to a superseded command.
+     * The last play/pause intent: librespot events arrive out of order after rapid taps, and one
+     * that belongs to a superseded command must be ignored.
      */
     @Volatile
     private var lastCommandWasPause = false
@@ -182,8 +177,7 @@ class PlaybackController(
         scope.launch {
             engine.state.collect { state -> _buffering.value = state.isBuffering }
         }
-        // A minute tick only needs the notification text rebuilt, not the media session
-        // republished. The service refresh path deliberately does not call publish().
+        // A tick only rebuilds the notification; the refresh path deliberately does not publish().
         if (context != null) {
             scope.launch {
                 sleepTimer.collect { notifyRefresh(context, this@PlaybackController) }
@@ -199,9 +193,8 @@ class PlaybackController(
     }
 
     /**
-     * Called by the engine on its drain thread when no PCM arrived for the stall budget.
-     * Hops to the main thread: the player's state and the platform media session are
-     * main-thread only.
+     * Called by the engine on its drain thread when no PCM arrived for the stall budget; hops to
+     * the main thread, which owns the player's state and the media session.
      */
     internal fun onAudioStalled(error: Throwable) {
         SidetrackDebug.log("audio stalled", error)
@@ -209,9 +202,8 @@ class PlaybackController(
     }
 
     /**
-     * A drain that produced no audio is indistinguishable from playback in the media session, so
-     * the session has to be marked paused and handed back for a reconnect. Without this the app
-     * shows a running player and delivers silence until the user presses play again.
+     * A silent drain looks like playback in the media session, so the session is marked paused and
+     * handed back for a reconnect; otherwise the user sees a running player and hears nothing.
      */
     private fun handleAudioStalled() {
         if (!playing) return
@@ -288,9 +280,8 @@ class PlaybackController(
     }
 
     /**
-     * Whether a native playing/paused event still matches the user's latest intent. Events that
-     * arrive within the command window but contradict the last command are stale. After the
-     * window, events from other clients are accepted again.
+     * Whether a native playing/paused event still matches the user's latest intent. After the
+     * command window, events from other clients are accepted again.
      */
     fun shouldApplyEvent(isPlaying: Boolean): Boolean {
         val age = SystemClock.elapsedRealtime() - lastCommandAt
@@ -299,9 +290,8 @@ class PlaybackController(
     }
 
     /**
-     * Starts a new item. [keepAudioSink] is set for a gapless automatic transition: librespot has
-     * already pre-buffered the track and its sink is still open, so tearing down the AudioTrack
-     * here would introduce the very gap the setting is meant to remove.
+     * [keepAudioSink] is set for a gapless automatic transition: librespot has already pre-buffered
+     * the track, so tearing down the AudioTrack here would create the gap the setting removes.
      */
     suspend fun start(
         key: MediaKey,
@@ -340,10 +330,9 @@ class PlaybackController(
     suspend fun resume(): Boolean {
         SidetrackDebug.log("resume")
         if (current == null) {
-            // A cold process restores the queue but not the native player, so a play command from
-            // a headset or the notification would resume a player that has no source at all and
-            // deliver silence until the sink's stall watchdog noticed. Starting the item is the
-            // queue owner's job; this only reports whether anyone could do it.
+            // A cold process restores the queue but not the native player, so a transport command
+            // would resume nothing and deliver silence. Starting the item belongs to the queue
+            // owner; this only reports whether anyone could do it.
             val start = onResumeWithoutSource ?: fallbackResume
             SidetrackDebug.log("resume without source restarted=${start != null}")
             start?.invoke()
@@ -362,10 +351,9 @@ class PlaybackController(
         val started = engine.resume(positionMs)
         if (started) sleepTimers.onPlaybackStarted()
         if (!started) {
-            // Symmetric with [start]: an engine that cannot deliver audio has not earned the
-            // session or the focus request. Leaving the registry pointed at a silent owner would
-            // contradict what [MediaSessionRegistry.active] claims to mean, and holding focus
-            // would keep the app that just paused for us paused.
+            // An engine that cannot deliver audio has not earned the session or the focus request:
+            // leaving the registry on a silent owner contradicts what [MediaSessionRegistry.active]
+            // means, and holding focus keeps the app that just paused for us paused.
             playing = false
             focus?.abandon()
             registry.deactivate(this)
@@ -382,13 +370,12 @@ class PlaybackController(
     override fun pause() = pauseInternal(abandonFocus = true)
 
     /**
-     * Transient audio-focus loss keeps the focus request held so [AudioFocus] can resume us when
-     * the call or notification ends. An explicit pause gives it back.
+     * A transient focus loss keeps the request held so [AudioFocus] can resume us; an explicit
+     * pause gives it back.
      */
     private fun pauseInternal(abandonFocus: Boolean) {
         SidetrackDebug.log("pauseInternal abandonFocus=$abandonFocus")
-        // The UI clock owns the position; the decoder's `paused` event is ahead by the PCM
-        // buffer and must not be used as the resume point.
+        // The UI clock owns the position: the decoder's `paused` event is ahead by the PCM buffer.
         playing = false
         sleepTimers.hold()
         _buffering.value = false
@@ -416,10 +403,7 @@ class PlaybackController(
 
     fun requestPrevious() = (onPrevious ?: fallbackPrevious)?.invoke()
 
-    /**
-     * Rebuilds the player after an audio-setting change. The current item is reloaded at the
-     * same position and the pause/play state is preserved.
-     */
+    /** Rebuilds the player after an audio-setting change, reloading the item where it stood. */
     suspend fun reconfigure() {
         val item = current
         val source = currentSource
@@ -434,8 +418,8 @@ class PlaybackController(
     }
 
     /**
-     * Ends playback. [keepQueue] leaves the queue, the history and the selected track alone: the
-     * app closing has to silence the audio, but the next launch should still find what was playing.
+     * Ends playback. [keepQueue] leaves the queue, history and selected track alone: a close must
+     * silence the audio, but the next launch should still find what was playing.
      */
     suspend fun stop(keepQueue: Boolean = false) {
         clearSleepTimer()
@@ -466,8 +450,8 @@ class PlaybackController(
     suspend fun pollEvent(): PlaybackEvent? = engine.pollEvent()
 
     /**
-     * End-of-track notifications that do not consume [pollEvent]. A provider uses this to report a
-     * finished item to its service without competing with the ViewModel for the event queue.
+     * End-of-track notifications that do not consume [pollEvent], so a provider can report a
+     * finished item without competing with the ViewModel for the event queue.
      */
     val ended: Flow<String?> get() = engine.ended
 

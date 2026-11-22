@@ -40,10 +40,9 @@ interface PlaybackEngine {
     /**
      * End-of-track notifications for observers that do not own the [pollEvent] queue.
      *
-     * The queue is single-consumer: the ViewModel drains it to advance playback. A provider that
-     * has to tell the server an item finished (Jellyfin's "played" flag, decision D12) needs the
-     * same signal without taking events away from the queue owner. Engines that have no such
-     * observer leave the default, empty flow in place.
+     * The queue is single-consumer: the ViewModel drains it to advance playback, so a provider
+     * that has to tell the server an item finished (Jellyfin's "played" flag, decision D12) needs
+     * this same signal without taking events away from the queue owner.
      */
     val ended: Flow<String?> get() = emptyFlow()
 
@@ -198,11 +197,9 @@ sealed interface PlaybackEvent {
 }
 
 /**
- * Stable name for diagnostics.
- *
- * R8 renames these nested classes in minified builds, so `event::class.simpleName` turns a useful
- * log line into `ed2`/`ad2` exactly when a field capture is being read. Keep the mapping here
- * instead of relying on an obfuscation rule; the sealed hierarchy makes this `when` exhaustive.
+ * Stable name for diagnostics: R8 renames these nested classes in minified builds, so
+ * `event::class.simpleName` becomes `ed2`/`ad2`. Keep the mapping here instead of relying on an
+ * obfuscation rule; the sealed hierarchy makes this `when` exhaustive.
  */
 val PlaybackEvent.debugName: String
     get() = when (this) {

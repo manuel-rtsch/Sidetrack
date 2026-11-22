@@ -40,19 +40,14 @@ import kotlinx.coroutines.withTimeout
 private val SWIPE_REVEAL_THRESHOLD = 36.dp
 
 /**
- * Which row of a list is showing its gutter, and why.
+ * Which row of a list is showing its gutter, and why. The state is per list, not per row, so one row
+ * at a time is open and every gutter in the app opens the same way.
  *
- * A row reveals its squares for two reasons, and they behave differently on purpose:
- *
- * - **Focus.** The keypad border lands on a row and the squares follow once the focus settles, so
- *   scrubbing Up/Down through a list does not flash a pair of buttons on every row it passes. The
- *   squares stay while the focus is on the row or inside its own gutter.
- * - **Touch.** A left swipe reveals them immediately — a touch screen has no focus border to wait
- *   for — and they stay until the user dismisses them. The queue uses the same left swipe, so a
- *   row never needs a second touch gesture to reach its actions.
- *
- * Both live here so every gutter in the app (track rows, history rows, the queue) opens the same
- * way, and so one row at a time can be open: the state is per list, not per row.
+ * Two reveals behave differently on purpose:
+ * - Focus waits for the settle, so scrubbing Up/Down does not flash buttons on every row it passes,
+ *   and the squares stay while the focus is on the row or inside its own gutter.
+ * - A left swipe reveals immediately, since a touch screen has no focus border to wait for, and the
+ *   squares stay until dismissed. The queue uses the same swipe, so no second gesture is needed.
  */
 @Stable
 open class RowGutterState {
@@ -69,9 +64,8 @@ open class RowGutterState {
         internal set
 
     /**
-     * True while [key]'s squares should be showing. A swipe reveal is exclusive: while one row is
-     * showing squares, nothing the keypad has open may show as well. Swiping one row while the
-     * focus sits on another is two gutters otherwise.
+     * True while [key]'s squares should be showing. A swipe reveal is exclusive: swiping one row
+     * while the focus sits on another would otherwise open two gutters.
      */
     fun isOpen(key: Any): Boolean {
         val touched = touchedKey
@@ -79,8 +73,7 @@ open class RowGutterState {
     }
 
     fun rowFocused(key: Any) {
-        // The keypad takes over: a swipe elsewhere gives its squares up as soon as the focus
-        // lands on a different row.
+        // The keypad takes over: a swipe elsewhere yields as soon as the focus lands on another row.
         if (touchedKey != null && touchedKey != key) touchedKey = null
         focusedKey = key
     }
@@ -90,12 +83,12 @@ open class RowGutterState {
     }
 
     /**
-     * A left swipe on [key]. Deliberately not debounced: a swipe that crossed the reveal threshold
-     * was a deliberate act, and the squares are the only feedback it gets.
+     * A left swipe on [key]. Deliberately not debounced: crossing the reveal threshold was a
+     * deliberate act, and the squares are the only feedback it gets.
      */
     fun reveal(key: Any) {
-        // Drop whatever the focus had open: a settle that is still pending would otherwise open
-        // the focused row's gutter a frame later, next to this one.
+        // Drop whatever the focus had open: a pending settle would otherwise open the focused row's
+        // gutter a frame later, beside this one.
         if (openKey != key) openKey = null
         touchedKey = key
     }
@@ -155,8 +148,8 @@ fun GutterRow(
         ) {
             content(gutter > 0.dp)
         }
-        // While a swipe holds the gutter open, a tap on the row closes it rather than starting
-        // the item — the same contract a swiped-open row had.
+        // While a swipe holds the gutter open, a tap on the row closes it rather than starting the
+        // item, which is the same contract a swiped-open row had.
         if (state.touchedKey == key && gutter > 0.dp) {
             Box(
                 Modifier
@@ -206,21 +199,18 @@ fun Modifier.gutterSquareFocus(key: Any, state: RowGutterState): Modifier {
 }
 
 /**
- * Debounces the focus into the gutter. Scrubbing Up/Down through a list must not flash a pair of
- * buttons on every row it passes.
+ * Debounces the focus into the gutter, so scrubbing Up/Down does not flash buttons on every row.
  *
- * Deliberately silent: the tick a reveal gets belongs to the long press above, not to the focus
- * landing. The keypad has the focus ring to say where it is, and vibrating here would buzz on
- * every row a held D-pad passes. See [Haptics].
+ * Deliberately silent: the focus ring already says where the keypad is, and vibrating here would
+ * buzz on every row a held D-pad passes. See [Haptics].
  */
 @Composable
 internal fun RowGutterState.Settle() {
     LaunchedEffect(focusedKey) {
         val target = focusedKey
         if (target == null) {
-            // A focus move from a row into its own gutter arrives as two events: the row goes
-            // false and the square goes true. Give the square one frame to land before treating
-            // this as the row being left for good.
+            // A move from a row into its own gutter arrives as two events: the row goes false, the
+            // square goes true. Give the square one frame before treating the row as left for good.
             withFrameNanos { }
             if (focusedKey == null) openKey = null
             return@LaunchedEffect
@@ -263,17 +253,13 @@ fun Modifier.rowSwipeReveal(onReveal: () -> Unit): Modifier {
 
 /**
  * Reports a long press on the row underneath and swallows the release, so holding a row does not
- * also count as a tap on it.
- *
- * Runs in the [PointerEventPass.Initial] pass, ahead of the row's own click (which consumes the
- * press in the main pass) and ahead of the swipe gesture. Releasing early, or dragging far enough
- * for the swipe to take over, cancels the press — a list still scrolls and still swipes.
+ * also count as a tap. Runs in the [PointerEventPass.Initial] pass, ahead of the row's own click
+ * and the swipe: releasing early or dragging far enough for the swipe to take over cancels it.
  */
 @Composable
 fun Modifier.rowLongPress(onLongPress: () -> Unit): Modifier {
-    // The callback is a new lambda on every composition, so keying the gesture on it would cancel
-    // and restart the press detector on any recomposition — including the one a finger going down
-    // causes. Read it through state instead and key on nothing.
+    // The callback is a new lambda on every composition, and keying the gesture on it would restart
+    // the press detector on any recomposition, including the one a finger going down causes.
     val current by rememberUpdatedState(onLongPress)
     return pointerInput(Unit) {
         listen(current)
@@ -289,9 +275,8 @@ private suspend fun PointerInputScope.listen(longPress: () -> Unit) {
         // True once the press released or a drag took it over; false while it is still down.
         var released = false
         var settledInTime = false
-        // Compose's pointer-event scope has its own withTimeoutOrNull. It reports the timeout as
-        // null instead of a coroutine TimeoutCancellationException, which is why the flag above
-        // decides the outcome rather than the return value.
+        // Compose's pointer-event scope has its own withTimeoutOrNull, which reports the timeout as
+        // null rather than throwing, hence the flag above deciding the outcome.
         withTimeoutOrNull(timeout) {
             var pressed = true
             while (pressed) {
@@ -301,8 +286,8 @@ private suspend fun PointerInputScope.listen(longPress: () -> Unit) {
                     // The pointer is gone: the gesture ended under us.
                     change == null -> pressed = false
 
-                    // A long press is a still hold. Once the finger travels past touch slop,
-                    // this belongs to the list's scroll or swipe, not to the gutter.
+                    // A long press is a still hold: past touch slop this belongs to the list's scroll
+                    // or swipe, not to the gutter.
                     (change.position - down.position).getDistance() > touchSlop -> {
                         pressed = false
                         released = true
@@ -317,10 +302,9 @@ private suspend fun PointerInputScope.listen(longPress: () -> Unit) {
                     !change.pressed -> {
                         pressed = false
                         released = true
-                        // The hold can also be long with the timeout never running: a looper that
-                        // was busy, or input that arrived as one batch. The timestamps still say
-                        // how long the finger was down, and the release has to be swallowed here
-                        // so it does not become a tap as well.
+                        // A hold can also be long with the timeout never running: a busy looper, or
+                        // input arriving as one batch. The timestamps still say how long the finger
+                        // was down, and the release must be swallowed here so it is not also a tap.
                         if (change.uptimeMillis - down.uptimeMillis >= timeout) {
                             held = true
                             event.changes.forEach { it.consume() }

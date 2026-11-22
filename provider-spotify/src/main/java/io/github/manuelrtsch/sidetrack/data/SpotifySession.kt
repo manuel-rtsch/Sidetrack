@@ -33,8 +33,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Process-wide Spotify identity. It owns the credential store and token refresh, not the UI; the
- * ViewModel observes [signedIn] and asks for an access token when a real gateway is connected.
+ * Process-wide Spotify identity: the credential store and token refresh, not the UI. The ViewModel
+ * observes [signedIn] and asks for a token when a gateway is connected.
  */
 class SpotifySession(
     private val auth: SpotifyAuth = SpotifyAuth(NoopCredentialStore),
@@ -46,14 +46,13 @@ class SpotifySession(
      */
     private val demo: DemoContent? = null,
     /**
-     * The JNI bridge. Injected so the native playback paths (connect, load, preload, halt) can be
-     * driven without librespot; every normal build uses the real [NativeBridge].
+     * The JNI bridge, injected so the native paths can be driven without librespot; every normal
+     * build uses the real [NativeBridge].
      */
     private val native: SpotifyNative = NativeBridge,
     /**
-     * Where [playback] and its transport fallbacks run. Main by default, because the controller
-     * owns a platform `MediaSession`; a test injects a single-threaded dispatcher so it can drive
-     * those paths without blocking the sandbox's main looper.
+     * Where [playback] and its transport fallbacks run: main, because the controller owns a platform
+     * `MediaSession`. Tests inject a single-threaded dispatcher to drive those paths.
      */
     private val playbackContext: CoroutineContext = Dispatchers.Main.immediate
 ) : ServiceRuntime,
@@ -63,9 +62,9 @@ class SpotifySession(
     override val service: ServiceId = ServiceId.Spotify
 
     /**
-     * Playlist editing needs the native transport. Reads may fall back to the read-only Web API
-     * when librespot's access point is unreachable; [writer] then returns null, and the UI must
-     * not offer add/remove actions that cannot be sent.
+     * Playlist editing needs the native transport; reads may fall back to the read-only Web API when
+     * librespot's access point is unreachable. [writer] then returns null, and the UI must not offer
+     * add/remove actions that cannot be sent.
      */
     override val capabilities: ServiceCapabilities
         get() = if (writer == null) {
@@ -78,8 +77,8 @@ class SpotifySession(
             ServiceCapabilities.All
         }
 
-    // The credential store is read while the UI composes. Anything it cannot answer counts as
-    // signed out, so a device that lost its keystore key still opens and offers sign-in.
+    // Read while the UI composes, so anything the store cannot answer counts as signed out: a device
+    // that lost its keystore key still opens and offers sign-in.
     private val _signedIn = MutableStateFlow(runCatching { auth.hasCredentials() }.getOrDefault(false))
     override val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
 
@@ -92,7 +91,7 @@ class SpotifySession(
     override val network: NetworkMonitor? = appContext?.let(::NetworkMonitor)
     override val isOnline: Boolean get() = network?.isOnline ?: true
 
-    // Legacy file names kept so existing dev installs keep their queue and history.
+    // Legacy file names: existing installs keep their queue and history.
     private val queueStore = appContext?.let { FileQueueStore(File(it.filesDir, "sidetracks-queue.bin")) }
     private val historyStore = appContext?.let { FileHistoryStore(File(it.filesDir, "sidetracks-history.bin")) }
     private val positionStore = appContext?.let { FilePositionStore(File(it.filesDir, "sidetracks-resume.bin")) }
@@ -151,14 +150,13 @@ class SpotifySession(
     }
 
     val spotifyCatalog: SpotifyCatalog by lazy {
-        // The demo build type serves a fixed catalog; playback still goes through the real
-        // account and librespot, so only the read/write side is replaced.
+        // Demo builds serve a fixed catalog but play through the real account, so only the
+        // read/write side is replaced.
         demo?.catalog()
             ?: if (nativeAvailable) {
-                // Reads keep working over HTTPS when the network refuses librespot's access point;
-                // see [ResilientSpotifyCatalog]. Falling back is not silent: the Web API is a
-                // rate-limited stand-in, so an empty library has to read as "browsing degraded"
-                // rather than as an account that lost its playlists.
+                // Reads keep working over HTTPS when the network refuses librespot's access point
+                // ([ResilientSpotifyCatalog]), but the stand-in is rate-limited: an empty library must
+                // read as "browsing degraded", not as an account that lost its playlists.
                 ResilientSpotifyCatalog(
                     nativeCatalog,
                     webCatalog,
@@ -172,8 +170,8 @@ class SpotifySession(
     }
 
     /**
-     * Null while reads are served by the Web API: that transport is read-only here, so the UI has
-     * to hide the library actions instead of failing them one by one.
+     * Null while reads are served by the Web API: that transport is read-only here, so the UI hides
+     * the library actions instead of failing them one by one.
      */
     val spotifyWriter: SpotifyLibraryWriter? get() {
         val catalog = spotifyCatalog
@@ -186,25 +184,23 @@ class SpotifySession(
 
     /** Process-wide queue and history so leaving Sidetrack does not forget what is playing. */
     override val queue = QueueRepository(
-        // The queue file holds the whole upcoming list, so an episode reaches Now Playing without
-        // its notes and publishing number; the metadata cache has them.
+        // The queue file holds the whole upcoming list but not an episode's notes and publishing
+        // number; the metadata cache has them.
         load = { queueStore?.read()?.let(episodeMeta::hydrate) ?: QueueRepository.Snapshot() },
         save = { queueStore?.write(it) }
     )
 
     /**
-     * True between [haltPlayback] and the next start. The ViewModel polls native events on a
-     * background thread, so a "stopped" event arriving after the app-close path could otherwise
-     * clear the queue that path deliberately keeps.
+     * True between [haltPlayback] and the next start. Native events are polled on a background
+     * thread, so a "stopped" event arriving after the close path would clear the queue it keeps.
      */
     @Volatile override var halting = false
         private set
 
     /**
-     * librespot emits one "stopped" event for the halt command itself; a recreated ViewModel can
-     * receive it seconds later, after the user has already reopened the app (and possibly
-     * resumed). The guard remembers the halted play request so that echo is consumed without
-     * swallowing a genuine stop from the new playback.
+     * librespot emits one "stopped" event for the halt command itself, and a recreated ViewModel can
+     * receive it seconds later, after the app was reopened and resumed. The guard remembers the
+     * halted play request so that echo is consumed without swallowing a genuine new stop.
      */
     private val haltStop = HaltStopGuard(HALT_STOP_GRACE_MS)
 
@@ -230,11 +226,11 @@ class SpotifySession(
             scope = playbackScope,
             context = appContext
         ).also { player ->
-            // A drain that stopped producing audio cannot repair itself: restarting the native
-            // player needs the gateway and a fresh token, and those live here.
+            // A silent drain cannot repair itself: restarting the native player needs the gateway and
+            // a fresh token, which live here.
             player.onStalled = { recovery.recover(it) }
-            // Adopt transport actions when no ViewModel is attached. The ViewModel installs its
-            // own callbacks while it exists and clears them in onCleared().
+            // Adopt transport actions when no ViewModel is attached; a live ViewModel installs its
+            // own and clears them in onCleared().
             player.fallbackNext = { transport.skipNext() }
             player.fallbackPrevious = { transport.skipPrevious() }
             player.fallbackResume = { recovery.startRestoredItem() }
@@ -280,8 +276,8 @@ class SpotifySession(
         if (nativeAvailable) {
             playback.setNowPlaying(null)
             playback.pause()
-            // Stop the decoder immediately; waiting for the coroutine below leaves a window in
-            // which the current track keeps playing after the credentials have been cleared.
+            // Stop the decoder first: waiting for the coroutine below leaves a window where the track
+            // keeps playing after the credentials are gone.
             native.stop()
             playbackScope.launch { runCatching { playback.disconnect() } }
         } else {
@@ -314,8 +310,7 @@ class SpotifySession(
         headers: Map<String, String> = emptyMap()
     ) {
         SidetrackDebug.log("session.play begin key=${key.encode()} uri=$uri positionMs=$positionMs gapless=$gapless forceReconnect=$forceReconnect")
-        // A new start supersedes the close path, even when the old player's stopped event is
-        // still queued behind it.
+        // A new start supersedes the close path, even with the old player's stopped event still queued.
         halting = false
         connectForPlayback(forceReconnect)
         SidetrackDebug.log("session.play connected; starting playback")
@@ -343,8 +338,8 @@ class SpotifySession(
     override suspend fun resume(): Boolean {
         halting = false
         val rebuilt = connectForPlayback()
-        // A rebuilt session starts from an empty native player. Reload the current item instead of
-        // asking the player to resume a track it no longer has.
+        // A rebuilt session starts from an empty native player: reload the current item rather than
+        // ask it to resume a track it no longer has.
         val current = playback.current
         val uri = current?.uri
         return if (rebuilt && current != null && uri != null) {
@@ -391,9 +386,8 @@ class SpotifySession(
     }
 
     /**
-     * Audio settings live in librespot's PlayerConfig, so an existing player must be rebuilt.
-     * Playback keeps its current item, position and pause state; a player that was never created
-     * simply picks the new settings up on the next connect.
+     * Audio settings live in librespot's PlayerConfig, so an existing player must be rebuilt. Playback
+     * keeps its item, position and pause state; a player never created picks the settings up later.
      */
     private fun applyAudioSettings() {
         if (!nativeAvailable) return
@@ -434,16 +428,16 @@ class SpotifySession(
     }
 
     /**
-     * Halts the audio and keeps everything else. Closing Sidetrack has to silence the player, but
-     * the queue, the history and the selected track are persisted by [queue], so the next launch
-     * finds them again. [halting] tells a late "stopped" event not to clear that queue.
+     * Halts the audio and keeps everything else: closing Sidetrack silences the player, while
+     * [queue] persists the queue, history and selected track for the next launch. [halting] tells a
+     * late "stopped" event not to clear that queue.
      */
     override fun haltPlayback() {
         halting = true
         rememberEpisodeProgress()
         val uri = playback.current?.uri
-        // Only trust the id when the events it came from describe this track. A queued event for
-        // the previous track must not make the halt echo look like a different generation.
+        // Only trust the id when the events it came from describe this track: a queued event for the
+        // previous track must not make the halt echo look like a different generation.
         val id = currentPlayRequestId.takeIf { uri != null && uri.equals(currentPlayRequestUri, ignoreCase = true) } ?: -1L
         haltStop.arm(uri, id, SystemClock.elapsedRealtime())
         rememberPosition()
@@ -464,15 +458,15 @@ class SpotifySession(
     }
 
     /**
-     * Consumes the "stopped" event produced by [haltPlayback]. Returns true when the event belongs
-     * to that halted player, so the caller can ignore an echo from the generation that was closed.
+     * Consumes the "stopped" event produced by [haltPlayback], returning true when it belongs to that
+     * halted player, so the caller can ignore an echo from the generation that was closed.
      */
     override fun consumeHaltStop(uri: String?, playRequestId: Long): Boolean = haltStop.consume(uri, playRequestId, SystemClock.elapsedRealtime())
 
     /** Advances the queue from the notification or lock screen when no ViewModel is attached. */
     fun skipNext() = transport.skipNext()
 
-    /** Restarts the current item past the 3 s threshold, otherwise returns to queue history. */
+    /** Restarts the current item past the 3 s threshold, otherwise steps back in the history. */
     fun skipPrevious() = transport.skipPrevious()
 
     /** Drops the on-disk audio cache. librespot re-fetches anything it still needs. */

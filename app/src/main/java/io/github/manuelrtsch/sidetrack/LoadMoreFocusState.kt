@@ -37,9 +37,8 @@ import io.github.manuelrtsch.sidetrack.ui.LinkArrow
  * draws its link arrow at `spacing.iconSize` and Sidetrack rows share a narrower one.
  *
  * [linkArrow] defaults to showing the arrow only when the row has no [secondary] value beside it:
- * a row that already shows something on the right ("Search in" with its scope) reads as a value,
- * not as a link. A footer that reports a status in [secondary] passes `true` to keep its arrow.
- * A row that cannot be pressed never shows one.
+ * a row with something on the right reads as a value, not as a link; a row that cannot be pressed
+ * never shows one.
  */
 @Composable
 fun TerminalRow(

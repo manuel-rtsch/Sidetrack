@@ -22,20 +22,17 @@ import io.github.manuelrtsch.sidetrack.data.SpotifyCatalog
 import io.github.manuelrtsch.sidetrack.data.SpotifyLibraryWriter
 
 /**
- * The demo build's original account: a fully fictional pack with a real Spotify URI per item.
+ * The demo build's backup content set: fully fictional, with a real Spotify URI per item.
  *
- * Kept as the backup content set. The demo build serves [RealPack] by default; pass
- * `-PdemoPack=fictional` to build this one instead. It needs no real titles, so it stays useful
- * when the real pack has to be re-picked or when a video must not name any artist.
+ * [RealPack] is served by default; `-PdemoPack=fictional` builds this one instead. It needs no
+ * real titles, so it stays useful when the real pack is re-picked or a video must not name any
+ * artist. Playback still runs through librespot with the signed-in account, so every URI is a
+ * real, playable track: recordings are muted, and the URIs keep the transport, seek and
+ * end-of-track paths the production ones.
  *
- * Only the catalog is replaced. Playback still uses the signed-in account through librespot, so
- * every item points at a real, playable track. The audio is never heard in a recording (videos are
- * muted); the URIs exist so the transport, seek and end-of-track paths are the production ones.
- *
- * The pack is the screenshot suite's fixture in a device build. The recorded search uses the
- * pinned query "bowie", so the invented artist and a show carry that word and all four search
- * sections appear; otherwise every name is made up.
- * Everything here is neutral on purpose — no personal library, no real title in the video.
+ * The screenshot suite's device-build fixture, deliberately neutral — no personal library, no
+ * real title in the video. The recorded search is pinned to "bowie", so the invented artist and
+ * a show carry that word and all four search sections appear.
  */
 object FictionalPack : DemoContent, SpotifyCatalog, SpotifyLibraryWriter {
 
@@ -343,9 +340,9 @@ object FictionalPack : DemoContent, SpotifyCatalog, SpotifyLibraryWriter {
     override fun catalog(): SpotifyCatalog = this
 
     /**
-     * Rewrites history and the queue at every process start. Both files are local playback state,
-     * not account data, and a recording must always begin from the same rows even when the app was
-     * used normally before. A warm restart within one take keeps whatever the take did.
+     * Rewrites history and the queue at every process start: both files are local playback state,
+     * not account data, and a recording must begin from the same rows even when the app was used
+     * normally before. A warm restart within one take keeps whatever the take did.
      */
     override fun seed(history: HistoryRepository, queue: QueueRepository) {
         history.clear()

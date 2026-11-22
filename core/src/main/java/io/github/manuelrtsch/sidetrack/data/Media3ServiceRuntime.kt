@@ -22,16 +22,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The lifecycle every Media3-backed service shares.
+ * The lifecycle every Media3-backed service shares: settings, queue, history, resume point, the
+ * [PlaybackController] over Media3/ExoPlayer, sign-in bookkeeping, transport verbs and the cache
+ * surface. A provider supplies its identity, [catalog] and [StoreNames] and nothing more, so the media
+ * session, notification, audio focus and resume rules cannot drift between services.
  *
- * A provider supplies its identity, its [catalog] and its [StoreNames]; everything else — the
- * settings store, queue, history, resume point, the [PlaybackController] over Media3/ExoPlayer,
- * sign-in/sign-out bookkeeping, the transport verbs and the cache surface — is the same for
- * Subsonic-family servers, Jellyfin and Plex. Keeping one copy means the media session,
- * notification, audio focus and the resume rules cannot drift between services.
- *
- * What genuinely differs stays in the subclass: how a client is built and invalidated per token,
- * a server-side resume seed, playback reporting, and artwork headers.
+ * What genuinely differs stays in the subclass: client construction per token, a server-side resume
+ * seed, playback reporting and artwork headers.
  */
 abstract class Media3ServiceRuntime(
     context: Context,
@@ -112,9 +109,9 @@ abstract class Media3ServiceRuntime(
         try {
             auth.signIn(input)
         } catch (e: CredentialPersistenceException) {
-            // The server accepted the sign-in and the in-memory session works; only the next
-            // launch will have to ask again. The provider hooks are skipped: a seed or a client
-            // rebuild is not worth doing before the caller reports the failure.
+            // The server accepted the sign-in and the in-memory session works; only the next launch
+            // asks again. Provider hooks are skipped: a seed or a client rebuild is not worth doing
+            // before the caller even reports the failure.
             _signedIn.value = true
             throw e
         }

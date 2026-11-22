@@ -6,13 +6,11 @@ import kotlin.random.Random
 
 /**
  * The queue is owned by Sidetrack, not librespot: librespot plays one item at a time and this
- * repository decides what comes next. librespot 0.8 exposes shuffle/repeat events but has no
- * setters, so this repository is authoritative for both; native events are adopted when another
- * client changes them.
+ * repository decides what comes next. It is authoritative for shuffle and repeat too, because
+ * librespot 0.8 reports those events without offering setters; native changes are adopted.
  *
- * History and upcoming are plain ordered lists. Shuffle is a view over upcoming only, so the
- * current item and history never move. The repository is deliberately free of Android and
- * Compose types; playback, persistence and the UI observe it through [snapshot].
+ * History and upcoming are plain ordered lists, and shuffle is a view over upcoming alone, so the
+ * current item and history never move. Deliberately free of Android and Compose types.
  */
 class QueueRepository(
     private val random: Random = Random.Default,
@@ -37,10 +35,9 @@ class QueueRepository(
     fun restore(snapshot: Snapshot): Snapshot = commit(snapshot)
 
     /**
-     * Starts playback from [index] within [items], replacing the queue. The rows after the
-     * chosen item become upcoming; the item that was playing moves into history. [items] is also
-     * the playback context, so repeat-context replays the whole list — a page of it until
-     * [extendContext] adds the pages behind "See more".
+     * Starts from [index] within [items], replacing the queue: the rows after it become upcoming and
+     * the item that was playing moves into history. [items] is also the playback context, so
+     * repeat-context replays the list — a page of it until [extendContext] adds the rest.
      */
     fun play(items: List<MediaItem>, index: Int): Snapshot {
         if (index !in items.indices) return snapshot
@@ -67,14 +64,12 @@ class QueueRepository(
     fun playItem(item: MediaItem): Snapshot = play(listOf(item), 0)
 
     /**
-     * Grows the tail of a collection whose later pages are still loading, starting from the page
-     * that is already playing as [page]. Only the end of the queue moves, so Up next can be read
-     * while the request runs.
+     * Grows the tail of a collection whose later pages are still loading, given the page already
+     * playing as [page]. Only the end of the queue moves, so Up next stays readable meanwhile.
      *
-     * The page itself is the guard: the call does nothing once the queue's context is no longer
-     * exactly that page, which drops a load that lands after the user started something else, and
-     * also keeps two loads from queueing the same page twice. A shuffled queue grows both the
-     * shuffled tail and its pre-shuffle backup, so shuffle still describes the whole collection.
+     * The page is the guard: the call does nothing once the context is no longer exactly that page,
+     * which drops a load that lands after the user started something else and keeps one page from
+     * being queued twice. A shuffled queue grows the tail and its backup, so shuffle still holds.
      */
     fun extendContext(page: List<MediaItem>, items: List<MediaItem>): Snapshot {
         if (items.size <= page.size) return snapshot
@@ -93,10 +88,9 @@ class QueueRepository(
     }
 
     /**
-     * Starts [item] now without touching the tail. A track picked from a list row is a request
-     * to hear that track, not a request to discard the queue the user assembled: only the
-     * current item changes, the previous one moves into history, and the context becomes the
-     * picked item alone so repeat-context replays just it.
+     * Starts [item] now without touching the tail: a row tap asks to hear that track, not to discard
+     * the queue. Only the current item changes, the previous one moves into history, and the context
+     * becomes the picked item alone so repeat-context replays just it.
      */
     fun playNow(item: MediaItem): Snapshot {
         if (!item.playable) return snapshot
@@ -116,12 +110,11 @@ class QueueRepository(
     }
 
     /**
-     * Plays [item] immediately and hands the tail back to the item that was playing: the queue
-     * resumes where it was once the picked track ends, so a request to hear one song does not
-     * drop anything the user had lined up. History is untouched, because nothing was skipped.
+     * Plays [item] and hands the tail back to the item that was playing, so hearing one song does not
+     * drop anything lined up; history is untouched, because nothing was skipped.
      *
-     * Unlike [play] this does not adopt a new context, so Repeat context still replays the album
-     * or playlist the queue came from.
+     * Unlike [play] this adopts no new context, so Repeat context still replays the album or playlist
+     * the queue came from.
      */
     fun playFirst(item: MediaItem): Snapshot {
         if (!item.playable) return snapshot
@@ -236,7 +229,7 @@ class QueueRepository(
 
     /**
      * Jumps to one upcoming occurrence. The index, not the track id, identifies the row so that
-     * duplicates can be told apart.
+     * duplicates stay apart.
      */
     fun jumpTo(index: Int): Snapshot {
         val current = snapshot.current ?: return snapshot
@@ -255,9 +248,8 @@ class QueueRepository(
     fun addToQueue(item: MediaItem): Snapshot = addToQueue(listOf(item))
 
     /**
-     * Appends a batch as one commit. When shuffle is on, the pre-shuffle order has to grow too:
-     * otherwise switching shuffle off later would restore the old tail and silently drop every
-     * item added in the meantime.
+     * Appends a batch as one commit. With shuffle on the pre-shuffle order grows too, or switching
+     * shuffle off later would restore the old tail and drop everything added in the meantime.
      */
     fun addToQueue(items: List<MediaItem>): Snapshot {
         if (items.isEmpty()) return snapshot
@@ -271,9 +263,8 @@ class QueueRepository(
     }
 
     /**
-     * Removes one upcoming occurrence by index and returns where it was, so the caller can offer
-     * Undo. Removing by index is what keeps a duplicated track from taking its other copies with
-     * it.
+     * Removes one upcoming occurrence by index and returns where it was so the caller can offer Undo.
+     * Index, not track, keeps a duplicated track from taking its other copies with it.
      */
     fun removeUpcoming(index: Int): Int {
         if (index !in snapshot.upcoming.indices) return -1
@@ -289,10 +280,9 @@ class QueueRepository(
     }
 
     /**
-     * Moves an upcoming item from [from] to [to], clamping both to the tail's bounds. Only the tail
-     * moves: the current item and history keep their place. A manual reorder is authoritative, so a
-     * shuffled queue drops its pre-shuffle backup — switching shuffle off afterwards keeps the
-     * order the user just chose instead of bringing the old one back.
+     * Moves an upcoming item from [from] to [to], clamping both to the tail's bounds; only the tail
+     * moves. A manual reorder is authoritative, so a shuffled queue drops its pre-shuffle backup and
+     * switching shuffle off keeps the order the user just chose.
      */
     fun moveUpcoming(from: Int, to: Int): Snapshot {
         val upcoming = snapshot.upcoming
@@ -300,14 +290,14 @@ class QueueRepository(
         val target = to.coerceIn(0, upcoming.lastIndex)
         if (from == target) return snapshot
         val moved = upcoming.toMutableList().apply { add(target, removeAt(from)) }
-        // Keep shuffle and its backup untouched until the reorder is committed. A cancelled lift
-        // moves the track back and must leave the pre-reorder shuffle state exactly as it was.
+        // Shuffle and its backup stay untouched until the reorder is committed: a cancelled lift
+        // must leave the state exactly as it was.
         return commit(snapshot.copy(upcoming = moved))
     }
 
     /**
-     * Commits a hand-picked order. The user has arranged the tail themselves, so shuffle no longer
-     * describes it and its pre-shuffle backup must not replace the chosen order later.
+     * Commits a hand-picked order: shuffle no longer describes it, so its backup must not replace the
+     * chosen order later.
      */
     fun finishReorder(): Snapshot = if (!snapshot.shuffle && snapshot.shuffleBackup == null) {
         snapshot

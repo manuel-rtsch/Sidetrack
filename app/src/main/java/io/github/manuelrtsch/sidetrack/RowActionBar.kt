@@ -26,11 +26,9 @@ import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
 
 /**
- * One action offered by the contextual row bar.
- *
- * A row action is a live action, so it wears the theme accent like every option in the Options bar
- * (see `docs/menus.md`); [ActionTone.Destructive] marks a removal, and
- * [ActionTone.Muted] is left to Cancel. Build the list with [rowActions] rather than by hand.
+ * One action offered by the contextual row bar. A row action is live, so it wears the theme accent
+ * like every option (see `docs/menus.md`); [ActionTone.Destructive] marks a removal, and
+ * [ActionTone.Muted] is left to Cancel. Build the list with [rowActions], never by hand.
  */
 data class RowAction(
     val key: String,
@@ -45,15 +43,13 @@ data class RowAction(
 
 /**
  * A row's contextual menu, built in one place for the same reason [sidetrackOptions] is: eight rows
- * offer overlapping actions, and assembling them here keeps the wording, glyph, colour and order
- * from drifting apart.
+ * offer overlapping actions, and assembling them here keeps wording, glyph, colour and order from
+ * drifting apart.
  *
- * Two rules:
- *
- * - **Order.** Destructive actions come last, whatever order the caller lists them in, so the
- *   destructive button is never the one the focus ring lands on first.
- * - **Colour.** Accent for every action, [ActionTone.Destructive] for a removal, grey only for
- *   Cancel. Pass `null` for an action the row cannot offer and it leaves no gap.
+ * - Order: destructive actions come last whatever order the caller used, so the focus ring never
+ *   lands on one first.
+ * - Colour: accent for every action, [ActionTone.Destructive] for a removal, grey only for Cancel.
+ *   Pass `null` for an action the row cannot offer and it leaves no gap.
  *
  * Shape stays with the bar: three or more actions are icon-only squares, one or two keep their
  * label, because a contextual bar earns its space from the gesture that opened it.
@@ -62,8 +58,7 @@ fun rowActions(vararg entries: RowAction?): List<RowAction> = entries.filterNotN
 
 /**
  * Plays this row now and leaves the queue behind it, for pages whose row tap plays in collection
- * context. The label is short because the square drops it; the content description carries the
- * whole sentence.
+ * context. The label is short because the square drops it.
  */
 fun playRowAction(title: String, onClick: () -> Unit) = RowAction(
     key = "play",
@@ -81,8 +76,8 @@ fun addToQueueRowAction(
     key = "addToQueue",
     label = label,
     contentDescription = "Add $title to queue",
-    // The queue glyph, not the playlist one: the two sit side by side on album and radio rows, and
-    // two identical squares there read as the same action offered twice.
+    // The queue glyph, not the playlist one: they sit side by side on album and radio rows, where
+    // two identical squares read as the same action offered twice.
     icon = SidekitIcon.QueueMusic,
     onClick = onClick
 )
@@ -180,11 +175,9 @@ data class RowActionSelection(
 )
 
 /**
- * Screen-level state for the contextual row action bar.
- *
- * A row publishes a selection when its single gutter square is pressed. The screen's normal
- * action bar is replaced by up to three square actions and a close square on the right. Closing
- * clears the selection and restores the normal bar.
+ * Screen-level state for the contextual row action bar: a row publishes a selection when its single
+ * gutter square is pressed, and the screen's normal bar is replaced by up to three square actions and
+ * a close square. Closing clears the selection and restores the normal bar.
  */
 @Stable
 class RowActionBarState {
@@ -210,7 +203,7 @@ class RowActionBarState {
     fun show(selection: RowActionSelection) {
         beforeShow?.invoke()
         undo = null
-        // A new selection owns the bar. A close that immediately opened it (the removal
+        // A new selection owns the bar: a close that immediately reopened it (the removal
         // confirmation) must not restore focus to the row a frame later.
         pendingFocus = null
         this.selection = selection
@@ -236,31 +229,30 @@ class RowActionBarState {
 fun rememberRowActionBarState(): RowActionBarState {
     val chrome = LocalChrome.current
     val state = remember { RowActionBarState() }
-    // Options and row actions both own the action bar. Opening either one dismisses the other so
-    // the two menus can never stack or leave a hidden selection waiting behind the Options bar.
+    // Options and row actions both own the bar: opening either dismisses the other, so the two can
+    // never stack or leave a hidden selection behind the Options bar.
     state.beforeShow = { chrome?.closeOptions() }
     LaunchedEffect(chrome?.optionsOpen) {
         if (chrome?.optionsOpen == true) state.close(restoreFocus = false)
     }
     LaunchedEffect(state.selection) {
         if (state.selection == null) return@LaunchedEffect
-        // The bar morphs to the row's actions in the same frame the selection changes. Asking for
-        // focus before that frame has been applied leaves it on the row, so wait for the new
-        // buttons to exist and retry once if the host has not registered its first slot yet.
+        // Asking for focus before the frame that morphs the bar leaves it on the row, so wait for the
+        // new buttons to exist and retry if the host has not registered its first slot yet.
         repeat(3) {
             withFrameNanos { }
             if (chrome?.focusActionBar() == true) return@LaunchedEffect
         }
     }
-    // One Undo window for every row action in the app: five seconds of visible time, paused while
-    // the screen is in the background and committed when the screen goes away.
+    // One Undo window for every row action: five seconds of visible time, paused while the screen is
+    // in the background and committed when it goes away.
     val undoWindow = rememberUndoWindow { state.clearUndo() }
     UndoWindowLifecycle(undoWindow) { state.clearUndo() }
     LaunchedEffect(state.undo) {
         if (state.undo == null) undoWindow.cancel() else undoWindow.start()
     }
-    // The bar has to leave composition before the row can take focus back; requesting it in the
-    // same frame as the click leaves the focus owner on the disappearing action bar.
+    // The bar must leave composition before the row can take focus back: requesting it in the click's
+    // own frame leaves the focus owner on the disappearing bar.
     LaunchedEffect(state.pendingFocus) {
         if (state.pendingFocus == null) return@LaunchedEffect
         withFrameNanos { }
@@ -270,10 +262,9 @@ fun rememberRowActionBarState(): RowActionBarState {
 }
 
 /**
- * Replaces [normal] with the contextual row bar while a row is selected.
- *
- * The row's actions come first and the close square sits on the right, so the bar never repeats
- * the row title. The selected row's border is the context.
+ * Replaces [normal] with the contextual row bar while a row is selected: the actions come first and
+ * the close square sits on the right, so the bar never repeats the row title. The selected row's
+ * border is the context.
  */
 fun rowActionBarActions(
     state: RowActionBarState,
@@ -292,8 +283,7 @@ fun rowActionBarActions(
         return if (continueWith != null) undoBar(continueWith, undo) else listOf(undo)
     }
     val selection = state.selection ?: return normal
-    // Three actions are icon-only squares; two (or one) get their text label so the bar stays
-    // readable without turning into a wall of icons.
+    // Three actions are icon-only; one or two keep their label so the bar stays readable.
     val actions = selection.actions.map { action ->
         val icon = action.icon.takeIf { action.art == null }
         if (selection.actions.size >= 3) {
@@ -346,11 +336,9 @@ fun CloseRowActionsWhenDisposed(selected: Boolean, state: RowActionBarState) {
 }
 
 /**
- * Closes the contextual bar when the user drags the list under it.
- *
- * Deliberately keyed on a drag, not on [LazyListState.isScrollInProgress]: opening the bar on a
- * row near the bottom focuses that row, and the list scrolls it into view. That scroll is the
- * bar's own doing, so treating it as a dismissal closed the bar in the same frame it opened.
+ * Closes the contextual bar when the user drags the list under it. Keyed on a drag, not on
+ * [LazyListState.isScrollInProgress]: opening the bar on a row near the bottom focuses it, the list
+ * scrolls it into view, and that scroll is the bar's own doing.
  */
 @Composable
 fun RowActionBarState.DismissOnScroll(listState: LazyListState) {

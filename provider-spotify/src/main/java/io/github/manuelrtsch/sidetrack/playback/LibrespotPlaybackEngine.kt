@@ -11,11 +11,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * [PlaybackEngine] over librespot: the existing native gateway and PCM sink, with the private
- * JSON event protocol moved behind [pollEvent].
- *
- * This is deliberately a transport object. Media session, notification, audio focus, the noisy
- * receiver and the sleep timer stay in [PlaybackController].
+ * [PlaybackEngine] over librespot: the native gateway and PCM sink, with the private JSON event
+ * protocol behind [pollEvent]. Deliberately a transport object — the media session, notification,
+ * audio focus and sleep timer stay in [PlaybackController].
  */
 class LibrespotPlaybackEngine(
     private val gateway: SpotifyGateway,
@@ -27,8 +25,8 @@ class LibrespotPlaybackEngine(
     override val state: StateFlow<PlaybackEngineState> = _state.asStateFlow()
 
     /**
-     * Reports a drain that stopped producing audio. The session that owns the native player
-     * installs the recovery path; the sink cannot restart a dead librespot session itself.
+     * Reports a drain that stopped producing audio; the session that owns the native player installs
+     * the recovery path, since the sink cannot restart a dead librespot session itself.
      */
     override var onFailure: (Throwable) -> Unit = {}
 
@@ -39,9 +37,9 @@ class LibrespotPlaybackEngine(
     private val reconfigureLock = Mutex()
 
     /**
-     * A setting changed that needs a new native player while something was playing. A rebuild
-     * stops the sink and fetches the item again, which is audible, so the change waits for a
-     * moment that is already silent: the next start that resets the sink, or the next pause.
+     * A setting changed that needs a new native player while something was playing. A rebuild stops
+     * the sink and fetches the item again, which is audible, so it waits for a moment that is already
+     * silent: the next start that resets the sink, or the next pause.
      */
     private var reconfigurePending = false
 
@@ -58,14 +56,13 @@ class LibrespotPlaybackEngine(
         _state.update {
             it.copy(source = source, isPlaying = true, positionMs = positionMs, isBuffering = false)
         }
-        // Drop the previous item's audio before loading the next one. Draining also unblocks a
-        // player thread that may still be waiting in PcmSink::write, so the load command can be
-        // processed. The AudioTrack itself is kept for the next item: recreating it re-configures
-        // the output route, which is audible as a gap on Bluetooth.
+        // Drain the previous item's audio before loading the next: that also unblocks a player
+        // thread waiting in PcmSink::write so the load command is processed. The AudioTrack itself is
+        // kept, because recreating it re-configures the output route, audible as a gap on Bluetooth.
         val sinkKept = keepAudioSink && audio?.isRunning == true
         if (!sinkKept) {
-            // A setting changed while the previous item was playing. This start resets the sink
-            // anyway, so the new player costs no extra silence; the load below gives it a source.
+            // A setting changed while the previous item played. This start resets the sink anyway, so
+            // the new player costs no extra silence; the load below gives it a source.
             recreatePlayerIfPending()
             audio?.reset()
         }
@@ -94,9 +91,8 @@ class LibrespotPlaybackEngine(
         val reused = audio?.resume(positionMs) ?: false
         if (generation != commandGeneration) return@withLock false
         if (!reused) {
-            // The AudioTrack buffer was lost (for example after a long pause). Realign the
-            // player with the UI position before playing, otherwise it resumes from its decoder
-            // position and skips the buffered audio.
+            // The AudioTrack buffer was lost, after a long pause for instance: realign the player with
+            // the UI position, or it resumes from its decoder position and skips buffered audio.
             SidetrackDebug.log("engine.resume audio buffer lost; seeking to $positionMs")
             runCatching { gateway.seek(positionMs) }
         }
@@ -111,17 +107,16 @@ class LibrespotPlaybackEngine(
         SidetrackDebug.log("engine.pause")
         val generation = ++commandGeneration
         _state.update { it.copy(isPlaying = false, isBuffering = false) }
-        // Queue the native pause while the AudioTrack drain is still running. The drain is the
-        // real-time clock and also unblocks a player thread waiting in PcmSink::write, so the
-        // player can process the pause command. Stopping the drain first would wedge that thread
-        // and leave the UI showing a stale playing state.
+        // Queue the native pause while the drain still runs: the drain is the real-time clock and
+        // unblocks a player thread waiting in PcmSink::write so the pause can be processed. Stopping
+        // it first would wedge that thread and leave the UI showing a stale playing state.
         if (generation != commandGeneration) return
         runCatching { gateway.pause() }
         delay(PAUSE_DRAIN_GRACE_MS)
         if (generation == commandGeneration && _state.value.isPlaying.not()) {
             audio?.pause()
-            // The player is silent now, so a deferred setting change can rebuild it here
-            // instead of cutting into the next track.
+            // Silent now, so a deferred setting change can rebuild the player here instead of
+            // cutting into the next track.
             applyPendingReconfigure()
         }
     }
@@ -163,9 +158,8 @@ class LibrespotPlaybackEngine(
     }
 
     /**
-     * Rebuilds the player and reloads the item at [positionMs]. Only called while the sink is
-     * silent: the rebuild releases the AudioTrack and fetches the item again, so it must never
-     * run under a playing track.
+     * Rebuilds the player and reloads the item at [positionMs]. Only while the sink is silent: the
+     * rebuild releases the AudioTrack and fetches the item again.
      */
     private suspend fun rebuildWhileSilent(
         source: PlaybackSource?,
@@ -206,8 +200,8 @@ class LibrespotPlaybackEngine(
     }
 
     /**
-     * Rebuilds the player for a deferred setting change without reloading anything: the caller
-     * loads the next item itself, so the new player gets its source from that load.
+     * Rebuilds the player for a deferred setting change without reloading: the caller loads the next
+     * item, which gives the new player its source.
      */
     private suspend fun recreatePlayerIfPending() {
         reconfigureLock.withLock {
@@ -240,17 +234,16 @@ class LibrespotPlaybackEngine(
 
     private companion object {
         /**
-         * How long the AudioTrack drain keeps running after a pause/stop is queued. One PCM
-         * buffer is ~23 ms, so this is enough for a player thread blocked in PcmSink::write to
-         * wake, process the command, and stop producing audio.
+         * How long the drain keeps running after a pause/stop is queued. One PCM buffer is ~23 ms, so
+         * this is enough for a thread blocked in PcmSink::write to wake and process the command.
          */
         const val PAUSE_DRAIN_GRACE_MS = 60L
     }
 }
 
 /**
- * Builds the librespot-backed controller. Kept here, next to the engine, so the neutral
- * [PlaybackController] does not import the native gateway or audio sink.
+ * Builds the librespot-backed controller. Kept here so the neutral [PlaybackController] does not
+ * import the native gateway or audio sink.
  */
 fun librespotPlaybackController(
     gateway: SpotifyGateway,

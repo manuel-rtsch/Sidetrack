@@ -46,9 +46,8 @@ data class PlexCredentials(
 }
 
 /**
- * Plex's token and the client identity are kept in the same encrypted, write-through store as the
- * other providers' sessions. The Plex password never reaches Sidetrack: sign-in is a PIN exchange
- * with plex.tv.
+ * Plex's token and client identity live in the same encrypted store as the other providers'
+ * sessions. The password never reaches Sidetrack: sign-in is a PIN exchange with plex.tv.
  */
 class PlexCredentialStore(store: JsonStore) : EncryptedJsonCredentialStore<PlexCredentials>(store) {
     constructor(context: Context, name: String = "sidetracks_plex") :
@@ -111,8 +110,8 @@ data class PlexServerIdentity(val machineIdentifier: String, val claimed: Boolea
 data class PlexAccountInfo(val username: String)
 
 /**
- * The plex.tv calls the sign-in flow needs. Keeping them behind an interface lets the auth tests
- * run without a network, a Plex account or Android keystore plumbing.
+ * The plex.tv calls the sign-in flow needs, behind an interface so the auth tests run without a
+ * network, a Plex account or Android keystore plumbing.
  */
 interface PlexAccountClient {
     suspend fun createPin(clientIdentifier: String): PlexPin
@@ -123,13 +122,12 @@ interface PlexAccountClient {
 }
 
 /**
- * Plex sign-in through a PIN, the flow Plex's own clients use.
+ * Plex sign-in through a PIN, the flow Plex's own clients use:
  *
  * 1. `POST /api/v2/pins` on plex.tv creates an id and a short code.
  * 2. The browser opens `app.plex.tv/auth` with the code already in the fragment.
  * 3. The user approves the client; the adapter polls the pin until plex.tv returns an auth token.
- * 4. The account's server resources are probed and the first reachable, claimed music server is
- *    selected.
+ * 4. The account's server resources are probed and the first reachable, claimed music server wins.
  *
  * No password is ever entered into Sidetrack, and the token is stored encrypted.
  */
@@ -208,8 +206,8 @@ class PlexAuth(
         for (resource in resources.sortedBy { if (it.owned) 0 else 1 }) {
             val token = resource.accessToken?.takeIf { it.isNotBlank() } ?: accountToken
             val candidates = buildList {
-                // Prefer plain HTTP to a local address. Plex's `plex.direct` certificate is trusted
-                // by Plex clients, not necessarily by Android's trust store.
+                // Prefer plain HTTP to a local address: Plex's `plex.direct` certificate is trusted by
+                // Plex clients, not necessarily by Android's trust store.
                 resource.connections.filterNot { it.relay }.forEach { connection ->
                     if (connection.address.isNotBlank() && connection.port > 0) {
                         // Plain HTTP first: it works on every Plex install, while the plex.direct
@@ -277,8 +275,8 @@ class PlexAuth(
 }
 
 /**
- * Plex's client identity for this install. Plex keys a PIN and a server session on it, so it must
- * not change between attempts. Android's per-install id is stable and needs no storage.
+ * Plex's client identity for this install: it keys a PIN and a server session, so it must not change
+ * between attempts. Android's per-install id is stable and needs no storage.
  */
 @SuppressLint("HardwareIds") // A stable per-install Plex client id; hashed before it leaves the app.
 fun plexClientIdentifier(context: Context): String {

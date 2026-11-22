@@ -529,7 +529,5 @@ class SidetrackViewModel(
 
     fun refreshCacheSize() = settings.refreshCacheSize()
 
-    /** Drag-and-drop reorder of the upcoming tail; the current item and history never move. */
-
     private fun playbackNotice(error: Exception): String = serviceMessage(error, session?.isOnline != false)
 }

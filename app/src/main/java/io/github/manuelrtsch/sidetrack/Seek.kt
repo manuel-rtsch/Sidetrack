@@ -57,8 +57,7 @@ import kotlinx.coroutines.launch
 private const val KEY_SEEK_DEBOUNCE_MS = 300L
 
 /**
- * The seek row: tap or drag, or step with D-pad left/right. It mirrors Music's seek row so the
- * transport feels the same in both apps.
+ * Mirrors Music's seek row so the transport feels the same in both apps.
  */
 @Composable
 fun Seek(
@@ -69,9 +68,8 @@ fun Seek(
     buffering: Boolean = false
 ) {
     val seekable = durationMs > 0
-    // While the finger is down the bar follows the finger locally. The player is only asked to
-    // seek once, on release: issuing a seek for every drag delta floods the native player and
-    // makes the bar take seconds to settle on the final position.
+    // Seek once, on release: a seek per drag delta floods the native player and makes the bar take
+    // seconds to settle on the final position.
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     // Key repeat sends KeyDown over and over; the target accumulates locally so holding left or
     // right keeps stepping instead of repeatedly seeking to the same one-step-ahead offset.
@@ -79,20 +77,12 @@ fun Seek(
     var keySeekPending by remember { mutableStateOf(false) }
     var keySeekJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
-    // Clicking or dragging the bar puts it in slide mode: left/right then nudge the track instead
-    // of moving focus. Losing focus leaves the mode.
+    // Slide mode: left/right nudges the track instead of moving focus; losing focus leaves the mode.
     var sliding by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    // The clock ticks five times a second while something plays, and this row is the only part of
-    // the now-playing screen that follows it. Reading the tick in composition — and smoothing it
-    // with a 120 ms animation whose target moved before it could ever settle — recomposed the whole
-    // row, its two labels and its semantics node on every frame: a recomposition and a full tree
-    // semantics diff five to sixty times a second for a bar that had moved a quarter of a pixel.
-    // So the tick is read in two places instead of one:
-    //  - the draw lambda reads it, so a new sample invalidates a draw and nothing else;
-    //  - everything read in composition (the counting label, the accessibility description and
-    //    its range) only wants seconds, so it goes through a derived value that changes once a
-    //    second.
+    // Reading the 5 Hz clock tick in composition would recompose the whole row and its semantics on
+    // every sample; the draw lambda reads it raw so a new sample only redraws, while everything
+    // composed reads a derived value that changes once a second.
     val secondMs by remember(position) { derivedStateOf { position.value / 1_000L * 1_000L } }
     val shownPositionMs = when {
         dragFraction != null -> (dragFraction!! * durationMs).toLong()
@@ -104,14 +94,12 @@ fun Seek(
     val progressColor = SidekitTheme.colors.light
     // The knob turns accent-coloured while the bar owns the keypad, so slide mode is visible.
     val knobColor = if (sliding) SidekitTheme.colors.emphasisA1 else progressColor
-    // Slide mode gives the bar a taller focus strip and a little side inset. The extra height
-    // comes out of the artwork, which is fine while the user is scrubbing.
+    // Slide mode's taller strip takes its extra height from the artwork, fine while scrubbing.
     val blockHeight = if (sliding) 64.dp else 48.dp
     val stripHeight = if (sliding) 40.dp else 24.dp
     val barInset = if (sliding) 16.dp else 0.dp
-    // The times sit above a full-width track inside the same touch target. Keeping them out of
-    // the bar's row means the track can span the whole body without making the screen taller and
-    // shrinking the artwork. Tabular digits keep the counting label from jittering.
+    // Times sit outside the bar's row so the track can span the whole body without making the
+    // screen taller; tabular digits keep the counting label from jittering.
     val labelStyle = SidekitTheme.typography.caption
     val timeStyle = remember(labelStyle) { labelStyle.copy(fontFeatureSettings = "tnum") }
     val interaction = remember { MutableInteractionSource() }
@@ -119,10 +107,9 @@ fun Seek(
         if (seekable) onSeek((target.coerceIn(0f, 1f) * durationMs).toLong())
     }
 
-    // Slide mode always steps 10 s. The first key press enters the mode, and repeated presses
-    // build on the pending target rather than on a position the UI has not recomposed with yet.
-    // The native player is only asked once the key has been quiet for a moment: seeking on every
-    // repeat drained the audio buffer over and over and left the screen silent while it caught up.
+    // Repeated presses build on the pending target, not a position the UI has not recomposed yet;
+    // the player is only asked once the key has been quiet, since seeking on every repeat drained
+    // the audio buffer and left the screen silent while it caught up.
     fun nudge(direction: Float) {
         sliding = true
         if (!seekable) return
@@ -189,9 +176,8 @@ fun Seek(
             }
     ) {
         Row(
-            // Lift the labels out of the block's top edge so they sit close to the artist line
-            // while the bar keeps its distance below them. The extra 2 dp keeps the times from
-            // crowding the track; the block height is unchanged, so the artwork does not shrink.
+            // Labels sit close to the artist line while the bar keeps its distance; the 2 dp lift
+            // stops the times crowding the track without shrinking the artwork.
             Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(0, if (sliding) (-8).dp.roundToPx() else (-4).dp.roundToPx()) }
