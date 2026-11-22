@@ -301,10 +301,10 @@ private fun EpisodeRow(
                 Modifier
                     .fillMaxWidth()
                     .padding(
-                        start = 15.dp,
-                        top = 11.dp,
-                        end = 15.dp,
-                        bottom = if (resume != null) 15.dp else 11.dp
+                        start = ListItemContentInset,
+                        top = ListItemContentInset,
+                        end = ListItemContentInset,
+                        bottom = ListItemContentInset
                     ),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -316,7 +316,7 @@ private fun EpisodeRow(
                     Cover(
                         episode.artRes,
                         Modifier.size(80.dp),
-                        shape = SidekitTheme.shapes.artwork,
+                        shape = artworkShapeFor(ListItemContentInset),
                         artUrl = episode.artUrl
                     )
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

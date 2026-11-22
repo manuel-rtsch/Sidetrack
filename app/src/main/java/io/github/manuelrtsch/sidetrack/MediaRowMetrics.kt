@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
@@ -24,10 +25,31 @@ import hrln.interactive.sidekit.design.theme.SidekitTheme
  */
 val LocalCompactRows = compositionLocalOf { false }
 
+/**
+ * The list item's corner radius. Mirrors `SidekitTheme.shapes.item`, which is 36 dp but is a shape
+ * rather than a number, so the artwork radius below needs the value locally.
+ */
+private val ItemCornerRadius = 36.dp
+
+/**
+ * The cover's corner radius when it sits [inset] inside a list item: the item radius minus that
+ * inset. Only concentric when the inset is the same on every side, which is why the rows now keep
+ * their artwork inset equal to the vertical one: 80 on 104 leaves 12 all round (radius 24), and
+ * the compact 64 on 82 leaves 9 (radius 27).
+ */
+fun artworkShapeFor(inset: Dp): RoundedCornerShape = RoundedCornerShape((ItemCornerRadius - inset).coerceAtLeast(0.dp))
+
 /** The dense layout shrinks a row by about a fifth: 104 dp rows become 82 dp. */
 private val CompactRowHeight = 82.dp
 private val CompactArtworkSize = 64.dp
-private val CompactHorizontalPadding = 12.dp
+
+/**
+ * The artwork's margin inside a row, and so the row's content inset. Equal on every side, so the
+ * cover's radius is exactly the item's 36 minus the gap: 80 on 104 leaves 12 all round (radius
+ * 24), the compact 64 on 82 leaves 9 (radius 27).
+ */
+internal val ListItemContentInset = 12.dp
+private val CompactItemContentInset = 9.dp
 private val CompactContentGap = 10.dp
 private val CompactTextGap = 1.dp
 private val CompactTrackNumberWidth = 40.dp
@@ -40,6 +62,8 @@ private val CompactTrackNumberWidth = 40.dp
 data class MediaRowMetrics(
     val height: Dp,
     val artworkSize: Dp,
+    /** Concentric with the item's own corner, unlike the fixed 24 dp `shapes.artwork` token. */
+    val artworkShape: RoundedCornerShape,
     val horizontalPadding: Dp,
     val contentGap: Dp,
     val textGap: Dp,
@@ -60,7 +84,8 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
             MediaRowMetrics(
                 height = CompactRowHeight,
                 artworkSize = CompactArtworkSize,
-                horizontalPadding = CompactHorizontalPadding,
+                artworkShape = artworkShapeFor(CompactItemContentInset),
+                horizontalPadding = CompactItemContentInset,
                 contentGap = CompactContentGap,
                 textGap = CompactTextGap,
                 trackNumberWidth = CompactTrackNumberWidth,
@@ -74,7 +99,8 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
             MediaRowMetrics(
                 height = spacing.itemHeight,
                 artworkSize = ListArtworkSize,
-                horizontalPadding = 15.dp,
+                artworkShape = artworkShapeFor(ListItemContentInset),
+                horizontalPadding = ListItemContentInset,
                 contentGap = 13.dp,
                 textGap = 2.dp,
                 trackNumberWidth = 44.dp,

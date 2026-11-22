@@ -70,7 +70,7 @@ fun MediaRow(
             horizontalArrangement = Arrangement.spacedBy(metrics.contentGap)
         ) {
             if (showArt) {
-                Cover(item.artRes, Modifier.size(metrics.artworkSize), shape = SidekitTheme.shapes.artwork, artUrl = item.artUrl, requestSize = metrics.artworkSize)
+                Cover(item.artRes, Modifier.size(metrics.artworkSize), shape = metrics.artworkShape, artUrl = item.artUrl, requestSize = metrics.artworkSize)
             } else if (index != null) {
                 Box(Modifier.width(metrics.trackNumberWidth), contentAlignment = Alignment.Center) {
                     SidekitText("${index + 1}", style = metrics.trackNumberStyle, color = colors.surfaceA6)
@@ -132,7 +132,7 @@ fun LibraryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(metrics.contentGap)
         ) {
-            Cover(artRes, Modifier.size(metrics.artworkSize), shape = SidekitTheme.shapes.artwork, artUrl = artUrl, requestSize = metrics.artworkSize)
+            Cover(artRes, Modifier.size(metrics.artworkSize), shape = metrics.artworkShape, artUrl = artUrl, requestSize = metrics.artworkSize)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(metrics.textGap)) {
                 SidekitText(title, style = metrics.titleStyle, maxLines = 1)
                 SidekitText(secondary, style = metrics.secondaryStyle, color = colors.surfaceA6, maxLines = 1)

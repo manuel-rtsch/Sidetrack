@@ -116,16 +116,16 @@ fun NowPlayingTile(
     }
     SidekitTile(modifier, onClick = onClick, onClickLabel = "Now playing") {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+            Modifier.fillMaxWidth().padding(horizontal = ListItemContentInset),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(13.dp)
         ) {
             if (current == null) {
-                Box(Modifier.size(ListArtworkSize).clip(SidekitTheme.shapes.artwork).background(colors.surfaceA2), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(ListArtworkSize).clip(artworkShapeFor(ListItemContentInset)).background(colors.surfaceA2), contentAlignment = Alignment.Center) {
                     SidekitIconImage(SidekitIcon.MusicNote2, size = 36.dp)
                 }
             } else {
-                Cover(current.artRes, Modifier.size(ListArtworkSize), shape = SidekitTheme.shapes.artwork, artUrl = current.artUrl, requestSize = ListArtworkSize)
+                Cover(current.artRes, Modifier.size(ListArtworkSize), shape = artworkShapeFor(ListItemContentInset), artUrl = current.artUrl, requestSize = ListArtworkSize)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 // The overline carries the state, so the title keeps the full width and never
