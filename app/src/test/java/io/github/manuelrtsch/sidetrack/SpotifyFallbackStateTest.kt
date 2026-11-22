@@ -142,7 +142,7 @@ class SpotifyFallbackStateTest {
 
         assertNull(vm.state.value.current)
         assertEquals(listOf(track.id), vm.state.value.upcoming.map { it.id })
-        assertEquals("Added ${track.title} to queue", vm.state.value.notice)
+        assertEquals("Added track to queue", vm.state.value.notice)
     }
 
     @Test fun `queueing a collection appends every track as one batch`() = runTest(dispatcher) {

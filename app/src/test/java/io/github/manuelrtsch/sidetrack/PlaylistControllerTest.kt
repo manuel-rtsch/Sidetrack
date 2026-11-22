@@ -80,7 +80,7 @@ class PlaylistControllerTest {
         assertEquals(second, writer.addedItem)
         assertTrue(cacheKey !in store.value.collections)
         assertEquals(2, store.value.playlistRow("target").trackCount)
-        assertEquals("Added ${second.title} to ${target.name}", store.value.notice)
+        assertEquals("Added track to ${target.name}", store.value.notice)
         assertEquals(NoticeKind.Success, store.value.noticeKind)
     }
 

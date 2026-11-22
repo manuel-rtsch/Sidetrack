@@ -161,7 +161,8 @@ internal class PlaylistController(
                     state.copy(collections = state.collections - playlist.key.encode())
                         .withPlaylistTrackCount(playlist.key, count)
                 }
-                store.update { it.say("Added ${item.title} to ${playlist.name}", NoticeKind.Success) }
+                // Keep the confirmation a fixed width: a long track title would stretch the bar.
+                store.update { it.say("Added track to ${playlist.name}", NoticeKind.Success) }
             }
             index
         } catch (e: CancellationException) {

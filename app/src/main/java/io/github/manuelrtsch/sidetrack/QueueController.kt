@@ -67,7 +67,7 @@ internal class QueueController(
         effects.applyQueue(queue.addToQueue(item), syncNowPlaying = false)
         // Queueing is silent in the player, so the bar is the only confirmation the action landed
         // — especially before anything is playing, when there is no Now Playing screen to check.
-        store.update { it.say("Added ${item.title} to queue", NoticeKind.Success) }
+        store.update { it.say("Added track to queue", NoticeKind.Success) }
     }
 
     /**
