@@ -10,14 +10,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -35,10 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import hrln.interactive.sidekit.design.components.SidekitIconImage
 import hrln.interactive.sidekit.design.components.SidekitText
-import hrln.interactive.sidekit.design.components.SidekitTile
-import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 
 /**
@@ -123,22 +118,22 @@ fun LoadingScreen(
 }
 
 /**
- * The settled counterpart to [LoadingScreen]: the same record, but still, with an optional
- * retry action. Used for empty and failed library loads so those states look intentional instead
- * of like a blank list.
+ * The settled counterpart to [LoadingScreen]: the same record, but still. Used for empty and
+ * failed library loads so those states look intentional instead of like a blank list.
+ *
+ * A failed page's retry is an action-bar button, not a block here: the screen already has a Back
+ * target there, and the two belong together. That leaves the block free to show only the record,
+ * title and hint.
  *
  * The block fills whatever space it is given and centres in it. The record shrinks with the
- * available height, and disappears when there is no room for it, so the title, hint and retry
- * action always fit: on a 480 x 640 Sidephone the area under a library filter row is less than
- * half a page, and a full-size record would push the text off the bottom.
+ * available height, and disappears when there is no room for it, so the title and hint always
+ * fit: on a 480 x 640 Sidephone the area under a library filter row is less than half a page.
  */
 @Composable
 fun StatusScreen(
     title: String,
     modifier: Modifier = Modifier,
     hint: String? = null,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
     artwork: Boolean = true
 ) {
     val colors = SidekitTheme.colors
@@ -146,22 +141,12 @@ fun StatusScreen(
         modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        val hasAction = actionLabel != null && onAction != null
         val record = when {
             !artwork -> null
-
-            // The retry button is an item-height target, so an error needs the space more than
-            // the record does. Below a full page it gives way entirely.
-            hasAction && maxHeight < 360.dp -> null
-
             maxHeight < 240.dp -> null
-
             maxHeight < 300.dp -> 64.dp
-
             maxHeight < 380.dp -> 80.dp
-
             maxHeight < 460.dp -> 104.dp
-
             else -> 132.dp
         }
         // Scroll only when the host gives a bounded height. A list item measures with an
@@ -203,36 +188,6 @@ fun StatusScreen(
                     maxLines = 3
                 )
             }
-            if (actionLabel != null && onAction != null) {
-                Spacer(Modifier.height(16.dp))
-                CenteredLineButton(actionLabel, onAction)
-            }
-        }
-    }
-}
-
-/**
- * Sidekit's line button is full-width but left-aligns its label. A short fallback action such as
- * "Try again" reads as stranded in that width, so this keeps the full-width target and centres
- * the icon and label instead. The SDK has no alignment parameter for its line button.
- */
-@Composable
-private fun CenteredLineButton(label: String, onClick: () -> Unit) {
-    SidekitTile(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(SidekitTheme.spacing.compactRowHeight),
-        color = SidekitTheme.colors.surfaceA3,
-        onClick = onClick,
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = SidekitTheme.spacing.itemPadding),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(SidekitTheme.spacing.itemContentGap)
-        ) {
-            SidekitIconImage(SidekitIcon.Undo)
-            SidekitText(label)
         }
     }
 }

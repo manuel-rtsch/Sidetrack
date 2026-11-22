@@ -54,7 +54,11 @@ internal fun MissingCollectionScreen(
     missingTitle: String = "This collection isn't available",
     onRetry: (() -> Unit)? = null
 ) {
-    SidekitScaffold(title = title, actions = sidetrackBack("Back", onBack)) { padding ->
+    val retry = onRetry.takeIf { !loading }
+    SidekitScaffold(
+        title = title,
+        actions = sidetrackBack("Back", onBack) + listOfNotNull(retry?.let(::retryAction))
+    ) { padding ->
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier.fillMaxSize().padding(padding),
             contentAlignment = androidx.compose.ui.Alignment.Center
@@ -64,9 +68,7 @@ internal fun MissingCollectionScreen(
 
                 error != null -> StatusScreen(
                     errorTitle,
-                    hint = error,
-                    actionLabel = "Try again",
-                    onAction = onRetry
+                    hint = error
                 )
 
                 else -> StatusScreen(

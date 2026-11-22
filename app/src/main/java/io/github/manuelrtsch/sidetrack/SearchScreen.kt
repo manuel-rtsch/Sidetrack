@@ -406,7 +406,15 @@ fun SearchResultsScreen(
         onAddToQueue,
         onAddToPlaylist = onAddToPlaylist
     )
-    val baseActions = listOf(sidetrackBack("Back", onBack).first())
+    var scope by rememberSaveable { mutableStateOf(SearchScope.Tracks) }
+    val query = search.query.trim()
+    val hasQuery = query.length >= 2
+    val loading = hasQuery && search.searchPending && results.isEmpty
+    val failed = hasQuery && !search.searchPending && search.searchError != null && results.isEmpty
+    val baseActions = remember(failed, onRetry) {
+        listOf(sidetrackBack("Back", onBack).first()) +
+            if (failed) listOf(retryAction(onRetry)) else emptyList()
+    }
     val actions = rowActionBarActions(
         rows.bar,
         sidetrackActions(chrome, onDismissNotice, onNowPlaying, onDismissNowPlaying, baseActions, onUndoQueueReplace)
@@ -418,11 +426,6 @@ fun SearchResultsScreen(
     // The gate outlives any one row: a held arrow may rebuild the list before the key comes up.
     // The screen root uses it to swallow the repeats and the release.
     val holdGate = remember { CategoryHoldGate() }
-    var scope by rememberSaveable { mutableStateOf(SearchScope.Tracks) }
-    val query = search.query.trim()
-    val hasQuery = query.length >= 2
-    val loading = hasQuery && search.searchPending && results.isEmpty
-    val failed = hasQuery && !search.searchPending && search.searchError != null && results.isEmpty
     val showFilters = hasQuery && !loading && !failed
     // Moving the row and the selection only walks the categories that are both queried and answerable.
     val includedScopes = SearchScope.entries.filter { it in supportedScopes && it in search.searchScopes }.toSet()
@@ -477,9 +480,7 @@ fun SearchResultsScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 StatusScreen(
                     "Couldn't search",
-                    hint = search.searchError,
-                    actionLabel = "Try again",
-                    onAction = onRetry
+                    hint = search.searchError
                 )
             }
             return@SidekitScaffold

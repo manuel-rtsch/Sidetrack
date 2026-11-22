@@ -43,7 +43,11 @@ fun AddToPlaylistScreen(
 ) {
     val scope = rememberCoroutineScope()
     val bar = rememberRowActionBarState()
-    val baseActions = remember { sidetrackBack("Back", onBack) }
+    val choices = playlists.choices
+    val loadFailed = playlists.error != null && choices.isEmpty()
+    val baseActions = remember(loadFailed, onRetry) {
+        sidetrackBack("Back", onBack) + if (loadFailed) listOf(retryAction(onRetry)) else emptyList()
+    }
     val actions = rowActionBarActions(
         bar,
         sidetrackActions(
@@ -58,7 +62,6 @@ fun AddToPlaylistScreen(
     SidekitScaffold(title = "Add to playlist", actions = actions) { padding ->
         val listState = rememberLazyListState()
         bar.DismissOnScroll(listState)
-        val choices = playlists.choices
         val loading = playlists.loading && choices.isEmpty()
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
             when {
@@ -69,11 +72,9 @@ fun AddToPlaylistScreen(
 
                 loading -> LoadingScreen(title = "Loading playlists…", hint = null)
 
-                playlists.error != null && choices.isEmpty() -> StatusScreen(
+                loadFailed -> StatusScreen(
                     "Couldn't load playlists",
-                    hint = playlists.error,
-                    actionLabel = "Try again",
-                    onAction = onRetry
+                    hint = playlists.error
                 )
 
                 choices.isEmpty() && playlists.loaded && !playlists.hasMore -> StatusScreen(
@@ -87,7 +88,7 @@ fun AddToPlaylistScreen(
         // A page can hold only read-only playlists; if the service says there is another page,
         // show the Load more row instead of declaring the account has no targets.
         val canShowList = track != null && !loading &&
-            !(playlists.error != null && choices.isEmpty()) &&
+            !loadFailed &&
             (choices.isNotEmpty() || playlists.hasMore)
         if (!canShowList) return@SidekitScaffold
         val moreFocus = rememberLoadMoreFocus()

@@ -73,8 +73,15 @@ fun LibraryScreen(
     // Artist and album rows own a gutter of their own: follow/radio and save/queue are list
     // verbs here, not destinations. Track rows keep their contextual bar, so the states never mix.
     val libraryGutters = rememberRowGutterState()
-    val baseActions = remember {
-        listOf(sidetrackBack("Home", onBack).first(), SideAction("search", "Search", SidekitIcon.Search, motion = ActionMotion.Forward, onClick = onSearch))
+    val retryable = library.libraryItems.isEmpty() && library.libraryError != null
+    val baseActions = remember(retryable, onRetry) {
+        buildList {
+            add(sidetrackBack("Home", onBack).first())
+            // Try again is the second button on a failed page; Search keeps its usual place after
+            // it, so the bar reads Back, retry, then the screen's normal action.
+            if (retryable) add(retryAction(onRetry))
+            add(SideAction("search", "Search", SidekitIcon.Search, motion = ActionMotion.Forward, onClick = onSearch))
+        }
     }
     val actions = rowActionBarActions(
         rows.bar,
@@ -147,9 +154,7 @@ fun LibraryScreen(
 
                         library.libraryError != null -> StatusScreen(
                             "Couldn't load ${filter.label.lowercase()}",
-                            hint = library.libraryError,
-                            actionLabel = "Try again",
-                            onAction = onRetry
+                            hint = library.libraryError
                         )
 
                         else -> StatusScreen(

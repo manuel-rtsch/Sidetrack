@@ -53,6 +53,15 @@ fun sidetrackActions(
 
 fun sidetrackBack(label: String, onBack: () -> Unit) = listOf(SideAction.back("back", label, onBack))
 
+/** The second action on a failed page: the screen keeps its Back, and the retry sits beside it. */
+fun retryAction(onRetry: () -> Unit) = SideAction(
+    key = "retry",
+    label = "Try again",
+    icon = SidekitIcon.Undo,
+    tone = ActionTone.Primary,
+    onClick = onRetry
+)
+
 /** The action bar for screens that can change saved state, plus any important notice. */
 fun sidetrackBar(
     chrome: ChromeUiState,
