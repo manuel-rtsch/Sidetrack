@@ -66,9 +66,9 @@ class SpotifyWebApi(
         offset: Int = 0,
         limit: Int = CATALOG_PAGE_SIZE
     ): Collection? = when (type) {
-        CollectionType.Album -> runCatching { albumCollection(id, offset, limit) }.getOrNull()
-        CollectionType.Playlist -> runCatching { playlistCollection(id, offset, limit) }.getOrNull()
-        CollectionType.Show -> runCatching { showCollection(id, offset, limit) }.getOrNull()
+        CollectionType.Album -> albumCollection(id, offset, limit)
+        CollectionType.Playlist -> playlistCollection(id, offset, limit)
+        CollectionType.Show -> showCollection(id, offset, limit)
     }
 
     suspend fun search(
@@ -99,30 +99,24 @@ class SpotifyWebApi(
         )
     }
 
-    suspend fun artist(id: String): Artist? = runCatching {
-        artist(get("${apiBase}$ARTISTS/${enc(id)}", token()))
-    }.getOrNull()
+    suspend fun artist(id: String): Artist? = artist(get("${apiBase}$ARTISTS/${enc(id)}", token()))
 
     suspend fun albumsBy(
         artist: Artist,
         offset: Int = 0,
         limit: Int = CATALOG_PAGE_SIZE
     ): Page<Album> {
-        val json = runCatching {
-            get(
-                "${apiBase}$ARTISTS/${enc(artist.id)}/albums?include_groups=album,single&limit=$limit&offset=$offset&market=from_token",
-                token()
-            )
-        }.getOrNull()
-        val albums = json?.optJSONArray("items").albums().orEmpty()
-        return Page.of(albums, offset, limit, json?.optInt("total")?.takeIf { it > 0 })
+        val json = get(
+            "${apiBase}$ARTISTS/${enc(artist.id)}/albums?include_groups=album,single&limit=$limit&offset=$offset&market=from_token",
+            token()
+        )
+        val albums = json.optJSONArray("items").albums()
+        return Page.of(albums, offset, limit, json.optInt("total").takeIf { it > 0 })
     }
 
     suspend fun topTracks(artist: Artist, offset: Int = 0, limit: Int = CATALOG_PAGE_SIZE): Page<Track> {
-        val json = runCatching {
-            get("${apiBase}$ARTISTS/${enc(artist.id)}/top-tracks?market=from_token", token())
-        }.getOrNull()
-        val tracks = json?.optJSONArray("tracks").tracks().orEmpty().drop(offset).take(limit)
+        val json = get("${apiBase}$ARTISTS/${enc(artist.id)}/top-tracks?market=from_token", token())
+        val tracks = json.optJSONArray("tracks").tracks().drop(offset).take(limit)
         return Page.of(tracks, offset, limit)
     }
 

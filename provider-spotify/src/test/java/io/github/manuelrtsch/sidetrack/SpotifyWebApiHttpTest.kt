@@ -201,12 +201,13 @@ class SpotifyWebApiHttpTest {
         )
     }
 
-    @Test fun `a detail request that fails makes the collection unavailable instead of throwing`() = runTest {
+    @Test fun `a detail request that fails reports the transport failure`() = runTest {
         server.status = 500
 
-        assertNull(api().collection(CollectionType.Album, "gone"))
-        assertNull(api().collection(CollectionType.Playlist, "gone"))
-        assertNull(api().collection(CollectionType.Show, "gone"))
+        for (type in CollectionType.entries) {
+            val error = runCatching { api().collection(type, "gone") }.exceptionOrNull()
+            assertEquals(SpotifyFailure.Network, (error as SpotifyGatewayException).failure)
+        }
     }
 
     // --- search --------------------------------------------------------------------------------
@@ -253,7 +254,7 @@ class SpotifyWebApiHttpTest {
 
     // --- artist, albums and radio --------------------------------------------------------------
 
-    @Test fun `an artist lookup maps or returns null on failure`() = runTest {
+    @Test fun `an artist lookup maps or reports a failed request`() = runTest {
         server.body = """{"id":"ar1","name":"Aurora","images":[{"url":"http://img/a.jpg","width":300}]}"""
 
         val artist = api().artist("ar 1")!!
@@ -266,10 +267,11 @@ class SpotifyWebApiHttpTest {
         assertNull(api().artist("gone"))
 
         server.status = 500
-        assertNull(api().artist("gone"))
+        val error = runCatching { api().artist("gone") }.exceptionOrNull()
+        assertEquals(SpotifyFailure.Network, (error as SpotifyGatewayException).failure)
     }
 
-    @Test fun `albums by an artist page and fall back to empty on failure`() = runTest {
+    @Test fun `albums by an artist page and report a failed request`() = runTest {
         server.body = """
             {"items":[{"id":"al1","name":"Signals","artists":[{"id":"ar1","name":"Aurora"}],
                        "release_date":"2024","tracks":{"total":3}}],"total":3}
@@ -285,10 +287,8 @@ class SpotifyWebApiHttpTest {
         )
 
         server.status = 500
-        val failed = api().albumsBy(Artist("ar1", "Aurora", 0, emptyList()))
-        assertTrue(failed.items.isEmpty())
-        assertNull(failed.total)
-        assertFalse(failed.hasMore)
+        val error = runCatching { api().albumsBy(Artist("ar1", "Aurora", 0, emptyList())) }.exceptionOrNull()
+        assertEquals(SpotifyFailure.Network, (error as SpotifyGatewayException).failure)
     }
 
     @Test fun `top tracks are sliced locally because Spotify ignores paging`() = runTest {
@@ -300,7 +300,8 @@ class SpotifyWebApiHttpTest {
         assertEquals("/artists/ar1/top-tracks?market=from_token", server.requests.single())
 
         server.status = 500
-        assertTrue(api().topTracks(Artist("ar1", "Aurora", 0, emptyList())).items.isEmpty())
+        val error = runCatching { api().topTracks(Artist("ar1", "Aurora", 0, emptyList())) }.exceptionOrNull()
+        assertEquals(SpotifyFailure.Network, (error as SpotifyGatewayException).failure)
     }
 
     @Test fun `both radios seed recommendations and clamp the limit`() = runTest {
