@@ -45,10 +45,12 @@ private const val LOADING_DESCRIPTION = "Loading…"
  * not as a link. A footer that reports a status in [secondary] passes `true` to keep its arrow.
  * A row that cannot be pressed never shows one.
  *
- * [loading] takes the trailing slot a status would use and puts the record spinner there instead.
+ * [loading] puts the record spinner where the arrow sits and takes the arrow away for the duration.
  * A footer that says "Loading…" in words has a title of unknown length beside it, so the words
  * were the first thing to be truncated at exactly the moment the row had something to say. The
- * spinner is a fixed square: it cannot be squeezed, and it reads the same on every list.
+ * spinner is a fixed square: it cannot be squeezed, and it reads the same on every list. While it
+ * turns the row shows one picture, the record, rather than a record beside an arrow that does
+ * nothing until the page has arrived.
  */
 @Composable
 fun TerminalRow(
@@ -82,6 +84,8 @@ fun TerminalRow(
                 maxLines = 1
             )
             if (loading) {
+                // The label above carries the weight while loading, so the spinner is pushed to the
+                // end of the row: the arrow's slot, held by the thing that is actually happening.
                 VinylSpinner(describeAs = LOADING_DESCRIPTION)
             } else if (secondary != null) {
                 SidekitText(
@@ -95,11 +99,11 @@ fun TerminalRow(
                     textAlign = TextAlign.End
                 )
             }
-            if (linkArrow && onClick != null) {
+            if (linkArrow && !loading && onClick != null) {
                 // Without a value beside it the arrow takes the slack and sits at the end; with one
                 // it keeps its own width so the value is not squeezed into half the row.
                 Box(
-                    if (secondary == null && !loading) Modifier.weight(1f) else Modifier,
+                    if (secondary == null) Modifier.weight(1f) else Modifier,
                     contentAlignment = Alignment.CenterEnd
                 ) { LinkArrow() }
             }
@@ -210,8 +214,8 @@ fun LoadMoreRow(
         label,
         modifier = rowModifier,
         loading = loading,
-        // The arrow stays while the page is in flight: the row is still the thing the user pressed,
-        // and the spinner sits beside it rather than in place of it.
+        // The arrow is only for the idle row; TerminalRow swaps the spinner into its slot while the
+        // page is in flight, so the footer never shows both.
         linkArrow = true,
         // Keep the row clickable while the page is in flight. A non-clickable row is not
         // focusable, so turning it off would drop the keypad and let focus search land up the

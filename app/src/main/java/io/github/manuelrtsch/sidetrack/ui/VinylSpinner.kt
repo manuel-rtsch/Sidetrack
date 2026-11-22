@@ -34,10 +34,10 @@ private const val ARC_SWEEP = 100f
 /**
  * The launcher icon's record, cut down to a trailing indicator for a row that is fetching.
  *
- * The icon's rings and grooves are too fine to survive at 24 dp, so the figure keeps three marks
- * that still read at that size: the outer ring, the centre label as a dot, and one short arc in
- * the groove band turning round it. Everything that does not move is dimmed, which leaves the arc
- * as the thing the eye follows.
+ * The icon's rings and grooves are too fine to survive at row size, so the figure keeps three marks
+ * that still read there: the outer ring, the centre label as a dot, and one short arc in the groove
+ * band turning round it. Everything that does not move is dimmed, which leaves the arc as the thing
+ * the eye follows.
  *
  * The cost is kept to the draw phase, as the playing bars over the artwork do it: one 0..1 phase is
  * read inside the draw lambda, so a frame invalidates the drawing and nothing else — no
@@ -48,7 +48,8 @@ fun VinylSpinner(
     /** What a screen reader hears in place of the movement. */
     describeAs: String,
     modifier: Modifier = Modifier,
-    diameter: Dp = 24.dp,
+    /** The row arrow's size by default: the spinner takes that slot over while a page loads. */
+    diameter: Dp = RowLinkArrowSize,
     color: Color = SidekitTheme.colors.light
 ) {
     val transition = rememberInfiniteTransition(label = "vinylSpinner")

@@ -53,12 +53,12 @@ class PaginationFooterTest {
         val spinners = compose.onAllNodesWithContentDescription("Loading…", useUnmergedTree = true)
         val short = spinners[0].getBoundsInRoot()
         val long = spinners[1].getBoundsInRoot()
-        // 24 dp, on both rows: the label's length cannot shrink it the way it used to shrink the
-        // word it replaced.
-        assertEquals(24f, (short.right - short.left).value, 0.5f)
-        assertEquals(24f, (short.bottom - short.top).value, 0.5f)
-        assertEquals(24f, (long.right - long.left).value, 0.5f)
-        assertEquals(24f, (long.bottom - long.top).value, 0.5f)
+        // The row arrow's 30 dp, on both rows: the label's length cannot shrink it the way it used
+        // to shrink the word it replaced.
+        assertEquals(30f, (short.right - short.left).value, 0.5f)
+        assertEquals(30f, (short.bottom - short.top).value, 0.5f)
+        assertEquals(30f, (long.right - long.left).value, 0.5f)
+        assertEquals(30f, (long.bottom - long.top).value, 0.5f)
     }
 
     @Test
