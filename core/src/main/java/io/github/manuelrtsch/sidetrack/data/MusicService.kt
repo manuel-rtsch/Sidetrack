@@ -57,6 +57,12 @@ sealed interface SignInKind {
 
     /** Server address, username and password. [defaults] pre-fills a public demo, if any. */
     data class Password(val defaults: PasswordDefaults? = null) : SignInKind
+
+    /**
+     * A storage access grant instead of an account. The screen asks the platform for the media
+     * permission and then signs in; there is no field to type into, and no secret to store.
+     */
+    data object Device : SignInKind
 }
 
 /** The values a public demo prefills on a password sign-in form. */
@@ -79,6 +85,12 @@ sealed interface AuthInput {
         val username: String,
         val password: String
     ) : AuthInput
+
+    /**
+     * A device library sign-in. The provider itself asks the platform whether the media permission
+     * is held, so the screen can request it first and then hand over without passing a secret.
+     */
+    data object Device : AuthInput
 }
 
 /** Provider-owned authentication. The registry never sees tokens or passwords. */

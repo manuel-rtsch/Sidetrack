@@ -45,6 +45,7 @@ tasks.register("coverage") {
         ":app:koverHtmlReportDebug",
         ":app:koverXmlReportDebug",
         ":core:koverVerifyDebug",
+        ":provider-local:koverVerifyDebug",
         ":provider-spotify:koverVerifyDebug",
         ":provider-jellyfin:koverVerifyDebug",
         ":provider-subsonic:koverVerifyDebug",

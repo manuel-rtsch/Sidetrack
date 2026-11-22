@@ -6,6 +6,8 @@ import io.github.manuelrtsch.sidetrack.BuildConfig
 import io.github.manuelrtsch.sidetrack.DemoContentSource
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.auth.EncryptedSpotifyCredentialStore
+import io.github.manuelrtsch.sidetrack.auth.LocalAuth
+import io.github.manuelrtsch.sidetrack.auth.LocalServiceId
 import io.github.manuelrtsch.sidetrack.auth.SpotifyAuth
 import io.github.manuelrtsch.sidetrack.playback.PlaybackController
 import io.github.manuelrtsch.sidetrack.storage.GuardedEncryptedStore
@@ -23,6 +25,7 @@ val KnownServices: List<ServiceChoice> = buildList {
     SubsonicFamily.entries.forEach { add(ServiceChoice(it.id, it.displayName)) }
     add(ServiceChoice(JellyfinService.id, JellyfinService.DISPLAY_NAME))
     add(ServiceChoice(PlexService.id, PlexService.DISPLAY_NAME))
+    add(ServiceChoice(LocalServiceId, LocalAuth.DISPLAY_NAME))
 }.sortedBy { it.displayName.lowercase() }
 
 /** The picker's view of [id], or null when this build does not know the service. */
@@ -203,6 +206,11 @@ object AppSessions {
             .onFailure { Log.w("SidetrackSession", "Could not build the Plex session", it) }
             .getOrNull()
             ?.let { Selection(PlexProvider(it), it) }
+
+        ServiceId.Device -> runCatching { LocalRuntime(context) }
+            .onFailure { Log.w("SidetrackSession", "Could not build the device library session", it) }
+            .getOrNull()
+            ?.let { Selection(LocalProvider(it), it) }
 
         // Every remaining service is a member of the Subsonic family: one adapter, one runtime
         // class, and only the entry's identity, label and store names differ.

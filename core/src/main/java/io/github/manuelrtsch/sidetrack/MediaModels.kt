@@ -19,6 +19,13 @@ value class ServiceId(val value: String) {
         val NextcloudMusic = ServiceId("nextcloud-music")
         val Subsonic = ServiceId("subsonic")
 
+        /**
+         * The music library already on the device, read through MediaStore: a real service like
+         * any other, so it keeps its own queue, history and resume files. Deliberately not [Local],
+         * which marks the context-free fixtures the driver treats as a simulation with no URI.
+         */
+        val Device = ServiceId("device")
+
         /** A context-free fixture, used by previews and unit tests that have no signed-in service. */
         val Local = ServiceId("local")
     }
@@ -213,11 +220,35 @@ data class ServiceCapabilities(
         )
 
         /**
-         * Plex exposes music libraries, playlists, artists and albums. It has no real radio
-         * endpoint, no loudness parameter and no gapless handoff; playlist creation needs a
-         * non-empty item URI, so the create form is left out. Liked/saved state is Plex's rating
-         * convention (`userRating == 10`), and playback progress is reported through
-         * `/:/timeline` and `/:/scrobble`.
+         * The device's own music library; there is no server behind it, so radio has no seed graph,
+         * podcasts and artist follow are undefined, and quality, progress or scrobbles go nowhere —
+         * resume and history still work, being the app's own stores, and normalisation and gapless
+         * stay off as Media3 applies neither without engine support.
+         */
+        val Device = ServiceCapabilities(
+            librarySections = setOf(
+                LibrarySection.Liked,
+                LibrarySection.Playlists,
+                LibrarySection.Albums,
+                LibrarySection.Artists
+            ),
+            searchScopes = setOf(
+                SearchScope.Tracks,
+                SearchScope.Artists,
+                SearchScope.Albums,
+                SearchScope.Playlists
+            ),
+            supportsPlaylistEdit = true,
+            supportsPlaylistCreate = true,
+            supportsPlaylistRename = true,
+            supportsPlaylistDelete = true
+        )
+
+        /**
+         * Plex exposes music libraries, playlists, artists and albums. No real radio endpoint, no
+         * loudness parameter, no gapless handoff; playlist creation needs a non-empty item URI, so the
+         * create form is left out. Liked/saved state is the rating convention (`userRating == 10`);
+         * progress and scrobbles go through `/:/timeline` and `/:/scrobble`.
          */
         val Plex = ServiceCapabilities(
             librarySections = setOf(

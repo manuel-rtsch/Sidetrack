@@ -2,6 +2,7 @@ package io.github.manuelrtsch.sidetrack.data
 
 import android.content.Context
 import hrln.interactive.sidekit.sdk.media.RemoteArtwork
+import hrln.interactive.sidekit.sdk.media.Thumbnails
 import io.github.manuelrtsch.sidetrack.AudioQuality
 import io.github.manuelrtsch.sidetrack.MediaItem
 import io.github.manuelrtsch.sidetrack.ServiceCapabilities
@@ -46,7 +47,12 @@ abstract class Media3ServiceRuntime(
     override val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
 
     override val network: NetworkMonitor = NetworkMonitor(appContext)
-    override val isOnline: Boolean get() = network.isOnline
+
+    /**
+     * Whether the service can be reached right now. Open because a device library is reachable with
+     * no network at all, and the UI must not report it offline.
+     */
+    open override val isOnline: Boolean get() = network.isOnline
 
     private val settingsStore = PlaybackSettingsStore(appContext, stores.settings)
 
@@ -198,6 +204,9 @@ abstract class Media3ServiceRuntime(
 
     override fun clearCaches() {
         RemoteArtwork.clear(appContext)
+        // Device artwork is a MediaProvider thumbnail, held in memory only: nothing on disk to
+        // count, but the bitmaps should still go when the user clears the cache.
+        Thumbnails.clear()
     }
 
     override suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) {

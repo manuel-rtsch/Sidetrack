@@ -49,6 +49,7 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.sdk.media.RemoteArtwork
 import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
+import io.github.manuelrtsch.sidetrack.data.ArtworkImages
 import io.github.manuelrtsch.sidetrack.playback.SleepTimerState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
@@ -185,7 +186,7 @@ private fun RemoteBackdrop(url: String, side: Dp) {
     val px = with(LocalDensity.current) { (side * 0.6f).roundToPx() }.coerceIn(96, 768)
     val bitmap by produceState<ImageBitmap?>(null, url, px) {
         value = try {
-            RemoteArtwork.load(context, url, px, px, ArtworkAccess.current())?.asImageBitmap()
+            ArtworkImages.load(context, url, px, px, ArtworkAccess.current())?.asImageBitmap()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

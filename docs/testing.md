@@ -28,6 +28,7 @@ run by name: see [jellyfin-integration.md](jellyfin-integration.md) and
 | `:core` | service-agnostic models, persistence, queue/history/progress repositories, playback controller, sleep timer, drain policy |
 | `:app` | Compose screens, view model, navigation, service glue |
 | `:provider-spotify` | Spotify auth, Web API mapping, native catalog/gateway, librespot engine and the controller it builds |
+| `:provider-local` | Device catalog grouping, search, paging, `.m3u8` playlists, liked list |
 | `:provider-subsonic` | Subsonic auth, API mapping, family entries |
 | `:provider-jellyfin` | Jellyfin auth, API mapping, catalog, playback reporting |
 | `:provider-plex` | Plex PIN auth, API mapping, catalog, playback reporting |
@@ -60,6 +61,7 @@ the screenshot tests carry a large share of UI coverage.
 | `:core` | 63 | 51 |
 | `:provider-spotify` | 77 | 61 |
 | `:provider-jellyfin` | 92 | 62 |
+| `:provider-local` | 61 | 43 |
 | `:provider-subsonic` | 70 | 42 |
 | `:provider-plex` | 64 | 36 |
 

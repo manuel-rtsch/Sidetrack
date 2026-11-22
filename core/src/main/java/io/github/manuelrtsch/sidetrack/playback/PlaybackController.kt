@@ -5,11 +5,11 @@ import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.session.MediaSession
 import android.os.SystemClock
-import hrln.interactive.sidekit.sdk.media.RemoteArtwork
 import io.github.manuelrtsch.sidetrack.MediaItem
 import io.github.manuelrtsch.sidetrack.MediaKey
 import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
+import io.github.manuelrtsch.sidetrack.data.ArtworkImages
 import io.github.manuelrtsch.sidetrack.mediaTextOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -248,7 +248,7 @@ class PlaybackController(
         if (artUrl != null && context != null) {
             artJob = scope.launch {
                 val bitmap = try {
-                    RemoteArtwork.load(context, artUrl, ART_PX, ART_PX, ArtworkAccess.current())
+                    ArtworkImages.load(context, artUrl, ART_PX, ART_PX, ArtworkAccess.current())
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {

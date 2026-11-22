@@ -7,10 +7,16 @@ domain model; the app is the only place that knows every provider.
 :app                  UI, navigation, view model, picker, session registry
  ├── :core             domain model, provider contracts, shared repositories, playback engines
  ├── :provider-spotify   ─┐
- ├── :provider-subsonic ─┼─► :core   (never the reverse)
- ├── :provider-jellyfin ─┤
- └── :provider-plex    ─┘
+ ├── :provider-subsonic ─┤
+ ├── :provider-jellyfin ─┼─► :core   (never the reverse)
+ ├── :provider-plex     ─┤
+ └── :provider-local   ─┘
 ```
+
+`:provider-local` is the device's own library: MediaStore for the catalog and playback URIs,
+`.m3u8` files it owns for the playlists it writes. Its sign-in is a storage permission, not an
+account, so `LocalAuth` stores nothing and `SignInKind.Device` gives the sign-in screen a mode with
+no fields.
 
 ## Boundaries
 

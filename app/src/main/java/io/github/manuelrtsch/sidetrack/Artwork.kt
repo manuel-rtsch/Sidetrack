@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
+import android.net.Uri
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,7 +26,9 @@ import hrln.interactive.sidekit.design.components.SidekitTile
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.sdk.media.RemoteArtworkImage
+import hrln.interactive.sidekit.sdk.media.Thumbnail
 import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
+import io.github.manuelrtsch.sidetrack.data.ArtworkImages
 
 /**
  * Artwork shown beside text inside a 104 dp list tile. 80 dp leaves a 12 dp margin on every side
@@ -59,6 +62,23 @@ fun Cover(
             .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, onClick = onClick) else Modifier)
     ) {
         when {
+            // Device artwork is a MediaProvider thumbnail, not a download: the album-art endpoint
+            // is a content:// URI that the network loader cannot open.
+            remoteUrl != null && ArtworkImages.isContentUri(remoteUrl) -> Box(Modifier.fillMaxSize()) {
+                SidekitIconImage(
+                    SidekitIcon.Album,
+                    Modifier.align(Alignment.Center),
+                    contentDescription = null
+                )
+                if (requestSize != null) {
+                    Thumbnail(Uri.parse(remoteUrl), requestSize, requestSize, Modifier.fillMaxSize())
+                } else {
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        Thumbnail(Uri.parse(remoteUrl), maxWidth, maxHeight, Modifier.fillMaxSize())
+                    }
+                }
+            }
+
             remoteUrl != null && requestSize != null -> RemoteArtworkImage(
                 remoteUrl,
                 width = requestSize,

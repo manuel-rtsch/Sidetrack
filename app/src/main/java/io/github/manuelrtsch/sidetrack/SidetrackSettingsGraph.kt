@@ -1,5 +1,7 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -8,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import io.github.manuelrtsch.sidetrack.auth.LocalAudioPermission
 import io.github.manuelrtsch.sidetrack.data.AppSessions
 import io.github.manuelrtsch.sidetrack.data.KnownServices
 import io.github.manuelrtsch.sidetrack.data.SignInKind
@@ -167,9 +170,13 @@ internal fun NavGraphBuilder.settingsGraph(
         // defaults, or a browser/custom-tab flow with no fields. No shared code names a service.
         val signInKind = appSession.provider?.signInKind
         val passwordAuth = signInKind is SignInKind.Password
+        val deviceAuth = signInKind is SignInKind.Device
         val defaults = (signInKind as? SignInKind.Password)?.defaults?.let {
             PasswordSignInDefaults(it.serverUrl, it.username, it.password)
         }
+        // A device library signs in by asking for the media permission. The result is handed to
+        // the provider either way: it checks the grant itself and names what is missing.
+        val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.signInDevice() }
         SignInScreen(
             chrome,
             onBack = {
@@ -185,6 +192,8 @@ internal fun NavGraphBuilder.settingsGraph(
             serviceName = appSession.serviceName.ifEmpty { "your music service" },
             passwordAuth = passwordAuth,
             defaults = defaults,
+            deviceAuth = deviceAuth,
+            onDeviceSignIn = { permission.launch(LocalAudioPermission) },
             onPasswordSignIn = vm::signIn
         )
     }

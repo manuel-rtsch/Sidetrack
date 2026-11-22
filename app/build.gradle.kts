@@ -399,6 +399,7 @@ android.defaultConfig.buildConfigField(
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":provider-local"))
     implementation(project(":provider-subsonic"))
     implementation(project(":provider-jellyfin"))
     implementation(project(":provider-plex"))
@@ -448,6 +449,7 @@ dependencies {
 // the other modules' build files.
 dependencies {
     kover(project(":core"))
+    kover(project(":provider-local"))
     kover(project(":provider-spotify"))
     kover(project(":provider-jellyfin"))
     kover(project(":provider-plex"))

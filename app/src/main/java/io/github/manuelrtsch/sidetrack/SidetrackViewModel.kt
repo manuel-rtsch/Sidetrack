@@ -437,6 +437,8 @@ class SidetrackViewModel(
 
     fun signIn() = account.signIn()
 
+    fun signInDevice() = account.signInDevice()
+
     fun signIn(serverUrl: String, username: String, password: String) = account.signIn(serverUrl, username, password)
 
     fun signOut() = account.signOut()

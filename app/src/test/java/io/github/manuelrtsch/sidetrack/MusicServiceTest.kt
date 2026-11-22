@@ -22,7 +22,8 @@ class MusicServiceTest {
                 ServiceId.NextcloudMusic,
                 ServiceId.Plex,
                 ServiceId.Spotify,
-                ServiceId.Subsonic
+                ServiceId.Subsonic,
+                ServiceId.Device
             ),
             KnownServices.map { it.id }
         )
@@ -32,6 +33,7 @@ class MusicServiceTest {
         assertEquals("Nextcloud Music", KnownServices.first { it.id == ServiceId.NextcloudMusic }.displayName)
         assertEquals("Subsonic", KnownServices.first { it.id == ServiceId.Subsonic }.displayName)
         assertEquals("Jellyfin", KnownServices.first { it.id == ServiceId.Jellyfin }.displayName)
+        assertEquals("This device", KnownServices.first { it.id == ServiceId.Device }.displayName)
         // The picker sorts by the label it renders, so the welcome list reads A–Z.
         assertEquals(
             KnownServices.map { it.displayName }.sortedBy { it.lowercase() },
@@ -52,6 +54,32 @@ class MusicServiceTest {
         assertTrue(!caps.supportsPodcasts)
         assertTrue(!caps.supportsFollowArtist)
         assertTrue(!caps.supportsGapless)
+    }
+
+    @Test fun `the device library advertises only what a file can deliver`() {
+        val caps = ServiceCapabilities.Device
+        assertEquals(
+            setOf(LibrarySection.Liked, LibrarySection.Playlists, LibrarySection.Albums, LibrarySection.Artists),
+            caps.librarySections
+        )
+        assertEquals(
+            setOf(SearchScope.Tracks, SearchScope.Artists, SearchScope.Albums, SearchScope.Playlists),
+            caps.searchScopes
+        )
+        assertTrue(caps.supportsPlaylistCreate)
+        assertTrue(caps.supportsPlaylistEdit)
+        assertTrue(caps.supportsPlaylistRename)
+        assertTrue(caps.supportsPlaylistDelete)
+        // Nothing to stream from and nothing to report to: no radio, podcasts, follow, quality,
+        // normalisation or gapless handoff on the shared Media3 engine yet.
+        assertTrue(!caps.supportsRadio)
+        assertTrue(!caps.supportsPodcasts)
+        assertTrue(!caps.supportsFollowArtist)
+        assertTrue(!caps.supportsQualitySelection)
+        assertTrue(!caps.supportsNormalization)
+        assertTrue(!caps.supportsGapless)
+        assertTrue(!caps.supportsProgressReporting)
+        assertTrue(!caps.supportsScrobbling)
     }
 
     @Test fun `the Subsonic family mutes the categories its API cannot answer`() {
