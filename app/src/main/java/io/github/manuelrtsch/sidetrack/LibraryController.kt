@@ -298,6 +298,18 @@ internal class LibraryController(
     }
 
     /**
+     * Retries every page that failed for want of a connection. The network coming back is the
+     * retry: leaving an artist on "Couldn't load" until the user finds the button makes a
+     * recovered service look broken.
+     */
+    fun retryFailed() {
+        store.value.artistErrors.keys.toList().forEach(::retryArtist)
+        store.value.collectionErrors.keys.toList().forEach { key ->
+            MediaKey.decode(key)?.let(::retryCollection)
+        }
+    }
+
+    /**
      * Plays [collection] from [index] in collection context. The page already on screen starts at
      * once and the pages behind "See more" grow the tail in the background, so a long playlist
      * opens on its first note instead of a spinner, and a page that cannot be loaded leaves the

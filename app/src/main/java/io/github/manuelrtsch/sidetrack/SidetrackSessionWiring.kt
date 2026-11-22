@@ -87,6 +87,9 @@ internal class SidetrackSessionWiring(
                         // Cache-first: this refetches the open category when the offline attempt
                         // left it empty or failed, and leaves a list that loaded fine alone.
                         library.ensure(store.value.filter)
+                        // An artist or collection the user opened while offline is a failed page
+                        // too, not just the category list, and it retries without another tap.
+                        library.retryFailed()
                     }
                     wasOnline = online
                 }
