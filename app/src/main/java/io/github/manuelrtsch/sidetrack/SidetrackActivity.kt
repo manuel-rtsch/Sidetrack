@@ -78,9 +78,13 @@ class SidetrackActivity : SidekitActivity() {
     }
 
     override fun onSidekitCreate(savedInstanceState: Bundle?) {
+        // The first frame is the number the user feels, so it is measured, not inferred from the
+        // phases before it. Posted here because the host draws its own content view.
+        window.decorView.post { StartupTrace.mark("first frame") }
         // kotlin-logging, pulled in by the Jellyfin SDK, defaults to its SLF4J backend but ships no
         // org.slf4j classes, so the SDK's first log call dies with NoClassDefFoundError. This selects
         // the android.util.Log backend and must be set before the SDK logs.
+        StartupTrace.mark("activity created")
         System.setProperty("kotlin-logging-to-android-native", "true")
         if (savedInstanceState == null) SidetrackLinks.handle(intent)
         // Installed here, before any player can demand a notification, so core never has to name
@@ -139,13 +143,14 @@ class SidetrackActivity : SidekitActivity() {
 
     @Composable
     override fun SidekitContent() {
+        StartupTrace.once("shell composing")
         val context = LocalContext.current
         val nav = rememberNavController()
         // Picked before the NavHost composes, so a signed-out launch never draws Home for a frame. A
         // fresh install starts at the service picker, the only place a service is chosen; a signed-in
         // install that has not finished the welcome starts there once, including after an update.
         val start = remember(context) {
-            val session = AppSessions.get(context)
+            val session = StartupTrace.measure("session provisioning") { AppSessions.get(context) }
             when {
                 !session.provisioned -> SIDE_PLAY_SERVICE_PICKER
                 !session.signedIn.value -> SIDE_PLAY_SIGN_IN
@@ -160,6 +165,7 @@ class SidetrackActivity : SidekitActivity() {
                 keypadBackOverride = null
             }
         }
+        StartupTrace.once("start destination chosen")
         SidetrackLinks.Follow(nav)
         val home = homeRequests.intValue
         LaunchedEffect(home) {
@@ -172,6 +178,7 @@ class SidetrackActivity : SidekitActivity() {
         // One read for the whole graph: every list row follows the same density, and switching
         // the setting recomposes the graph rather than each list re-reading the preference.
         val compactRows = rememberCompactRows()
+        StartupTrace.once("graph dependencies ready")
         CompositionLocalProvider(LocalCompactRows provides compactRows) {
             NavHost(navController = nav, startDestination = SIDE_PLAY_ROOT) {
                 sidetrackGraph(
@@ -182,6 +189,7 @@ class SidetrackActivity : SidekitActivity() {
                 )
             }
         }
+        StartupTrace.once("graph attached")
     }
 
     private companion object {

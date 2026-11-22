@@ -17,5 +17,6 @@ class SidetrackApp : Application() {
             this,
             always = BuildConfig.BUILD_TYPE == "debug" || BuildConfig.BUILD_TYPE == "dev"
         )
+        StartupTrace.mark("application created")
     }
 }
