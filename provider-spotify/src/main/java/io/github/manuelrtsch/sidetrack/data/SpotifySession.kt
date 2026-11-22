@@ -242,7 +242,7 @@ class SpotifySession(
     }
 
     private val recovery by lazy {
-        SpotifyStallRecovery(playback, playbackScope, queue) { key, uri, position, reconnect ->
+        SpotifyStallRecovery(playback, playbackScope, queue, online = network?.online) { key, uri, position, reconnect ->
             play(key, uri, position, forceReconnect = reconnect)
         }
     }

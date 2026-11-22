@@ -71,6 +71,9 @@ class PlaybackController(
 
     val position: Long get() = positionMs
 
+    /** Whether audio is expected to be coming out of the speaker right now. */
+    val isPlaying: Boolean get() = playing
+
     private val _notice = MutableStateFlow<String?>(null)
 
     /**
