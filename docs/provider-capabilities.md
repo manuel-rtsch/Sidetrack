@@ -118,7 +118,10 @@ its original position. That is why remove confirms instead of offering Undo.
 - Playlist creation is off: the native bridge has no create endpoint.
 
 Spotify library and search need the native bridge; without it the Web API transport is read-only
-and rate-limited.
+and rate-limited. Only a transport that cannot reach the access point moves reads there: an answer
+the service itself refuses (a 5xx gateway error, say) is reported as that request's failure instead,
+and a degraded transport is probed again once a minute so a hiccup at launch does not cost the
+process.
 
 ## Subsonic family (Navidrome, Nextcloud Music, Subsonic)
 

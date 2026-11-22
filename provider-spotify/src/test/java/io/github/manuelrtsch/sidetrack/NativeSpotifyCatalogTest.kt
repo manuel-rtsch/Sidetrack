@@ -302,6 +302,22 @@ class NativeSpotifyCatalogTest {
         assertEquals(SpotifyFailure.Network, (error as SpotifyGatewayException).failure)
     }
 
+    @Test fun `a gateway error is the service answering, not the transport failing`() = runTest {
+        // librespot formats a non-2xx answer as "Response status code: …"; a 502 says the access
+        // point answered and its upstream failed. Reporting that as Network would move the whole
+        // process onto the rate-limited Web API for a hiccup.
+        val native = FakeNative().apply {
+            libraryResult =
+                """{"error":"rootlist: Unknown error { Response status code: 502 Bad Gateway }"}"""
+        }
+        val catalog = NativeSpotifyCatalog(native) {}
+
+        val error = runCatching { catalog.library(LibraryFilter.Playlists, 0, 50) }.exceptionOrNull()
+
+        assertTrue(error is SpotifyGatewayException)
+        assertEquals(SpotifyFailure.Unknown, (error as SpotifyGatewayException).failure)
+    }
+
     @Test fun `artist albums and top tracks parse native fields`() = runTest {
         val native = FakeNative().apply {
             artistResult = """{"id":"a1","name":"Artist","artUrl":"https://example.test/a.jpg"}"""

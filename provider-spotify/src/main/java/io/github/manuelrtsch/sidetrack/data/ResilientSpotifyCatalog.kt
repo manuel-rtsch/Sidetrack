@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack.data
 
+import android.os.SystemClock
 import io.github.manuelrtsch.sidetrack.Album
 import io.github.manuelrtsch.sidetrack.Artist
 import io.github.manuelrtsch.sidetrack.Collection
@@ -12,6 +13,7 @@ import io.github.manuelrtsch.sidetrack.SearchScope
 import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.Station
 import io.github.manuelrtsch.sidetrack.Track
+import kotlinx.coroutines.sync.Mutex
 
 /**
  * Catalog that keeps browsing working when librespot cannot reach an access point.
@@ -23,9 +25,11 @@ import io.github.manuelrtsch.sidetrack.Track
  * expired session, so the first transport failure that is not the account's fault switches reads to
  * the [web] catalog and keeps them there for the process.
  *
- * Degradation is deliberately one-way: a network that dropped the access point once may do it
- * again, and retrying it for every page is what produced a connect per library row. Playback stays
- * on the native transport, so it keeps reporting the real reason instead of pretending.
+ * Degradation is not final, but it is not retried per page either: retrying every page is what
+ * produced a connect per library row. One read every [retryAfterMs] takes the native transport
+ * again — a single denied read at launch, or a gateway error that clears in seconds, must not cost
+ * the whole process. Playback stays on the native transport, so it keeps reporting the real reason
+ * instead of pretending.
  *
  * Writes are not degraded: the Web API transport in this app is read-only, so callers hide the
  * save actions when [degraded] is set rather than failing them one by one.
@@ -33,13 +37,23 @@ import io.github.manuelrtsch.sidetrack.Track
 class ResilientSpotifyCatalog(
     private val native: SpotifyCatalog,
     private val web: SpotifyCatalog,
-    private val onDegrade: (ServiceException) -> Unit = {}
+    private val onDegrade: (ServiceException) -> Unit = {},
+    /** How long a degraded process waits before it lets one read try the access point again. */
+    private val retryAfterMs: Long = DEGRADE_RETRY_MS,
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() }
 ) : SpotifyCatalog,
     SpotifyLibraryWriter {
-    /** True once reads have moved to the Web API for this process. */
     @Volatile
-    var degraded: Boolean = false
-        private set
+    private var degradedAt: Long = NEVER
+
+    @Volatile
+    private var nextProbeAt: Long = 0L
+
+    /** One re-probe at a time; a page that loses the race stays on the Web API. */
+    private val probeLock = Mutex()
+
+    /** True while reads are served by the Web API. */
+    val degraded: Boolean get() = degradedAt != NEVER
 
     private val nativeWriter: SpotifyLibraryWriter? get() = native as? SpotifyLibraryWriter
 
@@ -135,21 +149,50 @@ class ResilientSpotifyCatalog(
     override suspend fun deletePlaylist(playlistId: String): Boolean = nativeWriter?.deletePlaylist(playlistId) == true
 
     /**
-     * Runs the native read, and switches to [web] once when the transport says the access point is
+     * Runs the native read, and switches to [web] when the transport says the access point is
      * unreachable. Anything else — a bad response, a deleted item — is the caller's business and is
      * rethrown unchanged.
+     *
+     * A degraded catalog keeps serving the Web API and takes the native transport back on one read
+     * per [retryAfterMs], so a transport that comes back is used again instead of the process
+     * staying on the fallback it fell to at launch.
      */
     private suspend fun <T> read(nativeCall: suspend () -> T, webCall: suspend () -> T): T {
-        if (degraded) return webCall()
+        if (degraded) {
+            if (clock() < nextProbeAt || !probeLock.tryLock()) return webCall()
+            return try {
+                nativeCall().also { recovered() }
+            } catch (error: ServiceException) {
+                // A probe that fails keeps the reader where it is and moves the window out, whatever
+                // it answered: the access point is still what every read would otherwise hit first.
+                nextProbeAt = clock() + retryAfterMs
+                if (!unreachable(error)) SidetrackDebug.log("catalog probe refused", error)
+                webCall()
+            } finally {
+                probeLock.unlock()
+            }
+        }
         return try {
             nativeCall()
         } catch (error: ServiceException) {
             if (!unreachable(error)) throw error
-            degraded = true
-            SidetrackDebug.log("catalog degraded to the Web API", error)
-            onDegrade(error)
+            degrade(error)
             webCall()
         }
+    }
+
+    private fun degrade(error: ServiceException) {
+        degradedAt = clock()
+        nextProbeAt = degradedAt + retryAfterMs
+        SidetrackDebug.log("catalog degraded to the Web API", error)
+        onDegrade(error)
+    }
+
+    private fun recovered() {
+        if (!degraded) return
+        degradedAt = NEVER
+        nextProbeAt = 0L
+        SidetrackDebug.log("catalog recovered the native transport")
     }
 
     private fun writer(): SpotifyLibraryWriter {
@@ -164,4 +207,12 @@ class ResilientSpotifyCatalog(
     }
 
     private fun unreachable(error: ServiceException): Boolean = error.failure == ServiceFailure.Network || error.failure == ServiceFailure.Unavailable
+
+    private companion object {
+        /** Marks a catalog that still reads from the native transport. */
+        const val NEVER = -1L
+
+        /** One look at the access point a minute is cheap next to a process stuck on the Web API. */
+        const val DEGRADE_RETRY_MS = 60_000L
+    }
 }

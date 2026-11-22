@@ -229,6 +229,12 @@ class NativeSpotifyCatalog(
                     error.contains("forbidden", ignoreCase = true) ||
                         error.contains("not yours", ignoreCase = true) -> SpotifyFailure.NotAllowed
 
+                    // The access point answered, it just answered with a failure of its own (a 5xx
+                    // gateway error, most often). That is not the transport being unreachable, so
+                    // it must not read as one: [ResilientSpotifyCatalog] would spend the rest of the
+                    // process on the rate-limited Web API for a hiccup that clears in seconds.
+                    STATUS_CODE.containsMatchIn(error) -> SpotifyFailure.Unknown
+
                     else -> SpotifyFailure.Network
                 }
                 fail(failure, error)
@@ -451,3 +457,10 @@ private fun JSONArray?.episodes(show: Show?): List<Episode> = buildList {
         )
     }
 }
+
+/**
+ * How librespot's HTTP client renders a non-2xx answer: `Response status code: 502 Bad Gateway`.
+ * The vendored copy formats it in `native/vendor/librespot-core/src/http_client.rs`, so an error
+ * that matches did reach the service and is not a transport failure.
+ */
+private val STATUS_CODE = Regex("""Response status code: \d{3}""")

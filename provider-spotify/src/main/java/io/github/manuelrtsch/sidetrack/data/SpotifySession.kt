@@ -156,8 +156,16 @@ class SpotifySession(
         demo?.catalog()
             ?: if (nativeAvailable) {
                 // Reads keep working over HTTPS when the network refuses librespot's access point;
-                // see [ResilientSpotifyCatalog].
-                ResilientSpotifyCatalog(nativeCatalog, webCatalog)
+                // see [ResilientSpotifyCatalog]. Falling back is not silent: the Web API is a
+                // rate-limited stand-in, so an empty library has to read as "browsing degraded"
+                // rather than as an account that lost its playlists.
+                ResilientSpotifyCatalog(
+                    nativeCatalog,
+                    webCatalog,
+                    onDegrade = {
+                        playback.emitNotice("Browsing via Spotify's Web API — the access point is unreachable")
+                    }
+                )
             } else {
                 webCatalog
             }
