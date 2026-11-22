@@ -83,7 +83,7 @@ internal class SpotifyStallRecovery(
             SidetrackDebug.log("recoverPlayback deferred: no network uri=$uri positionMs=$positionMs")
             playback.pause()
             playback.emitNotice("Playback stopped — check the connection")
-            awaitNetwork(item.key, uri, positionMs)
+            awaitNetwork(item.key, uri, positionMs, playback.transportGeneration)
             return
         }
         attempt(item.key, uri, positionMs, now)
@@ -110,21 +110,30 @@ internal class SpotifyStallRecovery(
                     SidetrackDebug.log("recoverPlayback failed", it)
                     playback.pause()
                     playback.emitNotice("Playback stopped — check the connection")
-                    if (online?.value == false) awaitNetwork(key, uri, positionMs)
+                    if (online?.value == false) {
+                        awaitNetwork(key, uri, positionMs, playback.transportGeneration)
+                    }
                 }
         }
     }
 
     /**
      * Retries once the network is back, unless the user moved on in the meantime: a recovery must
-     * never start a track the user has already left, and must not fight a later choice.
+     * never start a track the user has already left, and must not override a transport command
+     * issued after the stall. [generation] is the command count right after the recovery paused,
+     * so pressing pause (or anything else) while waiting cancels the retry instead of being
+     * undone by it.
      */
-    private fun awaitNetwork(key: MediaKey, uri: String, positionMs: Long) {
+    private fun awaitNetwork(key: MediaKey, uri: String, positionMs: Long, generation: Long) {
         val network = online ?: return
         if (awaitingNetwork?.isActive == true) return
         SidetrackDebug.log("recoverPlayback waiting for the network uri=$uri")
         awaitingNetwork = playbackScope.launch {
             network.first { it }
+            if (playback.transportGeneration != generation) {
+                SidetrackDebug.log("recoverPlayback skipped: the transport moved on")
+                return@launch
+            }
             if (playback.current?.key != key || playback.isPlaying) {
                 SidetrackDebug.log("recoverPlayback skipped: playback moved on")
                 return@launch

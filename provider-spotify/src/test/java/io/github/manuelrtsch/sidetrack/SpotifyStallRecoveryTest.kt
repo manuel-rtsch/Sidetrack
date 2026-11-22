@@ -58,6 +58,21 @@ class SpotifyStallRecoveryTest {
         assertEquals(0, harness.attempts)
     }
 
+    @Test fun `a pause while offline cancels the retry`() = runTest {
+        val online = MutableStateFlow(false)
+        val harness = Harness(this, online)
+        harness.adopt("a")
+        harness.recovery.recover(positionMs = 4_000L)
+        runCurrent()
+
+        // The user decided to stop listening, not to wait: the retry must not undo that.
+        harness.playback.pause()
+        online.value = true
+        advanceUntilIdle()
+
+        assertEquals(0, harness.attempts)
+    }
+
     @Test fun `a failed attempt waits for the network before trying again`() = runTest {
         val online = MutableStateFlow(true)
         val harness = Harness(this, online) {

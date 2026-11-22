@@ -74,6 +74,15 @@ class PlaybackController(
     /** Whether audio is expected to be coming out of the speaker right now. */
     val isPlaying: Boolean get() = playing
 
+    /**
+     * How many transport commands have been issued. A recovery that is waiting for the network
+     * captures this and gives up when it moved: pressing pause, play or next, or starting another
+     * item, is a decision that a later retry must not override.
+     */
+    @Volatile
+    var transportGeneration: Long = 0L
+        private set
+
     private val _notice = MutableStateFlow<String?>(null)
 
     /**
@@ -359,6 +368,7 @@ class PlaybackController(
      */
     private fun expectState(isPlaying: Boolean) {
         val now = elapsedTime()
+        transportGeneration += 1
         lastCommandWasPause = !isPlaying
         lastCommandAt = now
         awaitingState = isPlaying
