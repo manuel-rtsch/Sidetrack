@@ -68,6 +68,51 @@ class NativeSpotifyGatewayTest {
         assertEquals(listOf("SESSION_CONNECT_FAILED: test"), reasons)
     }
 
+    @Test fun `a failed connect is not retried until the backoff expires`() = runTest {
+        // The field capture had three full connect cycles in four seconds, each walking every
+        // access point to report the same DNS failure.
+        var now = 1_000L
+        val native = FakeNative().apply { connectOk = false }
+        val gateway = NativeSpotifyGateway(
+            native,
+            accessToken = { "token" },
+            elapsedTime = { now }
+        )
+
+        runCatching { gateway.connect("token") }
+        assertEquals(1, native.connects)
+
+        // Still inside the backoff: the second caller fails fast instead of dialling again.
+        val suppressed = runCatching { gateway.connect("token") }.exceptionOrNull()
+        assertEquals(1, native.connects)
+        assertEquals(SpotifyFailure.Network, (suppressed as SpotifyGatewayException).failure)
+
+        now += 5_000L
+        runCatching { gateway.connect("token") }
+        assertEquals(2, native.connects)
+    }
+
+    @Test fun `a successful connect clears the backoff`() = runTest {
+        var now = 1_000L
+        val native = FakeNative().apply { connectOk = false }
+        val gateway = NativeSpotifyGateway(
+            native,
+            accessToken = { "token" },
+            elapsedTime = { now }
+        )
+        runCatching { gateway.connect("token") }
+
+        native.connectOk = true
+        now += 5_000L
+        gateway.connect("token")
+        assertEquals(2, native.connects)
+
+        // Connected now, so a fresh caller must not be held off by the earlier failure.
+        gateway.disconnect()
+        gateway.connect("token")
+        assertEquals(3, native.connects)
+    }
+
     @Test fun `concurrent catalog reads share one session`() = runTest {
         val native = FakeNative()
         val gateway = NativeSpotifyGateway(native) { "token" }

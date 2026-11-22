@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack.data
 
+import android.os.SystemClock
 import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +14,7 @@ class NativeSpotifyGateway(
     private val native: SpotifyNative,
     private val settings: () -> PlaybackSettings = { PlaybackSettings() },
     private val networkAvailable: () -> Boolean = { true },
+    private val elapsedTime: () -> Long = { SystemClock.elapsedRealtime() },
     /** Receives the transport's own reason for a failed connect. Developer-facing, never shown. */
     private val onConnectFailure: (String) -> Unit = {},
     private val accessToken: suspend () -> String?
@@ -38,6 +40,16 @@ class NativeSpotifyGateway(
     @Volatile
     private var sessionToken: String? = null
 
+    /**
+     * Failed connects in a row, and the time before which another one is pointless.
+     *
+     * A stall fans out: the recovery attempt, the play that follows it and a catalog read each ask
+     * for a connection, and each wasted attempt walks every access point before it reports the same
+     * DNS failure. One failure is enough to know the network is not there yet.
+     */
+    private var connectFailures = 0
+    private var connectAllowedAt = 0L
+
     override suspend fun connect(accessToken: String) = onIo {
         requireNative()
         synchronized(sessionLock) {
@@ -61,6 +73,8 @@ class NativeSpotifyGateway(
             connected = false
             sessionConnected = false
             sessionToken = null
+            connectFailures = 0
+            connectAllowedAt = 0L
             if (native.isAvailable) native.disconnect()
         }
     }
@@ -122,6 +136,8 @@ class NativeSpotifyGateway(
             connected = false
             sessionConnected = false
             sessionToken = null
+            connectFailures = 0
+            connectAllowedAt = 0L
         }
     }
 
@@ -236,6 +252,11 @@ class NativeSpotifyGateway(
     /** [sessionLock] must be held, so two catalog reads cannot rebuild the session at once. */
     private fun connectSessionLocked(token: String) {
         if (sessionConnected) return
+        val now = elapsedTime()
+        if (now < connectAllowedAt) {
+            SidetrackDebug.log("connectSession suppressed: ${connectAllowedAt - now}ms of backoff left")
+            fail(SpotifyFailure.Network, "Couldn't reach Spotify")
+        }
         SidetrackDebug.log("connectSession begin")
         // The failure happens before any request: librespot could not reach an access point. Reporting
         // it as an expired session sends the user to the sign-in screen for a network problem, so the
@@ -243,11 +264,14 @@ class NativeSpotifyGateway(
         val reason = native.connect(token)
         if (reason != null) {
             SidetrackDebug.log("connectSession failed reason=$reason")
+            noteConnectFailure(now)
             onConnectFailure(reason)
             if (!networkAvailable()) fail(SpotifyFailure.Network, "No internet connection")
             fail(SpotifyFailure.Network, "Couldn't reach Spotify")
         }
         SidetrackDebug.log("connectSession connected")
+        connectFailures = 0
+        connectAllowedAt = 0L
         sessionConnected = true
         sessionToken = token
         // The player belongs to the session it was created with, so the connect above dropped it.
@@ -255,6 +279,21 @@ class NativeSpotifyGateway(
         // [ensureConnected] would skip the player and every load would fail with PLAYER_NOT_CREATED.
         if (connected) SidetrackDebug.log("connectSession: previous player dropped")
         connected = false
+    }
+
+    /**
+     * Arms the backoff after a failed connect. The wait doubles per failure and stops short of the
+     * network timeout, so a flapping connection still recovers on its own.
+     *
+     * [sessionLock] must be held.
+     */
+    private fun noteConnectFailure(now: Long) {
+        connectFailures += 1
+        val wait = CONNECT_BACKOFF_MS shl (connectFailures - 1).coerceAtMost(4)
+        connectAllowedAt = now + wait.coerceAtMost(CONNECT_BACKOFF_MAX_MS)
+        SidetrackDebug.log(
+            "connectSession backoff: failure=$connectFailures waitMs=${connectAllowedAt - now}"
+        )
     }
 
     /** Native truth, so a session rebuilt outside the playback path cannot leave [connected] stale. */
@@ -282,4 +321,12 @@ class NativeSpotifyGateway(
     private suspend fun <T> onIo(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
 
     private fun fail(failure: SpotifyFailure, message: String): Nothing = throw SpotifyGatewayException(failure, message)
+
+    private companion object {
+        /** Wait after the first failed connect; it doubles with every further failure in a row. */
+        const val CONNECT_BACKOFF_MS = 1_000L
+
+        /** Ceiling for the backoff, so a long outage does not delay the recovery after it. */
+        const val CONNECT_BACKOFF_MAX_MS = 8_000L
+    }
 }
