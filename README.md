@@ -15,27 +15,23 @@
 
 Sidetrack is a music player for Android 12 and later, built around the keypad of the [Sidephone SP-01](https://www.sidephone.com/).
 
-It plays from Spotify, Plex, Jellyfin or any Subsonic-compatible server such as Navidrome. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), the SP-01's open-source launcher, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
+It plays from Spotify, Plex, Jellyfin or any Subsonic-compatible server such as Navidrome. Every action works from the keypad, and touch works equally well. If [Sidekit](https://github.com/HarlenPostill/Sidekit), the SP-01's launcher, is installed, Sidetrack follows its theme, accent, input mode and key mappings.
 
-> Sidetrack is an independent project by Manuel Lukas Rottschäfer. It is not made by or affiliated with Sidephone, Spotify, Plex, Jellyfin or any other service it connects to.
+> Sidetrack is an independent project, not made by or affiliated with Sidephone, Spotify, Plex, Jellyfin or any other service it connects to.
 
 ## Screenshots
 
-| Home | Search | Now Playing | Queue |
-| --- | --- | --- | --- |
-| ![Home](app/screenshots/sidetrack_home.png) | ![Search](app/screenshots/sidetrack_search.png) | ![Now Playing](app/screenshots/sidetrack_now_playing.png) | ![Queue](app/screenshots/sidetrack_queue.png) |
+| Home | Library | Now Playing |
+| --- | --- | --- |
+| ![Home](app/screenshots/sidetrack_home.png) | ![Library](app/screenshots/sidetrack_library.png) | ![Now Playing](app/screenshots/sidetrack_now_playing.png) |
 
-| Album | Artist | Library | Show |
-| --- | --- | --- | --- |
-| ![Album](app/screenshots/sidetrack_album.png) | ![Artist](app/screenshots/sidetrack_artist.png) | ![Library](app/screenshots/sidetrack_library.png) | ![Show](app/screenshots/sidetrack_show.png) |
+| Queue | Search | Album |
+| --- | --- | --- |
+| ![Queue](app/screenshots/sidetrack_queue.png) | ![Search](app/screenshots/sidetrack_search.png) | ![Album](app/screenshots/sidetrack_album.png) |
 
-| Notes | Episode | Welcome | Keyboard |
-| --- | --- | --- | --- |
-| ![Show notes](app/screenshots/sidetrack_notes.png) | ![Now Playing episode](app/screenshots/sidetrack_now_playing_episode.png) | ![Welcome](app/screenshots/sidetrack_welcome.png) | ![Keyboard](app/screenshots/sidetrack_keyboard.png) |
-
-| History | Sleep timer | Settings | Sign in |
-| --- | --- | --- | --- |
-| ![History](app/screenshots/sidetrack_history.png) | ![Sleep timer](app/screenshots/sidetrack_sleep_timer.png) | ![Settings](app/screenshots/sidetrack_settings.png) | ![Sign in](app/screenshots/sidetrack_sign_in.png) |
+| Sign in | Welcome | Podcast |
+| --- | --- | --- |
+| ![Sign in](app/screenshots/sidetrack_sign_in.png) | ![Welcome](app/screenshots/sidetrack_welcome.png) | ![Podcast show](app/screenshots/sidetrack_show.png) |
 
 ## Install
 
@@ -56,7 +52,7 @@ Open `Library → Settings → App Packs → +` and scan the code, or enter `htt
 
 ## Supported services
 
-Sidetrack remembers your service until you sign out and offers only what that service supports. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run. They share one adapter, and any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
+Sidetrack remembers your service until you sign out and offers only what that service supports. Navidrome, Nextcloud Music and Subsonic are listed separately because that is the server you run. Any other Subsonic or OpenSubsonic server works through the **Subsonic** entry. Each entry keeps its own credentials, queue and history.
 
 | | Spotify | Subsonic family | Jellyfin | Plex |
 | --- | --- | --- | --- | --- |
@@ -75,7 +71,7 @@ Sidetrack remembers your service until you sign out and offers only what that se
 | Gapless playback | ✅ | ❌ | ❌ | ❌ |
 | Quality selection | ✅ | ✅ | ✅ | ❌ |
 
-Spotify needs a Premium account for playback. Jellyfin needs a 12.x server with a music library. Plex needs a claimed Plex Media Server on the same network.
+Spotify needs a Premium account for playback. Jellyfin needs a 12.x server with a music library. Plex needs a claimed Plex Media Server.
 
 ## What you can do
 
@@ -91,7 +87,7 @@ Spotify needs a Premium account for playback. Jellyfin needs a 12.x server with 
 
 ## Limits
 
-Spotify library and search need the native bridge, a bundled librespot client. Without it, Spotify falls back to the public Web API, which rate-limits the desktop client ID Sidetrack shares. Release APKs include the bridge, and your own build needs `-PsidetrackNative=true`. Jellyfin servers older than 12.0 are refused at sign-in, because they accept the login and then fail every read.
+Spotify library and search need the native bridge, a bundled librespot client. Without it, Spotify falls back to the public Web API, which rate-limits the shared client ID. Release APKs include the bridge, and your own build needs `-PsidetrackNative=true`. Jellyfin servers older than 12.0 are refused at sign-in, because they accept the login and then fail every read.
 
 ## Getting started
 
@@ -108,13 +104,7 @@ You need JDK 21 and the Android SDK. Spotify playback through librespot also nee
 ./gradlew :app:assembleProfile -PsidetrackNative=true
 ```
 
-Release builds refuse to package without the bridge ([docs/releasing.md](docs/releasing.md)).
-
-## Documentation
-
-- [docs/architecture.md](docs/architecture.md) and [docs/provider-capabilities.md](docs/provider-capabilities.md): structure and per-service support.
-- [docs/plex-integration.md](docs/plex-integration.md) and [docs/jellyfin-integration.md](docs/jellyfin-integration.md): wire decisions.
-- [docs/testing.md](docs/testing.md), [docs/releasing.md](docs/releasing.md), [docs/menus.md](docs/menus.md) and [maestro/README.md](maestro/README.md): tests, releases, menus and UI flows.
+Release builds refuse to package without the bridge.
 
 ## Licence
 
