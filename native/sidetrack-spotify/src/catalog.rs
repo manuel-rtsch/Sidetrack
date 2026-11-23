@@ -1089,6 +1089,37 @@ fn read_varint(bytes: &[u8], index: &mut usize) -> Option<u64> {
     None
 }
 
+/// Reads a length-delimited field's payload. `None` when the length runs past the end of the
+/// buffer, which the callers treat as a truncated message.
+fn read_bytes<'a>(bytes: &'a [u8], index: &mut usize) -> Option<&'a [u8]> {
+    let len = read_varint(bytes, index)? as usize;
+    let end = index.checked_add(len)?;
+    let payload = bytes.get(*index..end)?;
+    *index = end;
+    Some(payload)
+}
+
+/// Advances past a field the parser does not read. Returns false on an unknown or truncated
+/// field so the caller stops instead of misreading the rest of the message.
+fn skip_field(bytes: &[u8], index: &mut usize, wire: u8) -> bool {
+    match wire {
+        0 => {
+            let _ = read_varint(bytes, index);
+            true
+        }
+        1 => {
+            *index += 8;
+            true
+        }
+        2 => read_bytes(bytes, index).is_some(),
+        5 => {
+            *index += 4;
+            true
+        }
+        _ => false,
+    }
+}
+
 fn parse_collection_item(bytes: &[u8]) -> CollectionItem {
     let mut item = CollectionItem {
         uri: String::new(),
@@ -1104,15 +1135,10 @@ fn parse_collection_item(bytes: &[u8]) -> CollectionItem {
         let wire = (key & 7) as u8;
         match (field, wire) {
             (1, 2) => {
-                let Some(len) = read_varint(bytes, &mut index) else {
+                let Some(uri) = read_bytes(bytes, &mut index) else {
                     break;
                 };
-                let end = index + len as usize;
-                if end > bytes.len() {
-                    break;
-                }
-                item.uri = String::from_utf8_lossy(&bytes[index..end]).into_owned();
-                index = end;
+                item.uri = String::from_utf8_lossy(uri).into_owned();
             }
             (2, 0) => {
                 let Some(value) = read_varint(bytes, &mut index) else {
@@ -1126,22 +1152,11 @@ fn parse_collection_item(bytes: &[u8]) -> CollectionItem {
                 };
                 item.is_removed = value != 0;
             }
-            (_, 0) => {
-                let _ = read_varint(bytes, &mut index);
-            }
-            (_, 1) => {
-                index += 8;
-            }
-            (_, 2) => {
-                let Some(len) = read_varint(bytes, &mut index) else {
+            _ => {
+                if !skip_field(bytes, &mut index, wire) {
                     break;
-                };
-                index += len as usize;
+                }
             }
-            (_, 5) => {
-                index += 4;
-            }
-            _ => break,
         }
     }
     item
@@ -1165,43 +1180,22 @@ fn parse_collection_page(bytes: &[u8]) -> (Vec<CollectionItem>, String) {
         let wire = (key & 7) as u8;
         match (field, wire) {
             (1, 2) => {
-                let Some(len) = read_varint(bytes, &mut index) else {
+                let Some(entry) = read_bytes(bytes, &mut index) else {
                     break;
                 };
-                let end = index + len as usize;
-                if end > bytes.len() {
-                    break;
-                }
-                items.push(parse_collection_item(&bytes[index..end]));
-                index = end;
+                items.push(parse_collection_item(entry));
             }
             (2, 2) => {
-                let Some(len) = read_varint(bytes, &mut index) else {
+                let Some(token) = read_bytes(bytes, &mut index) else {
                     break;
                 };
-                let end = index + len as usize;
-                if end > bytes.len() {
+                next_page_token = String::from_utf8_lossy(token).into_owned();
+            }
+            _ => {
+                if !skip_field(bytes, &mut index, wire) {
                     break;
                 }
-                next_page_token = String::from_utf8_lossy(&bytes[index..end]).into_owned();
-                index = end;
             }
-            (_, 0) => {
-                let _ = read_varint(bytes, &mut index);
-            }
-            (_, 1) => {
-                index += 8;
-            }
-            (_, 2) => {
-                let Some(len) = read_varint(bytes, &mut index) else {
-                    break;
-                };
-                index += len as usize;
-            }
-            (_, 5) => {
-                index += 4;
-            }
-            _ => break,
         }
     }
     (items, next_page_token)
@@ -1863,28 +1857,45 @@ fn playlist_item_indices(items: &[PlaylistItem], uris: &[String]) -> Vec<i32> {
         .collect()
 }
 
-/// Renames a playlist the signed-in user owns. Re-reads the playlist for the current revision,
-/// like the item writes, so a concurrent edit cannot make the change apply to the wrong state.
-pub async fn playlist_rename(
+/// A followed, non-collaborative playlist is read-only. Ask the capability question the item
+/// writes need so the app can report a refusal, not a network failure.
+fn ensure_editable(session: &Session, content: &SelectedListContent) -> Result<(), String> {
+    let editable = content
+        .capabilities
+        .as_ref()
+        .is_some_and(|capabilities| capabilities.can_edit_items())
+        || content.owner_username() == session.username();
+    if editable {
+        Ok(())
+    } else {
+        Err("forbidden: this playlist is not yours to edit".to_string())
+    }
+}
+
+/// Posts one playlist delta, re-reading the playlist first so the change is based on its current
+/// revision. A stale `base_revision` makes the service answer 409; another client wrote in
+/// between, so read once more and retry with the new revision instead of dropping the user's
+/// action.
+///
+/// `build` turns the freshly read playlist into the change to send. It returns `None` when there
+/// is nothing left to do (the Undo path found the items already gone) and `Err` to refuse the
+/// edit before anything is written.
+async fn playlist_change<F>(
     session: &Session,
     token: &str,
-    id: &str,
-    name: &str,
-) -> Result<(), String> {
-    if name.trim().is_empty() {
-        return Err("a playlist needs a name".to_string());
-    }
-    let playlist_id = id_of(&spotify_uri(id, "playlist")?);
+    playlist_id: &str,
+    action: &str,
+    mut build: F,
+) -> Result<(), String>
+where
+    F: FnMut(&SelectedListContent) -> Result<Option<ListChanges>, String>,
+{
     let mut last_error = String::new();
     for attempt in 0..2 {
-        let content = playlist_content(session, token, &playlist_id).await?;
-        if content.owner_username() != session.username() {
-            return Err("forbidden: only the owner can rename this playlist".to_string());
-        }
-        let changes = playlist_rename_changes(
-            content.revision.as_deref().unwrap_or_default(),
-            name.trim(),
-        );
+        let content = playlist_content(session, token, playlist_id).await?;
+        let Some(changes) = build(&content)? else {
+            return Ok(());
+        };
         let body = changes.write_to_bytes().map_err(|e| e.to_string())?;
         match sp_request(
             session,
@@ -1897,17 +1908,41 @@ pub async fn playlist_rename(
         .await
         {
             Ok(_) => {
-                invalidate_collection(&session.username(), &playlist_id);
+                invalidate_collection(&session.username(), playlist_id);
                 return Ok(());
             }
             Err(error) if attempt == 0 && is_revision_conflict(&error) => {
-                log::warn!("playlist rename hit a revision conflict, retrying: {error}");
+                log::warn!("playlist {action} hit a revision conflict, retrying: {error}");
                 last_error = error;
             }
             Err(error) => return Err(error),
         }
     }
     Err(last_error)
+}
+
+/// Renames a playlist the signed-in user owns. Re-reads the playlist for the current revision,
+/// like the item writes, so a concurrent edit cannot make the change apply to the wrong state.
+pub async fn playlist_rename(
+    session: &Session,
+    token: &str,
+    id: &str,
+    name: &str,
+) -> Result<(), String> {
+    if name.trim().is_empty() {
+        return Err("a playlist needs a name".to_string());
+    }
+    let playlist_id = id_of(&spotify_uri(id, "playlist")?);
+    let name = name.trim();
+    playlist_change(session, token, &playlist_id, "rename", |content| {
+        if content.owner_username() != session.username() {
+            return Err("forbidden: only the owner can rename this playlist".to_string());
+        }
+        let changes =
+            playlist_rename_changes(content.revision.as_deref().unwrap_or_default(), name);
+        Ok(Some(changes))
+    })
+    .await
 }
 
 /// Appends [uris] to a playlist the user can edit. Returns the index the first item landed at,
@@ -1922,19 +1957,10 @@ pub async fn playlist_items_add(
         return Ok(0);
     }
     let playlist_id = id_of(&spotify_uri(id, "playlist")?);
-    let mut last_error = String::new();
-    for attempt in 0..2 {
-        let content = playlist_content(session, token, &playlist_id).await?;
-        let owner = content.owner_username();
-        let editable = content
-            .capabilities
-            .as_ref()
-            .is_some_and(|capabilities| capabilities.can_edit_items())
-            || owner == session.username();
-        if !editable {
-            return Err("forbidden: this playlist is not yours to edit".to_string());
-        }
-        let index = content
+    let mut index = 0;
+    playlist_change(session, token, &playlist_id, "add", |content| {
+        ensure_editable(session, content)?;
+        index = content
             .contents
             .as_ref()
             .map(|contents| contents.items.len())
@@ -1945,31 +1971,10 @@ pub async fn playlist_items_add(
             &session.username(),
             now_micros(),
         );
-        let body = changes.write_to_bytes().map_err(|e| e.to_string())?;
-        match sp_request(
-            session,
-            token,
-            Method::POST,
-            &format!("/playlist/v2/playlist/{playlist_id}/changes"),
-            Some("application/x-www-form-urlencoded"),
-            &body,
-        )
-        .await
-        {
-            Ok(_) => {
-                invalidate_collection(&session.username(), &playlist_id);
-                return Ok(index);
-            }
-            // Another client wrote between the read and the write. Re-read once and retry with
-            // the new revision instead of dropping the user's action.
-            Err(error) if attempt == 0 && is_revision_conflict(&error) => {
-                log::warn!("playlist add hit a revision conflict, retrying: {error}");
-                last_error = error;
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    Err(last_error)
+        Ok(Some(changes))
+    })
+    .await?;
+    Ok(index)
 }
 
 /// Removes the last occurrence of each URI from a playlist. This is the Undo path for
@@ -1985,21 +1990,8 @@ pub async fn playlist_items_remove(
         return Ok(());
     }
     let playlist_id = id_of(&spotify_uri(id, "playlist")?);
-    let mut last_error = String::new();
-    for attempt in 0..2 {
-        let content = playlist_content(session, token, &playlist_id).await?;
-        // Removing is an item edit. A followed, non-collaborative playlist is read-only; ask the
-        // same capability question the add path asks so the app can report a refusal, not a
-        // network failure.
-        let owner = content.owner_username();
-        let editable = content
-            .capabilities
-            .as_ref()
-            .is_some_and(|capabilities| capabilities.can_edit_items())
-            || owner == session.username();
-        if !editable {
-            return Err("forbidden: this playlist is not yours to edit".to_string());
-        }
+    playlist_change(session, token, &playlist_id, "remove", |content| {
+        ensure_editable(session, content)?;
         let items = content
             .contents
             .as_ref()
@@ -2008,33 +2000,13 @@ pub async fn playlist_items_remove(
         let indices = playlist_item_indices(items, uris);
         if indices.is_empty() {
             // Already gone: another client removed it, or Undo ran twice. Nothing to do.
-            return Ok(());
+            return Ok(None);
         }
         let changes =
             playlist_remove_changes(content.revision.as_deref().unwrap_or_default(), &indices);
-        let body = changes.write_to_bytes().map_err(|e| e.to_string())?;
-        match sp_request(
-            session,
-            token,
-            Method::POST,
-            &format!("/playlist/v2/playlist/{playlist_id}/changes"),
-            Some("application/x-www-form-urlencoded"),
-            &body,
-        )
-        .await
-        {
-            Ok(_) => {
-                invalidate_collection(&session.username(), &playlist_id);
-                return Ok(());
-            }
-            Err(error) if attempt == 0 && is_revision_conflict(&error) => {
-                log::warn!("playlist remove hit a revision conflict, retrying: {error}");
-                last_error = error;
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    Err(last_error)
+        Ok(Some(changes))
+    })
+    .await
 }
 
 pub async fn library(
@@ -2439,8 +2411,9 @@ pub async fn top_tracks(
 #[cfg(test)]
 mod tests {
     use super::{
-        describe_restrictions, library_page, owner_display, percent_decode, playlist_add_changes,
-        playlist_id_of, playlist_item_indices, playlist_remove_changes, radio_playlist_uri,
+        collection_item_bytes, describe_restrictions, library_page, owner_display,
+        parse_collection_page, percent_decode, playlist_add_changes, playlist_id_of,
+        playlist_item_indices, playlist_remove_changes, put_string, put_varint, radio_playlist_uri,
         radio_track_uris, rootlist_folder_name, sort_newest_first, wants_scope, CollectionItem,
     };
     use librespot_core::SpotifyUri;
@@ -2594,6 +2567,41 @@ mod tests {
                 "spotify:track:old"
             ]
         );
+    }
+
+    /// The wire helpers have to walk past fields this client does not decode without losing the
+    /// entry or the page token that follow them.
+    #[test]
+    fn a_collection_page_skips_unknown_fields() {
+        let entry = collection_item_bytes("spotify:track:one", 1_700_000_000, false);
+        let mut page = Vec::new();
+        put_varint(&mut page, (9 << 3) as u64);
+        put_varint(&mut page, 7);
+        put_varint(&mut page, ((1 << 3) | 2) as u64);
+        put_varint(&mut page, entry.len() as u64);
+        page.extend_from_slice(&entry);
+        put_string(&mut page, 8, "ignored");
+        put_string(&mut page, 2, "next");
+
+        let (items, next) = parse_collection_page(&page);
+        assert_eq!(next, "next");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].uri, "spotify:track:one");
+        assert_eq!(items[0].added_at, 1_700_000_000);
+        assert!(!items[0].is_removed);
+    }
+
+    /// A length that runs past the buffer is a truncated message: keep what was decoded, stop.
+    #[test]
+    fn a_truncated_collection_page_stops_at_the_bad_length() {
+        let mut page = Vec::new();
+        put_varint(&mut page, ((2 << 3) | 2) as u64);
+        put_varint(&mut page, 10);
+        page.extend_from_slice(b"next");
+
+        let (items, next) = parse_collection_page(&page);
+        assert!(items.is_empty());
+        assert_eq!(next, "");
     }
 
     #[test]

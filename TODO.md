@@ -74,7 +74,7 @@ effect on the current track until then.
 PMD CPD runs over the Kotlin and Rust sources at 80 tokens with `--ignore-identifiers
 --ignore-literals`, so every hit below is a structural clone rather than two functions that happen
 to share a shape. `./gradlew cpd` writes the full blocks to `build/reports/cpd/`; `cpdCheck` fails
-when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (800 today). Lower
+when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (740 today). Lower
 that number in the same commit that lands one of these, or the budget will not stop the next one.
 
 The list is ordered by what the duplication risks, not by its size: duplicated retry logic is a bug
@@ -82,11 +82,12 @@ waiting to happen, duplicated test setup is mostly a patience tax.
 
 ### Production
 
-- [ ] **`catalog.rs` playlist-change retry scaffold** — 209 tokens over four blocks at
-  `1887/2014` and `1922/1985`, plus 206 more at `1097/1158` and `1127/1187`. The
-  `sp_request` → `invalidate_collection` → retry-on-`is_revision_conflict` shape is written out per
-  caller, and the copies already differ only in their log text. Extract one helper before a retry
-  policy change has to be made four times.
+- [x] **`catalog.rs` playlist-change retry scaffold** — one `playlist_change` helper now owns the
+  read → build → post → retry-on-`is_revision_conflict` shape for rename, add and remove, with
+  `ensure_editable` holding the capability check the two item paths shared. The protobuf readers in
+  the same file share `read_bytes`/`skip_field`, so the collection parsers no longer repeat the
+  field-skipping arms. Budget lowered from 800 to 740. Covered by
+  `a_collection_page_skips_unknown_fields` and `a_truncated_collection_page_stops_at_the_bad_length`.
 - [ ] **Playlist mutations across the providers** — 142 tokens at `JellyfinCatalog.kt:166` ↔
   `SubsonicApi.kt:428` and 92 at `LocalCatalog.kt:85` ↔ `SubsonicApi.kt:338`. The same
   `addToPlaylist`/`removeFromPlaylist`/`renamePlaylist`/`deletePlaylist` quartet delegating to a
