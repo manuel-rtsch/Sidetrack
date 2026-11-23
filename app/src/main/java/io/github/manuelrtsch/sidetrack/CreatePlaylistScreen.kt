@@ -37,11 +37,15 @@ internal const val RECENT_SEED_LIMIT = 10
  * [onSubmit] receives the trimmed name and the seed keys in the order the tracks are shown. The
  * name is the boxed FormField the sign-in form uses. Create lives in the action bar next to Back
  * and only joins it once a name is typed; Done leaves the field without creating.
+ *
+ * [creating] is the write in flight: the button says so and stops accepting presses, because a
+ * second create would otherwise make a second playlist with the same name.
  */
 @Composable
 fun CreatePlaylistScreen(
     chrome: ChromeUiState,
     recentTracks: List<Track> = emptyList(),
+    creating: Boolean = false,
     onBack: () -> Unit,
     onSubmit: (String, List<MediaKey>) -> Unit,
     onDismissNotice: () -> Unit,
@@ -58,7 +62,7 @@ fun CreatePlaylistScreen(
         recentTracks.distinctBy { it.key.encode() }.take(RECENT_SEED_LIMIT)
     }
     val submit = {
-        if (canCreate) {
+        if (canCreate && !creating) {
             val seed = seeds.filter { it.key.encode() in selected }.map { it.key }
             onSubmit(name.trim(), seed)
         }
@@ -71,7 +75,7 @@ fun CreatePlaylistScreen(
         onUndoQueueReplace = onUndoQueueReplace,
         actions = buildList {
             add(SideAction.back("back", "Library", onBack))
-            if (canCreate) add(SideAction.forward("create", "Create", submit))
+            if (canCreate) add(SideAction.forward("create", if (creating) "Creating…" else "Create", submit))
         }
     )
     SidekitScaffold(

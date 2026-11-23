@@ -166,10 +166,18 @@ no-visual-change reviews.
 
 ### Writes and playback
 
-- [ ] **Writes reuse `TaskState`** — `TaskKey.Action(CreatePlaylist | AddToPlaylist(playlist) |
-  RenamePlaylist | DeletePlaylist | ClearCache | ToggleSave(id) | Follow(id))`. Buttons read the
-  running key and disable, which also closes the double-submit hole in Create playlist and the
-  duplicate `add` (both currently launch unconditionally).
+- [x] **Writes reuse `TaskState`** — `TaskKey.Action(kind, target)` names each write, and
+  `TaskRegistry.submit` runs it under that key and waits for the result, so a caller keeps the
+  answer it had from the direct call. Create, add, rename and delete go through it: a second press
+  while the first is with the service is refused instead of creating a second playlist or appending
+  twice. Saves and follows use `restart` instead, because their state has already flipped twice:
+  the newer write supersedes the older one and only it decides what the service ends up with.
+  `WritesUiState` projects the record for screens: Create reads `CreatePlaylist` and says
+  "Creating…", an add-to-playlist row reads its own `AddToPlaylist(key)` and says "Adding…".
+  A `SideAction` has no disabled state in the published Sidekit, so the pending label plus the
+  registry's refusal is the guard; the row tap returns early too. `ClearCache` is the one kind not
+  wired yet, because that item below owns its failure path. Covered by `TaskRegistryTest` and the
+  two double-submit cases in `PlaylistControllerTest`.
 - [ ] **`runOptimistic`** — the flip → call → rollback + notice shape exists three times in
   `SavesController` and again in `PlaylistController.add`; one helper owns it. Notice wording stays
   the callers'.

@@ -30,11 +30,18 @@ internal class PlaylistController(
 
     private var choicesOffset = 0
 
+    private fun action(kind: TaskKey.Action.Kind, target: String = "") = TaskKey.Action(kind, target)
+
     /**
      * Creates a playlist named [name], seeded with [seed] in that order, on the active service.
      * Returns null on failure so the caller can stay on the form; the reason is already in the bar.
+     *
+     * The write goes through the registry, so a second press while the first is still with the
+     * service is refused instead of creating a second playlist with the same name.
      */
-    suspend fun create(name: String, seed: List<MediaKey> = emptyList()): Playlist? {
+    suspend fun create(name: String, seed: List<MediaKey> = emptyList()): Playlist? = tasks.submit(action(TaskKey.Action.Kind.CreatePlaylist)) { createNow(name, seed) }
+
+    private suspend fun createNow(name: String, seed: List<MediaKey>): Playlist? {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) {
             store.update { it.say("Enter a playlist name") }
@@ -154,7 +161,11 @@ internal class PlaylistController(
      * Appends one item and returns the index the service placed it at, which is what Undo removes.
      * Null means nothing was written; the failure is already in the bar.
      */
-    suspend fun add(playlist: Playlist, item: MediaItem): Int? {
+    suspend fun add(playlist: Playlist, item: MediaItem): Int? = tasks.submit(
+        action(TaskKey.Action.Kind.AddToPlaylist, playlist.key.encode())
+    ) { addNow(playlist, item) }
+
+    private suspend fun addNow(playlist: Playlist, item: MediaItem): Int? {
         if (!capabilities().playlistActions(playlist).canAddItems) {
             store.update { it.say("This playlist is read-only") }
             return null
@@ -208,7 +219,11 @@ internal class PlaylistController(
      * Renames an open playlist. The title in the page header is the only field the service changes,
      * so every cached copy is patched instead of dropping the page and refetching it.
      */
-    suspend fun rename(collection: Collection, name: String): Boolean {
+    suspend fun rename(collection: Collection, name: String): Boolean = tasks.submit(
+        action(TaskKey.Action.Kind.RenamePlaylist, collection.key.encode())
+    ) { renameNow(collection, name) } ?: false
+
+    private suspend fun renameNow(collection: Collection, name: String): Boolean {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) {
             store.update { it.say("Enter a playlist name") }
@@ -241,7 +256,11 @@ internal class PlaylistController(
      * Deletes an open playlist after the caller's Undo window has passed. The page and every cached
      * row are dropped only once the service confirms the deletion.
      */
-    suspend fun delete(collection: Collection): Boolean {
+    suspend fun delete(collection: Collection): Boolean = tasks.submit(
+        action(TaskKey.Action.Kind.DeletePlaylist, collection.key.encode())
+    ) { deleteNow(collection) } ?: false
+
+    private suspend fun deleteNow(collection: Collection): Boolean {
         if (!capabilities().playlistActions(collection).canDelete) {
             store.update { it.say("This playlist cannot be deleted") }
             return false

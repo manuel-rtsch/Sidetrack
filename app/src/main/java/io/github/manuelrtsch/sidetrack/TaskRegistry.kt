@@ -43,6 +43,23 @@ internal class TaskRegistry(
         return launch(key, block)
     }
 
+    /**
+     * Runs [block] under [key] and suspends until it is done, refusing a second caller while the
+     * same key is in flight.
+     *
+     * A write is not a page: the caller is waiting for the answer (the created playlist, the index
+     * an add landed at), so it cannot be fired and forgotten. It runs in the registry's scope so
+     * the same record covers it, but [block]'s result comes back through here. A refused call
+     * returns null without touching the service, which is the double-submit guard; a caller that
+     * needs to tell that apart from a failed write checks [isRunning] first.
+     */
+    suspend fun <T> submit(key: TaskKey, block: suspend () -> T): T? {
+        var result: T? = null
+        val job = start(key) { result = block() } ?: return null
+        job.join()
+        return result
+    }
+
     fun cancel(key: TaskKey) {
         jobs.remove(key)?.cancel()
         owners.remove(key)

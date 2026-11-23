@@ -30,6 +30,22 @@ sealed interface TaskKey {
     /** Sign-in has no item: one attempt at a time, superseded by the next press. */
     data object SignIn : TaskKey
 
-    /** A write with no row of its own to show progress in, named by the action it performs. */
-    data class Action(val name: String) : TaskKey
+    /**
+     * A write with no row of its own to show progress in.
+     *
+     * [kind] says what is being written and therefore which button is busy; [target] is the item
+     * the write belongs to (a playlist key, a track key) and is empty for the writes that can only
+     * run one at a time. Two adds to different playlists are two writes, not one.
+     */
+    data class Action(val kind: Kind, val target: String = "") : TaskKey {
+        enum class Kind {
+            CreatePlaylist,
+            AddToPlaylist,
+            RenamePlaylist,
+            DeletePlaylist,
+            ClearCache,
+            Save,
+            Follow
+        }
+    }
 }

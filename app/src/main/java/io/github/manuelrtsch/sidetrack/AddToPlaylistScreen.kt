@@ -32,6 +32,8 @@ fun AddToPlaylistScreen(
     track: Track?,
     playlists: PlaylistUiState,
     chrome: ChromeUiState,
+    /** The playlists an add is currently being written to; their rows say so. */
+    adding: Set<String> = emptySet(),
     onBack: () -> Unit,
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
@@ -106,13 +108,17 @@ fun AddToPlaylistScreen(
                 key = { _, playlist -> playlist.key.encode() },
                 contentType = { _, _ -> "playlist" }
             ) { index, playlist ->
+                val pending = playlist.key.encode() in adding
                 LibraryRow(
                     playlist.artRes,
                     playlist.name,
-                    playlistSubtitle(playlist),
+                    if (pending) "Adding…" else playlistSubtitle(playlist),
                     Modifier.listFade(listState, index + 1).rowFocusTarget(moreFocus, index),
                     artUrl = playlist.artUrl
                 ) {
+                    // The registry refuses a second write for the same target; the row says
+                    // "Adding…" meanwhile so the tap does not look lost.
+                    if (pending) return@LibraryRow
                     scope.launch {
                         val addedAt = onAdd(playlist) ?: return@launch
                         bar.showUndo(

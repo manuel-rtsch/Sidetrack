@@ -103,10 +103,12 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val vm = entry.sidetrackViewModel(nav)
         val playback by vm.playbackState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
+        val writes by vm.writesState.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
         CreatePlaylistScreen(
             chrome,
             recentTracks = playback.recent.filterIsInstance<Track>(),
+            creating = writes.isRunning(TaskKey.Action.Kind.CreatePlaylist),
             onBack = { nav.popBackStack() },
             onSubmit = { name, seed ->
                 scope.launch {
@@ -128,12 +130,14 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val vm = entry.sidetrackViewModel(nav)
         val playlists by vm.playlistState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
+        val writes by vm.writesState.collectAsStateWithLifecycle()
         val track = SidetrackPlaylistAdd.get(entry.arguments?.getString("key"))
         LaunchedEffect(Unit) { vm.openPlaylistChoices() }
         AddToPlaylistScreen(
             track,
             playlists,
             chrome,
+            adding = writes.targets(TaskKey.Action.Kind.AddToPlaylist),
             onBack = { nav.popBackStack() },
             onLoadMore = vm::loadMorePlaylistChoices,
             onRetry = vm::retryPlaylistChoices,

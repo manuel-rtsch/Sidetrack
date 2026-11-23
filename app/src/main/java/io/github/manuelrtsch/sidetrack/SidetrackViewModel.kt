@@ -130,6 +130,12 @@ class SidetrackViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), state.value.playlistSlice)
 
+    /** The writes in flight, so the action that started one can name itself busy. */
+    val writesState: StateFlow<WritesUiState> = state
+        .map { it.writes }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), state.value.writes)
+
     /**
      * The seek bar's clock. Kept out of [state] so the position tick does not mutate the screen
      * state (which would invalidate and recompose every screen that collects it); only the Now
@@ -248,7 +254,8 @@ class SidetrackViewModel(
         hints = hints,
         mediaKeys = mediaKeys,
         online = { session?.isOnline != false },
-        scope = viewModelScope
+        scope = viewModelScope,
+        tasks = tasks
     )
 
     private val playlists = PlaylistController(

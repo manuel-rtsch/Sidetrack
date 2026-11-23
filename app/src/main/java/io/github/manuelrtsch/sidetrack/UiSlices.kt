@@ -90,6 +90,20 @@ data class SavedUiState(
 )
 
 /**
+ * The writes in flight, so the button that started one can say so instead of looking ignored.
+ *
+ * Reads the same record the loads use ([SidetrackUiState.runningTasks]); a write is simply the
+ * part of it that changes data rather than fetching it. [targets] is what a list needs: the rows
+ * of one playlist being added to, not every add in the app.
+ */
+data class WritesUiState(val actions: Set<TaskKey.Action> = emptySet()) {
+
+    fun isRunning(kind: TaskKey.Action.Kind, target: String? = null): Boolean = actions.any { it.kind == kind && (target == null || it.target == target) }
+
+    fun targets(kind: TaskKey.Action.Kind): Set<String> = actions.filter { it.kind == kind }.mapTo(mutableSetOf()) { it.target }
+}
+
+/**
  * The transient action-bar state: a notice, the queue-replaced offer, or the now-playing
  * confirmation.
  *
@@ -228,6 +242,9 @@ val SidetrackUiState.account: AccountUiState
 
 val SidetrackUiState.saved: SavedUiState
     get() = SavedUiState(savedTrackIds, savedCollectionKeys, followedArtistIds)
+
+val SidetrackUiState.writes: WritesUiState
+    get() = WritesUiState(runningTasks.filterIsInstance<TaskKey.Action>().toSet())
 
 val SidetrackUiState.chrome: ChromeUiState
     get() = ChromeUiState(notice, noticeKind, nowPlayingNotice, queueReplaced)

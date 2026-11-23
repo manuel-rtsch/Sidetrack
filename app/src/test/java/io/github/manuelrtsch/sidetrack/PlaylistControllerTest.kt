@@ -5,9 +5,13 @@ import hrln.interactive.sidekit.design.action.NoticeKind
 import io.github.manuelrtsch.sidetrack.data.MediaCatalog
 import io.github.manuelrtsch.sidetrack.data.MediaLibraryWriter
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -211,6 +215,45 @@ class PlaylistControllerTest {
     }
 
     @Test
+    fun `a second create is refused while the first is in flight`() = runTest {
+        val writer = FakeWriter(gate = CompletableDeferred())
+        val controller = controller(FakeCatalog(), store(), this, writer = writer)
+
+        var created: Playlist? = null
+        val first = launch { created = controller.create("Sunday") }
+        runCurrent()
+        assertEquals("Sunday", writer.createdName)
+
+        // The button is still on screen and still pressable; the write itself is the guard, so a
+        // second playlist cannot be created from two taps on the same press.
+        assertNull(controller.create("Sunday"))
+        assertEquals(1, writer.createCalls)
+
+        (writer.gate as CompletableDeferred<Unit>).complete(Unit)
+        first.join()
+        assertEquals("Sunday", created?.name)
+    }
+
+    @Test
+    fun `a second add to the same playlist is refused while the first is in flight`() = runTest {
+        val target = playlist("target", PlaylistActions.All)
+        val writer = FakeWriter(gate = CompletableDeferred())
+        val controller = controller(FakeCatalog(), store(), this, writer = writer)
+
+        var addedAt: Int? = null
+        val first = launch { addedAt = controller.add(target, second) }
+        runCurrent()
+        assertEquals(1, writer.addCalls)
+
+        assertNull(controller.add(target, third))
+        assertEquals(1, writer.addCalls)
+
+        (writer.gate as CompletableDeferred<Unit>).complete(Unit)
+        first.join()
+        assertEquals(3, addedAt)
+    }
+
+    @Test
     fun `undo add decrements the patched count, not the stale argument`() = runTest {
         val target = playlist("target", PlaylistActions.All)
         val row = target.copy(trackCount = 4)
@@ -308,8 +351,13 @@ class PlaylistControllerTest {
         override suspend fun resolvePlaybackSource(item: MediaItem): PlaybackSource = PlaybackSource(id = item.key.encode(), uri = "")
     }
 
-    private class FakeWriter(val addIndex: Int = 3) : MediaLibraryWriter {
+    private class FakeWriter(
+        val addIndex: Int = 3,
+        /** Holds the write open so a test can press the same button again mid-flight. */
+        val gate: CompletableDeferred<Unit>? = null
+    ) : MediaLibraryWriter {
         var addCalls = 0
+        var createCalls = 0
         var addedPlaylist: MediaKey? = null
         var addedItem: MediaItem? = null
         var removedPlaylist: MediaKey? = null
@@ -330,6 +378,7 @@ class PlaylistControllerTest {
 
         override suspend fun addToPlaylist(playlist: MediaKey, item: MediaItem): Int? {
             addCalls++
+            gate?.await()
             addedPlaylist = playlist
             addedItem = item
             return addIndex
@@ -355,8 +404,10 @@ class PlaylistControllerTest {
         }
 
         override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist {
+            createCalls++
             createdName = name
             createdSeed = seed
+            gate?.await()
             return Playlist(
                 id = "created",
                 name = name,

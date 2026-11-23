@@ -3,6 +3,7 @@ package io.github.manuelrtsch.sidetrack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -59,6 +60,32 @@ class TaskRegistryTest {
         second.complete(Unit)
         advanceUntilIdle()
         assertTrue(store.value.runningTasks.isEmpty())
+    }
+
+    @Test
+    fun `submit waits for the result and refuses a second caller`() = runTest {
+        val store = UiStateStore(SidetrackUiState())
+        val registry = TaskRegistry(store, this)
+        val key = TaskKey.Action(TaskKey.Action.Kind.CreatePlaylist)
+        val gate = CompletableDeferred<Unit>()
+
+        var result: String? = null
+        val first = launch {
+            result = registry.submit(key) {
+                gate.await()
+                "made"
+            }
+        }
+        runCurrent()
+        assertTrue(key in store.value.runningTasks)
+
+        // The same key cannot start twice: the second caller gets null and never reaches the write.
+        assertEquals(null, registry.submit(key) { "duplicate" })
+
+        gate.complete(Unit)
+        first.join()
+        assertEquals("made", result)
+        assertFalse(key in store.value.runningTasks)
     }
 
     @Test

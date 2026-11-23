@@ -18,7 +18,8 @@ internal class SavesController(
     private val hints: SavedHints,
     private val mediaKeys: MediaKeys,
     private val online: () -> Boolean,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val tasks: TaskRegistry
 ) {
 
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
@@ -50,7 +51,9 @@ internal class SavesController(
             next
         }
         val writer = writer ?: return
-        scope.launch {
+        // The toggle is optimistic, so a rapid second tap has already flipped the state back: the
+        // newer write supersedes the older one and only it decides what the service ends up with.
+        tasks.restart(TaskKey.Action(TaskKey.Action.Kind.Save, savedKey)) {
             try {
                 writer.setSaved(mediaKeys.track(id), saved)
             } catch (e: CancellationException) {
@@ -92,7 +95,7 @@ internal class SavesController(
             }
         }
         val writer = writer ?: return
-        scope.launch {
+        tasks.restart(TaskKey.Action(TaskKey.Action.Kind.Save, key)) {
             try {
                 writer.setSaved(mediaKeys.media(type, id), saved)
             } catch (e: CancellationException) {
@@ -131,7 +134,7 @@ internal class SavesController(
             }
         }
         val writer = writer ?: return
-        scope.launch {
+        tasks.restart(TaskKey.Action(TaskKey.Action.Kind.Follow, followedKey)) {
             try {
                 writer.setFollowed(mediaKeys.artist(id), following)
             } catch (e: CancellationException) {
