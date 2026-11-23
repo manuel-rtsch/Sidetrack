@@ -482,6 +482,17 @@ class SidetrackScreenshotTest {
         )
     }
 
+    @Test fun signInPending() = shoot("sidetrack_sign_in_pending") {
+        SignInScreen(
+            SidetrackUiState(signedIn = false).chrome,
+            onBack = {},
+            onSignIn = {},
+            onDismissNotice = {},
+            serviceName = "Spotify",
+            pending = true
+        )
+    }
+
     @Test fun navidromeSignIn() = shoot("sidetrack_sign_in_navidrome") {
         SignInScreen(
             SidetrackUiState(signedIn = false).chrome,

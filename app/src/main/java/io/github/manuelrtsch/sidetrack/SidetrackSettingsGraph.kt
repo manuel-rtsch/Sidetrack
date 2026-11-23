@@ -194,7 +194,8 @@ internal fun NavGraphBuilder.settingsGraph(
             defaults = defaults,
             deviceAuth = deviceAuth,
             onDeviceSignIn = { permission.launch(LocalAudioPermission) },
-            onPasswordSignIn = vm::signIn
+            onPasswordSignIn = vm::signIn,
+            pending = account.authPending
         )
     }
 }

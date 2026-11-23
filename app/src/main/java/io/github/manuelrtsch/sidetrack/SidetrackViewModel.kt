@@ -21,7 +21,6 @@ import io.github.manuelrtsch.sidetrack.data.setNormalization
 import io.github.manuelrtsch.sidetrack.playback.PlaybackEvent
 import io.github.manuelrtsch.sidetrack.playback.SleepTimerState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -198,8 +197,6 @@ class SidetrackViewModel(
      */
     private val offlineSleepTimer = MutableStateFlow<SleepTimerState>(SleepTimerState.Off)
     val sleepTimer: StateFlow<SleepTimerState> = session?.playback?.sleepTimer ?: offlineSleepTimer
-
-    private var signInJob: Job? = null
 
     private val hints = SavedHints { writer }
 

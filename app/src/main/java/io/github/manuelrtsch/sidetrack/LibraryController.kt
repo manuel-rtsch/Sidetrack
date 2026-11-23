@@ -507,11 +507,13 @@ internal class LibraryController(
      * requested one after another so the native collection cache is filled once for the shared
      * sets instead of racing several identical full reads. The previews also seed saved-state
      * hints and let an offline app know what the account holds.
+     *
+     * It is a cache warmer, not a page: a failure has nothing of its own to show, so it reports
+     * through the notice the Library would use and leaves the category to its own first-page load.
      */
     fun loadSections() {
         if (!store.value.signedIn) return
         librarySectionsJob?.cancel()
-        store.update { it.copy(librarySectionsLoading = true, librarySectionsError = null) }
         librarySectionsJob = scope.launch {
             try {
                 val sections = LinkedHashMap<LibraryFilter, List<Any>>()
@@ -534,15 +536,10 @@ internal class LibraryController(
                     }
                 }
                 store.update { current ->
-                    val allFailed = sections.isEmpty()
                     var next = current.copy(
                         librarySections = sections,
-                        librarySectionHasMore = hasMore,
-                        librarySectionsLoading = false,
-                        librarySectionsError = if (allFailed) notice else null
+                        librarySectionHasMore = hasMore
                     )
-                    // A full failure is shown as an error page, not as a transient notice.
-                    if (!allFailed && notice != null) next = next.say(notice)
                     for ((filter, items) in sections) {
                         next = next.withSectionSaved(filter, items, mediaKeys)
                     }
@@ -555,17 +552,13 @@ internal class LibraryController(
                             next = next.copy(libraryPages = next.libraryPages + (filter to page))
                         }
                     }
+                    if (notice != null) next = next.say(notice)
                     next
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update {
-                    it.copy(
-                        librarySectionsLoading = false,
-                        librarySectionsError = catalogNotice(e)
-                    )
-                }
+                store.update { it.say(catalogNotice(e)) }
             }
         }
     }

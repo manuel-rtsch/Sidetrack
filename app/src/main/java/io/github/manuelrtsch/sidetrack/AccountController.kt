@@ -121,8 +121,6 @@ internal class AccountController(
                 librarySections = emptyMap(),
                 librarySectionHasMore = emptySet(),
                 libraryPendingPages = emptySet(),
-                librarySectionsLoading = false,
-                librarySectionsError = null,
                 searchError = null,
                 collectionErrors = emptyMap(),
                 artistErrors = emptyMap(),

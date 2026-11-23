@@ -1,8 +1,11 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -10,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusDirection
@@ -69,7 +73,13 @@ fun SignInScreen(
      */
     deviceAuth: Boolean = false,
     onDeviceSignIn: () -> Unit = {},
-    onPasswordSignIn: (serverUrl: String, username: String, password: String) -> Unit = { _, _, _ -> }
+    onPasswordSignIn: (serverUrl: String, username: String, password: String) -> Unit = { _, _, _ -> },
+    /**
+     * The provider is still working: the browser is waiting for its redirect, the password call is
+     * in flight, or the media permission dialog is up. The action bar stays live because a second
+     * press supersedes a stale attempt on purpose; see `AccountController.startSignIn`.
+     */
+    pending: Boolean = false
 ) {
     val colors = SidekitTheme.colors
     val focusManager = LocalFocusManager.current
@@ -95,6 +105,12 @@ fun SignInScreen(
     }
     val primary = if (deviceAuth) onDeviceSignIn else submit
     val primaryLabel = if (deviceAuth) "Allow access" else "Sign in"
+    val pendingTitle = when {
+        deviceAuth -> "Waiting for access…"
+        passwordAuth -> "Signing in…"
+        else -> "Waiting for $serviceName…"
+    }
+    val pendingHint = if (deviceAuth || passwordAuth) null else "Finish in the browser"
     val baseActions = remember(passwordAuth, deviceAuth, onBack, primary) {
         listOf(
             // Back, not About: the picker is the step behind this screen, so the left action is the
@@ -108,6 +124,14 @@ fun SignInScreen(
         title = "Sign in",
         actions = actions
     ) { padding ->
+        if (pending) {
+            // The form's values live above this branch, so a failed attempt returns to the fields
+            // exactly as they were submitted.
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                LoadingScreen(title = pendingTitle, hint = pendingHint)
+            }
+            return@SidekitScaffold
+        }
         val listState = rememberLazyListState()
         SidekitList(padding, state = listState) {
             var rowIndex = 0

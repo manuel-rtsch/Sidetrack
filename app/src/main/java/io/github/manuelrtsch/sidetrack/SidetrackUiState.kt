@@ -19,9 +19,6 @@ data class SidetrackUiState(
     val authPending: Boolean = false,
     /** Categories whose first page is in flight with nothing cached to show meanwhile. */
     val libraryPendingPages: Set<LibraryFilter> = emptySet(),
-    val librarySectionsLoading: Boolean = false,
-    /** Set when the startup preload could not load any category. */
-    val librarySectionsError: String? = null,
     /** Set when a search request failed and there are no results to keep on screen. */
     val searchError: String? = null,
     /** Failed collection loads, keyed by "type:id", so the screen can offer a retry. */

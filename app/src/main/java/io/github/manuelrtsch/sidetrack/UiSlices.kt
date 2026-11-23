@@ -36,8 +36,6 @@ data class LibraryUiState(
     /** Categories fetching their first page with nothing cached to show meanwhile. */
     val libraryPendingPages: Set<LibraryFilter> = emptySet(),
     val libraryMorePendingPages: Set<LibraryFilter> = emptySet(),
-    val librarySectionsLoading: Boolean = false,
-    val librarySectionsError: String? = null,
     val filter: LibraryFilter = LibraryFilter.LikedSongs,
     val collections: Map<String, Collection> = emptyMap(),
     val artists: Map<String, Artist> = emptyMap(),
@@ -131,8 +129,6 @@ val SidetrackUiState.library: LibraryUiState
         librarySectionHasMore = librarySectionHasMore,
         libraryPendingPages = libraryPendingPages,
         libraryMorePendingPages = libraryMorePendingPages,
-        librarySectionsLoading = librarySectionsLoading,
-        librarySectionsError = librarySectionsError,
         filter = filter,
         collections = collections,
         artists = artists,
