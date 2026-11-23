@@ -1,6 +1,5 @@
 package io.github.manuelrtsch.sidetrack
 
-import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.data.NativeSpotifyGateway
 import io.github.manuelrtsch.sidetrack.data.PlaybackSettings
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure
@@ -324,7 +323,7 @@ class NativeSpotifyGatewayTest {
         assertTrue(native.playerCreated)
     }
 
-    private class FakeNative(override val isAvailable: Boolean = true) : SpotifyNative {
+    private class FakeNative(override val isAvailable: Boolean = true) : SilentSpotifyNative() {
         var token: String? = null
         var playerCreated = false
         var playerRecreated = false
@@ -343,8 +342,6 @@ class NativeSpotifyGatewayTest {
         }
 
         override fun initialize() = isAvailable
-        override fun setTmpDir(path: String) = Unit
-        override fun setCacheDir(path: String, sizeLimitBytes: Long) = Unit
         override fun connect(accessToken: String): String? {
             connects++
             token = accessToken
@@ -356,7 +353,6 @@ class NativeSpotifyGatewayTest {
             if (setTokenOk) token = accessToken
             return setTokenOk && isAvailable
         }
-        override fun disconnect() = Unit
         override fun hasPlayer() = playerCreated
         override fun createPlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean): Boolean {
             playerCreated = true
@@ -381,23 +377,6 @@ class NativeSpotifyGatewayTest {
         override fun pause() = isAvailable
         override fun stop() = isAvailable
         override fun seek(positionMs: Long) = isAvailable
-        override fun readAudio(timeoutMs: Long): ByteArray? = null
-        override fun audioFormat(): String? = null
-        override fun pollEvent(): String? = null
-        override fun drainAudio() = Unit
-        override fun catalogLibrary(filter: String, offset: Long, limit: Long): String? = null
-        override fun catalogCollection(kind: String, id: String, offset: Long, limit: Long): String? = null
-        override fun catalogArtist(id: String): String? = null
-        override fun catalogAlbumsBy(id: String, offset: Long, limit: Long): String? = null
-        override fun catalogTopTracks(id: String, offset: Long, limit: Long): String? = null
-        override fun catalogSongRadio(id: String, limit: Long): String? = null
-        override fun catalogArtistRadio(id: String, limit: Long): String? = null
-        override fun catalogSearch(query: String, scopes: String, offset: Long, limit: Long): String? = null
-        override fun collectionContains(set: String, uris: String): String? = null
-        override fun collectionWrite(set: String, uris: String, removed: Boolean): Boolean = true
-        override fun playlistSaved(id: String): String? = null
-        override fun playlistSave(id: String, save: Boolean): Boolean = true
         override fun playlistItemsAdd(id: String, uris: String): String? = "0"
-        override fun playlistItemsRemove(id: String, uris: String): String? = "ok"
     }
 }

@@ -1,6 +1,5 @@
 package io.github.manuelrtsch.sidetrack
 
-import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.playback.SpotifyAudioSink
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
@@ -132,28 +131,12 @@ class SpotifyAudioSinkTest {
     }
 
     /** A native player whose PCM and format the test controls. */
-    private class FakeNative : SpotifyNative {
+    private class FakeNative : SilentSpotifyNative() {
         var pcm: List<ByteArray> = emptyList()
         var format: String? = """{"sampleRate":44100,"channels":2}"""
         var readThrows = false
         private val reads = AtomicInteger()
 
-        override val isAvailable: Boolean get() = true
-        override fun initialize() = true
-        override fun setTmpDir(path: String) = Unit
-        override fun setCacheDir(path: String, sizeLimitBytes: Long) = Unit
-        override fun connect(accessToken: String): String? = null
-        override fun setAccessToken(accessToken: String) = true
-        override fun disconnect() = Unit
-        override fun hasPlayer() = true
-        override fun createPlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean) = true
-        override fun recreatePlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean) = true
-        override fun preload(uri: String) = true
-        override fun load(uri: String, positionMs: Long, autoplay: Boolean) = true
-        override fun play() = true
-        override fun pause() = true
-        override fun stop() = true
-        override fun seek(positionMs: Long) = true
         override fun readAudio(timeoutMs: Long): ByteArray? {
             if (readThrows) throw IllegalStateException("synthetic native failure")
             // Throttle like the real blocking read; otherwise a fake that returns null instantly
@@ -163,22 +146,7 @@ class SpotifyAudioSinkTest {
             return pcm.getOrNull(index)
         }
 
-        override fun drainAudio() = Unit
         override fun audioFormat(): String? = format
-        override fun pollEvent(): String? = null
-        override fun catalogLibrary(filter: String, offset: Long, limit: Long): String? = null
-        override fun catalogCollection(kind: String, id: String, offset: Long, limit: Long): String? = null
-        override fun catalogArtist(id: String): String? = null
-        override fun catalogAlbumsBy(id: String, offset: Long, limit: Long): String? = null
-        override fun catalogTopTracks(id: String, offset: Long, limit: Long): String? = null
-        override fun catalogSongRadio(id: String, limit: Long): String? = null
-        override fun catalogArtistRadio(id: String, limit: Long): String? = null
-        override fun catalogSearch(query: String, scopes: String, offset: Long, limit: Long): String? = null
-        override fun collectionContains(set: String, uris: String): String? = null
-        override fun collectionWrite(set: String, uris: String, removed: Boolean) = true
-        override fun playlistSaved(id: String): String? = null
-        override fun playlistSave(id: String, save: Boolean) = true
         override fun playlistItemsAdd(id: String, uris: String): String? = "0"
-        override fun playlistItemsRemove(id: String, uris: String): String? = "ok"
     }
 }

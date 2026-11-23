@@ -4,7 +4,6 @@ import io.github.manuelrtsch.sidetrack.auth.SpotifyAuth
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentialStore
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentials
 import io.github.manuelrtsch.sidetrack.auth.SpotifyTokenClient
-import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure
@@ -356,7 +355,7 @@ class SpotifySessionNativeTest {
     private fun credentials() = SpotifyCredentials("access", "refresh", NOW + 600_000L, "streaming")
 
     /** A player whose calls are recorded in order; [calls] is what the assertions read. */
-    private class FakeNative : SpotifyNative {
+    private class FakeNative : SilentSpotifyNative() {
         val calls: MutableList<String> = Collections.synchronizedList(mutableListOf())
         var playerAttached = false
         var loadSucceeds = true
@@ -367,8 +366,6 @@ class SpotifySessionNativeTest {
 
         override val isAvailable: Boolean get() = true
         override fun initialize() = true
-        override fun setTmpDir(path: String) = Unit
-        override fun setCacheDir(path: String, sizeLimitBytes: Long) = Unit
 
         override fun connect(accessToken: String): String? {
             calls += "connect:$accessToken"
@@ -424,23 +421,8 @@ class SpotifySessionNativeTest {
             return ByteArray(1_024)
         }
 
-        override fun drainAudio() = Unit
         override fun audioFormat(): String? = """{"sampleRate":44100,"channels":2}"""
-        override fun pollEvent(): String? = null
-        override fun catalogLibrary(filter: String, offset: Long, limit: Long): String? = null
-        override fun catalogCollection(kind: String, id: String, offset: Long, limit: Long): String? = null
         override fun catalogArtist(id: String): String? = catalogArtistJson
-        override fun catalogAlbumsBy(id: String, offset: Long, limit: Long): String? = null
-        override fun catalogTopTracks(id: String, offset: Long, limit: Long): String? = null
-        override fun catalogSongRadio(id: String, limit: Long): String? = null
-        override fun catalogArtistRadio(id: String, limit: Long): String? = null
-        override fun catalogSearch(query: String, scopes: String, offset: Long, limit: Long): String? = null
-        override fun collectionContains(set: String, uris: String): String? = null
-        override fun collectionWrite(set: String, uris: String, removed: Boolean) = true
-        override fun playlistSaved(id: String): String? = null
-        override fun playlistSave(id: String, save: Boolean) = true
-        override fun playlistItemsAdd(id: String, uris: String): String? = null
-        override fun playlistItemsRemove(id: String, uris: String): String? = "ok"
     }
 
     private class FakeStore(

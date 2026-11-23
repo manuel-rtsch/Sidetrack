@@ -1,7 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.data.NativeSpotifyCatalog
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure
 import io.github.manuelrtsch.sidetrack.data.SpotifyGatewayException
@@ -384,7 +383,7 @@ class NativeSpotifyCatalogTest {
         assertEquals(SpotifyFailure.Network, (error as SpotifyGatewayException).failure)
     }
 
-    private class FakeNative : SpotifyNative {
+    private class FakeNative : SilentSpotifyNative() {
         override val isAvailable = true
         var set: String? = null
         var uris: String? = null
@@ -416,25 +415,6 @@ class NativeSpotifyCatalogTest {
         var searchOffset = -1L
         var searchLimit = -1L
 
-        override fun initialize() = true
-        override fun setTmpDir(path: String) = Unit
-        override fun setCacheDir(path: String, sizeLimitBytes: Long) = Unit
-        override fun connect(accessToken: String): String? = null
-        override fun setAccessToken(accessToken: String) = true
-        override fun disconnect() = Unit
-        override fun hasPlayer() = false
-        override fun createPlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean) = true
-        override fun recreatePlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean) = true
-        override fun preload(uri: String) = true
-        override fun load(uri: String, positionMs: Long, autoplay: Boolean) = true
-        override fun play() = true
-        override fun pause() = true
-        override fun stop() = true
-        override fun seek(positionMs: Long) = true
-        override fun readAudio(timeoutMs: Long): ByteArray? = null
-        override fun audioFormat(): String? = null
-        override fun pollEvent(): String? = null
-        override fun drainAudio() = Unit
         override fun catalogLibrary(filter: String, offset: Long, limit: Long): String? {
             libraryOffset = offset
             libraryLimit = limit

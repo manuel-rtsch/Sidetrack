@@ -337,8 +337,11 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   are now `HomeShot(state, sleepTimer)` and `LibraryShot(state)` in `ScreenshotFixtures.kt`. Both
   suites name the shot and the one thing it varies: six Home variants and the Library. The
   baselines did not move. Budget lowered from 298 to 227.
-- [ ] **Spotify native test fakes** — `NativeSpotifyGatewayTest` ↔ `SpotifyAudioSinkTest` ↔
-  `SpotifySessionNativeTest`, four blocks between 106 and 193 tokens.
+- [x] **Spotify native test fakes** — the four fakes in `NativeSpotifyGatewayTest`,
+  `SpotifyAudioSinkTest`, `SpotifySessionNativeTest` and `NativeSpotifyCatalogTest` each implemented
+  all thirty members of `SpotifyNative` to answer `null` and `true`, then overrode the two or three
+  the test cared about. `SilentSpotifyNative` holds that floor now, so each fake is its fields plus
+  the entry points it models. Budget lowered from 227 to 191.
 - [ ] **`RecordingServiceRuntime` ↔ `ServiceRuntimeExtensionsTest`** — 191 tokens over two blocks.
 - [ ] Remaining single-block pairs under 150 tokens (playlist controller tests, PlaybackReporter
   tests, `NativeSpotifyCatalogTest`, `SubsonicApiTest`, `SpotifyFallbackStateTest` and the rest).
