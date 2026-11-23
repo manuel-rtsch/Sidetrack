@@ -250,7 +250,8 @@ class PlaylistControllerTest {
         capabilities = { ServiceCapabilities.All },
         onCreated = {},
         online = { true },
-        scope = scope
+        scope = scope,
+        tasks = TaskRegistry(store, scope)
     )
 
     private fun track(id: String) = Track(

@@ -4,9 +4,6 @@ import io.github.manuelrtsch.sidetrack.data.MediaCatalog
 import io.github.manuelrtsch.sidetrack.data.QueueRepository
 import io.github.manuelrtsch.sidetrack.data.ServiceRuntime
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 /**
  * The two station screens: song radio from the current track, and artist radio from an artist.
@@ -25,20 +22,16 @@ internal class RadioController(
     private val hints: SavedHints,
     private val session: ServiceRuntime?,
     private val online: () -> Boolean,
-    private val scope: CoroutineScope
+    private val tasks: TaskRegistry
 ) {
 
     private val service: ServiceId get() = session?.service ?: ServiceId.Local
-
-    private var radioJob: Job? = null
-    private var artistRadioJob: Job? = null
 
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     /** Cancels both stations; called when the account changes. */
     fun reset() {
-        radioJob?.cancel()
-        artistRadioJob?.cancel()
+        tasks.cancelWhere { it is TaskKey.Radio || it is TaskKey.ArtistRadio }
     }
 
     /**
@@ -48,18 +41,19 @@ internal class RadioController(
     fun ensureRadio() {
         val seed = store.value.current as? Track
         if (seed == null) {
+            tasks.cancelWhere { it is TaskKey.Radio }
             store.update {
-                it.copy(radio = null, radioSeedId = null, radioPending = false, radioError = "Nothing playing")
+                it.copy(radio = null, radioSeedId = null, radioError = "Nothing playing")
             }
             return
         }
-        if (radioJob?.isActive == true && store.value.radioSeedId == seed.id) return
+        if (tasks.isRunning(TaskKey.Radio(seed.id))) return
         if (store.value.radioSeedId == seed.id && store.value.radio != null) return
         loadRadio(seed)
     }
 
     fun retryRadio() {
-        radioJob?.cancel()
+        tasks.cancelWhere { it is TaskKey.Radio }
         store.update { it.copy(radio = null, radioSeedId = null, radioError = null) }
         ensureRadio()
     }
@@ -77,13 +71,13 @@ internal class RadioController(
     fun ensureArtistRadio(artist: Artist) {
         val id = artist.id
         val snapshot = store.value
-        if (artistRadioJob?.isActive == true && snapshot.artistRadioArtistId == id) return
+        if (tasks.isRunning(TaskKey.ArtistRadio(id))) return
         if (snapshot.artistRadioArtistId == id && snapshot.artistRadio != null) return
         loadArtistRadio(artist)
     }
 
     fun retryArtistRadio(artist: Artist) {
-        artistRadioJob?.cancel()
+        tasks.cancelWhere { it is TaskKey.ArtistRadio }
         store.update { it.copy(artistRadio = null, artistRadioArtistId = null, artistRadioError = null) }
         ensureArtistRadio(artist)
     }
@@ -111,24 +105,24 @@ internal class RadioController(
     }
 
     fun loadArtistRadio(artist: Artist) {
-        artistRadioJob?.cancel()
+        tasks.cancelWhere { it is TaskKey.ArtistRadio }
         val id = artist.id
         store.update {
-            it.copy(artistRadio = null, artistRadioArtistId = id, artistRadioPending = true, artistRadioError = null)
+            it.copy(artistRadio = null, artistRadioArtistId = id, artistRadioError = null)
         }
-        artistRadioJob = scope.launch {
+        tasks.start(TaskKey.ArtistRadio(id)) {
             try {
                 val result = catalog.radioStation(mediaKeys.artist(id), CATALOG_PAGE_SIZE)
                 val tracks = result.tracks
                     .filter { it.playable }
                     .distinctBy { it.id }
                 // A station the user navigated away from must not overwrite the next artist's.
-                if (store.value.artistRadioArtistId != id) return@launch
+                if (store.value.artistRadioArtistId != id) return@start
                 if (tracks.isEmpty()) {
                     store.update {
-                        it.copy(artistRadioPending = false, artistRadioError = "No similar tracks found")
+                        it.copy(artistRadioError = "No similar tracks found")
                     }
-                    return@launch
+                    return@start
                 }
                 val station = Collection(
                     type = CollectionType.Playlist,
@@ -148,7 +142,6 @@ internal class RadioController(
                 store.update {
                     it.copy(
                         artistRadio = station,
-                        artistRadioPending = false,
                         artistRadioError = null
                     ).withStationSaved(station, saved)
                 }
@@ -157,7 +150,7 @@ internal class RadioController(
             } catch (e: Exception) {
                 if (store.value.artistRadioArtistId == id) {
                     store.update {
-                        it.copy(artistRadioPending = false, artistRadioError = catalogNotice(e))
+                        it.copy(artistRadioError = catalogNotice(e))
                     }
                 }
             }
@@ -165,14 +158,14 @@ internal class RadioController(
     }
 
     fun loadRadio(seed: Track) {
-        radioJob?.cancel()
+        tasks.cancelWhere { it is TaskKey.Radio }
         // The station request can take seconds. Remember the queue it was started from so a late
         // response cannot replace edits the user made while it loaded.
         val queueAtRequest = queue.snapshot
         store.update {
-            it.copy(radio = null, radioSeedId = seed.id, radioPending = true, radioError = null)
+            it.copy(radio = null, radioSeedId = seed.id, radioError = null)
         }
-        radioJob = scope.launch {
+        tasks.start(TaskKey.Radio(seed.id)) {
             try {
                 val result = catalog.radioStation(mediaKeys.track(seed.id), CATALOG_PAGE_SIZE)
                 val tracks = result.tracks
@@ -180,13 +173,13 @@ internal class RadioController(
                     .distinctBy { it.id }
                 if (store.value.current?.id != seed.id) {
                     store.update {
-                        it.copy(radioPending = false, radioError = "The track changed")
+                        it.copy(radioError = "The track changed")
                     }
-                    return@launch
+                    return@start
                 }
                 if (tracks.isEmpty()) {
-                    store.update { it.copy(radioPending = false, radioError = "No similar tracks found") }
-                    return@launch
+                    store.update { it.copy(radioError = "No similar tracks found") }
+                    return@start
                 }
                 val station = Collection(
                     type = CollectionType.Playlist,
@@ -207,7 +200,6 @@ internal class RadioController(
                     it.copy(
                         radio = station,
                         radioSeedId = seed.id,
-                        radioPending = false,
                         radioError = null
                     ).withStationSaved(station, saved)
                 }
@@ -228,7 +220,6 @@ internal class RadioController(
                 if (store.value.radioSeedId == seed.id) {
                     store.update {
                         it.copy(
-                            radioPending = false,
                             radioError = if (it.current?.id == seed.id) {
                                 catalogNotice(e)
                             } else {

@@ -82,6 +82,9 @@ class SidetrackViewModel(
     )
     val state: StateFlow<SidetrackUiState> = store.state
 
+    /** The one owner of the jobs behind [SidetrackUiState.runningTasks]. */
+    private val tasks = TaskRegistry(store, viewModelScope)
+
     /**
      * Focused slices of [state]. A screen collects only the slices it reads, so a change to an
      * unrelated slice (a search keystroke, a save toggle, a cache-size refresh) does not
@@ -223,7 +226,7 @@ class SidetrackViewModel(
         hints = hints,
         session = session,
         online = { session?.isOnline != false },
-        scope = viewModelScope
+        tasks = tasks
     )
 
     private val queueEditor = QueueController(
@@ -254,7 +257,8 @@ class SidetrackViewModel(
         capabilities = { capabilities },
         onCreated = { library.reload(LibraryFilter.Playlists) },
         online = { session?.isOnline != false },
-        scope = viewModelScope
+        scope = viewModelScope,
+        tasks = tasks
     )
 
     private val account = AccountController(
@@ -267,7 +271,7 @@ class SidetrackViewModel(
         library = library,
         radio = radio,
         hints = hints,
-        scope = viewModelScope
+        tasks = tasks
     )
 
     private val search = SearchController(
@@ -276,7 +280,7 @@ class SidetrackViewModel(
         supportedScopes = { supportedScopes },
         online = { session?.isOnline != false },
         saveSearchHistory = saveSearchHistory,
-        coroutineScope = viewModelScope
+        tasks = tasks
     )
 
     private val sessionWiring = session?.let {

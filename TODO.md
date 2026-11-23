@@ -69,14 +69,16 @@ effect on the current track until then.
 
 ## Loading and status surfaces
 
-**Where:** `StatusScreens.kt`, `SignInScreen.kt`, `LoadMoreFocusState.kt`, `SidetrackUiState.kt`,
-`UiSlices.kt`, all eight controllers, `SidetrackGraph.kt`, `SidetrackLibraryGraph.kt`,
-`SidetrackPlaybackGraph.kt`, `SidetrackSettingsGraph.kt`, `PlaybackDriver.kt`
+**Where:** `TaskKey.kt`, `TaskRegistry.kt`, `StatusScreens.kt`, `SignInScreen.kt`,
+`LoadMoreFocusState.kt`, `SidetrackUiState.kt`, `UiSlices.kt`, all eight controllers,
+`SidetrackGraph.kt`, `SidetrackLibraryGraph.kt`, `SidetrackPlaybackGraph.kt`,
+`SidetrackSettingsGraph.kt`, `PlaybackDriver.kt`
 
-Thirteen pending flags and six error slots (plus `LibraryPage.error`) describe work in flight.
-Each controller owns its own job map and its own notice policy, and four screens hand-write the
-same `loading → error → empty → content` ladder. The inconsistencies are behavioural, not
-cosmetic:
+Fourteen pending flags and six error slots (plus `LibraryPage.error`) originally described work in
+flight by hand. The single-request ones now come from one registry; six paging flags remain for
+the Library, collection and artist pages. Each controller still owns its notice policy, and four
+screens hand-write the same `loading → error → empty → content` ladder. The inconsistencies were
+behavioural, not cosmetic:
 
 - `authPending` was set on every sign-in and read by nothing (`AccountController.kt:79`); the
   screen now renders it (see *Sign-in pending state* below).
@@ -96,35 +98,29 @@ no-visual-change reviews.
 
 ### One task record
 
-- [ ] **`TaskState`** — absence means idle:
-  ```kotlin
-  sealed interface TaskState {
-      data class Running(val startedAt: Long) : TaskState
-      data class Failed(val message: String) : TaskState
-  }
-  ```
-  `TaskKey` has one case per unit of work: `Library(filter)`, `LibraryMore(filter)`,
-  `Collection(key)`, `CollectionMore(key)`, `Artist(id)`, `ArtistMore(id)`, `Search(query, scope)`,
-  `SearchMore(query, scope)`, `PlaylistChoices`, `Radio(seed)`, `ArtistRadio(id)`, `SignIn`, and
-  one `Action` case per write. `SidetrackUiState.tasks: Map<TaskKey, TaskState>` replaces the
-  flag/error pairs; the content caches stay where they are.
-- [ ] **`TaskRegistry`** — one Job map keyed by `TaskKey` plus `start(key) {}` that returns the
-  running Job instead of launching a second, `fail(key, e, hasContent)` that decides between page
-  error and notice in one place, and `cancelAll()` on sign-out. Owned by `SidetrackViewModel` and
-  handed to the controllers, so `libraryMoreJobs` and the ad-hoc `isActive` checks disappear.
-- [ ] **Collapse the pairs** — `searchPending`+`searchError` → `Search`; `searchMorePending` →
-  `SearchMore`; `libraryPendingPages`+`LibraryPage.error` → `Library`; `libraryMorePendingPages` →
-  `LibraryMore`; `pendingCollections`+`collectionErrors` → `Collection`; `collectionMorePending` →
-  `CollectionMore`; `pendingArtists`+`artistErrors` → `Artist`; `artistMorePending` →
-  `ArtistMore`; `playlistChoicesLoading`+`playlistChoicesError` → `PlaylistChoices`;
-  `radioPending`+`radioError` → `Radio`; `artistRadioPending`+`artistRadioError` → `ArtistRadio`;
-  `authPending` → `SignIn`.
-- [ ] **Keep the derived properties** (`libraryLoading`, `libraryMorePending`) as projections over
-  `tasks` for one release, so surfaces migrate one at a time. Migrate Library, then collection and
-  artist, then search, then playlist choices and radio.
+- [x] **`TaskKey` and `TaskRegistry`** — `TaskKey` names each unit of work; the registry owns the
+  jobs and is the only writer of `SidetrackUiState.runningTasks`. `start` refuses a second job for
+  a running key, `restart` supersedes one without dropping the key (a retry must not flicker
+  idle), and `cancel`/`cancelWhere`/`cancelAll` clear it. The owner token means a superseded job's
+  `finally` leaves the newer job's record alone; the job is launched `LAZY` so it is registered
+  before its block can run on a main-immediate dispatcher.
+  Errors are deliberately **not** part of the record: a failed page is retried from its cached
+  entry (`LibraryPage.error`, `collectionErrors`, …), which is the lifetime the screen needs, while
+  a job is gone once it is cancelled. `startedAt` went away with the slow hint, now owned by
+  `LoadSurface`.
+- [x] **The single-request domains** — `authPending`, `searchPending`, `searchMorePending`,
+  `radioPending`, `artistRadioPending` and `playlistChoicesLoading` are gone; the slice getters in
+  `UiSlices.kt` project `runningTasks` back to the fields screens already read. `AccountController`,
+  `SearchController`, `RadioController` and `PlaylistController` now start through the registry, so
+  their ad-hoc `Job` fields and `isActive` guards are gone too. Covered by `TaskRegistryTest`.
+- [ ] **Migrate the paged domains** — `Library`/`LibraryMore`, `Collection`/`CollectionMore`,
+  `Artist`/`ArtistMore` and `libraryPendingPages`, `libraryMorePendingPages`, `pendingCollections`,
+  `collectionMorePending`, `pendingArtists`, `artistMorePending`. `QueueController` reads
+  `collectionMorePending` for its all-or-nothing guard, so those move together; keep the
+  `libraryLoading`/`libraryMorePending` projections while the call sites move.
 - [ ] **Radio stops inferring** — `loading = pending || error == null` (`SidetrackPlaybackGraph.kt`)
-  becomes `Running` or `(content == null && !Failed)`; a request that ends without a result can no
-  longer spin forever.
+  becomes `running` or `(content == null && no error)`; a request that ends without a result can no
+  longer spin forever. The running half is already available.
 - [x] **Delete the section-prefetch fields** — the prefetch is a cache warmer whose failure the
   Library's own first page already surfaces. `librarySectionsLoading`, `librarySectionsError` and
   the `catch` that stored them are gone; a failed preview now reports through the notice, including
@@ -142,9 +138,10 @@ no-visual-change reviews.
   `EmptyMessage` loading case are gone. Empty results still keep the plain row, since that is a
   settled state. Covered by `SearchLoadingTest`.
 - [ ] **Load-more failures keep `hasMore`** — the footer becomes a retry row (`Couldn't load more ·
-  Try again`) instead of ending the list. This needs a per-key failure record first, so it lands
-  with `TaskState`; clearing `hasMore` stays for a catalog that says the page is the last one. Retry
-  only on a click, never on scroll, so a dead endpoint cannot loop.
+  Try again`) instead of ending the list. This needs a per-key failure record alongside the paging
+  keys, so it lands with the paged-domain migration; clearing `hasMore` stays for a catalog that
+  says the page is the last one. Retry only on a click, never on scroll, so a dead endpoint cannot
+  loop.
 - [x] **Artwork screen** — a failed remote fetch now offers Try again in the bar. The retry keeps
   the URL and bumps a reload key, so the fetch effect runs again; a known-missing cover keeps Back
   as the only action because there is nothing to retry.
@@ -211,10 +208,10 @@ no-visual-change reviews.
 - No global connectivity banner. Catalog failures already become page errors with retry or a
   notice with the provider's message; a banner would duplicate both.
 
-Two slices have landed: sign-in pending with the dead section fields, then `LoadSurface` with the
-search record, the artwork retry and the slow hint. Land the rest in this order, each shippable on
-its own: `TaskState` (with the load-more retry it enables), then writes and `transport`, then
-semantics and tests.
+Three slices have landed: sign-in pending with the dead section fields, `LoadSurface` with the
+search record and the artwork retry, then the task registry with the single-request domains
+migrated. Land the rest in this order, each shippable on its own: the paged domains and the
+load-more retry they enable, then writes and `transport`, then semantics and tests.
 
 ## Code duplication
 

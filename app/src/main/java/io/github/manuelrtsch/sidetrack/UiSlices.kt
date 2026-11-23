@@ -147,10 +147,11 @@ val SidetrackUiState.library: LibraryUiState
 val SidetrackUiState.search: SearchUiState
     get() = SearchUiState(
         searchResults = searchResults,
-        searchPending = searchPending,
+        searchPending = runningTasks.any { it is TaskKey.Search },
         searchError = searchError,
         searchHasMore = searchHasMore,
-        searchMorePending = searchMorePending,
+        searchMorePending = runningTasks.filterIsInstance<TaskKey.SearchMore>()
+            .mapTo(mutableSetOf()) { it.scope },
         searchScopes = searchScopes,
         searchHistory = searchHistory,
         query = query
@@ -159,7 +160,7 @@ val SidetrackUiState.search: SearchUiState
 val SidetrackUiState.account: AccountUiState
     get() = AccountUiState(
         signedIn = signedIn,
-        authPending = authPending,
+        authPending = TaskKey.SignIn in runningTasks,
         audioQuality = audioQuality,
         normalization = normalization,
         gapless = gapless,
@@ -176,7 +177,7 @@ val SidetrackUiState.chrome: ChromeUiState
 val SidetrackUiState.playlistSlice: PlaylistUiState
     get() = PlaylistUiState(
         choices = playlistChoices,
-        loading = playlistChoicesLoading,
+        loading = TaskKey.PlaylistChoices in runningTasks,
         loaded = playlistChoicesLoaded,
         hasMore = playlistChoicesHasMore,
         error = playlistChoicesError
@@ -186,10 +187,10 @@ val SidetrackUiState.radioSlice: RadioUiState
     get() = RadioUiState(
         radio = radio,
         radioSeedId = radioSeedId,
-        radioPending = radioPending,
+        radioPending = runningTasks.any { it is TaskKey.Radio },
         radioError = radioError,
         artistRadio = artistRadio,
         artistRadioArtistId = artistRadioArtistId,
-        artistRadioPending = artistRadioPending,
+        artistRadioPending = runningTasks.any { it is TaskKey.ArtistRadio },
         artistRadioError = artistRadioError
     )

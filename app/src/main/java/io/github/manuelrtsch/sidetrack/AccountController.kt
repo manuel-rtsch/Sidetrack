@@ -7,9 +7,6 @@ import io.github.manuelrtsch.sidetrack.data.HistoryRepository
 import io.github.manuelrtsch.sidetrack.data.QueueRepository
 import io.github.manuelrtsch.sidetrack.data.ServiceRuntime
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 /**
  * Sign-in, sign-out and the reset that follows an account change.
@@ -28,12 +25,11 @@ internal class AccountController(
     private val library: LibraryController,
     private val radio: RadioController,
     private val hints: SavedHints,
-    private val scope: CoroutineScope
+    private val tasks: TaskRegistry
 ) {
 
-    private var signInJob: Job? = null
-
     fun signOut() {
+        tasks.cancelAll()
         session?.signOut()
         if (session == null) clearArtworkCache()
         queue.stop()
@@ -72,29 +68,26 @@ internal class AccountController(
             store.update { it.say("Sign-in is unavailable in this build") }
             return
         }
+        store.update { it.copy(notice = null) }
         // A previous attempt can still be waiting on the loopback listener after the user
         // closed the browser. Supersede it so every press opens a fresh sign-in page instead of
         // being ignored until the old listener times out.
-        signInJob?.cancel()
-        store.update { it.copy(authPending = true, notice = null) }
-        signInJob = scope.launch {
+        tasks.restart(TaskKey.SignIn) {
             try {
                 session.signIn(input)
-                store.update { it.copy(signedIn = true, authPending = false) }
+                store.update { it.copy(signedIn = true) }
                 load()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: CredentialPersistenceException) {
                 // The session is live for this run; only keeping it for the next launch failed.
-                store.update { it.copy(signedIn = true, authPending = false).say(e.message ?: "Sign-in failed") }
+                store.update { it.copy(signedIn = true).say(e.message ?: "Sign-in failed") }
                 load()
             } catch (e: Throwable) {
                 // Sign-in runs on the main thread and touches the keystore, the browser and the
                 // network. Anything that escapes here used to kill the process; report it instead.
                 Log.e("SidetrackSignIn", "sign-in threw ${e::class.java.name}", e)
-                store.update {
-                    it.copy(authPending = false).say(e.message ?: "Sign-in failed")
-                }
+                store.update { it.say(e.message ?: "Sign-in failed") }
             }
         }
     }
@@ -109,6 +102,7 @@ internal class AccountController(
     }
 
     fun clear() {
+        tasks.cancelAll()
         queue.stop()
         history.clear()
         library.reset()
@@ -126,7 +120,6 @@ internal class AccountController(
                 artistErrors = emptyMap(),
                 libraryMorePendingPages = emptySet(),
                 searchPages = emptyMap(),
-                searchMorePending = emptySet(),
                 collections = emptyMap(),
                 collectionMorePending = emptySet(),
                 artistAlbumHasMore = emptyMap(),
@@ -141,10 +134,8 @@ internal class AccountController(
                 nowPlayingNotice = null,
                 radio = null,
                 radioSeedId = null,
-                radioPending = false,
                 radioError = null,
                 playlistChoices = emptyList(),
-                playlistChoicesLoading = false,
                 playlistChoicesLoaded = false,
                 playlistChoicesHasMore = false,
                 playlistChoicesError = null

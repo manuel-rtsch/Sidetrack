@@ -8,6 +8,8 @@ data class SidetrackUiState(
     val upcoming: List<MediaItem> = emptyList(),
     val history: List<MediaItem> = emptyList(),
     val recent: List<MediaItem> = emptyList(),
+    /** The work in flight right now, keyed by what it is for; see [TaskRegistry]. */
+    val runningTasks: Set<TaskKey> = emptySet(),
     /** Every category opened this session, so switching back paints without a fetch. */
     val libraryPages: Map<LibraryFilter, LibraryPage> = emptyMap(),
     val librarySections: Map<LibraryFilter, List<Any>> = emptyMap(),
@@ -15,8 +17,6 @@ data class SidetrackUiState(
     /** Cached search pages keyed by query, then by category, so a scope toggle never drops the
      *  pages of the categories it leaves untouched. */
     val searchPages: Map<String, Map<SearchScope, LibraryPage>> = emptyMap(),
-    val searchPending: Boolean = false,
-    val authPending: Boolean = false,
     /** Categories whose first page is in flight with nothing cached to show meanwhile. */
     val libraryPendingPages: Set<LibraryFilter> = emptySet(),
     /** Set when a search request failed and there are no results to keep on screen. */
@@ -26,7 +26,6 @@ data class SidetrackUiState(
     /** Failed artist loads, keyed by artist id, so the screen can offer a retry. */
     val artistErrors: Map<String, String> = emptyMap(),
     val libraryMorePendingPages: Set<LibraryFilter> = emptySet(),
-    val searchMorePending: Set<SearchScope> = emptySet(),
     val collectionMorePending: Set<String> = emptySet(),
     val artistAlbumHasMore: Map<String, Boolean> = emptyMap(),
     val artistTrackHasMore: Map<String, Boolean> = emptyMap(),
@@ -68,17 +67,14 @@ data class SidetrackUiState(
     val radio: Collection? = null,
     /** Which track seeded [radio], so revisiting the same song does not refetch it. */
     val radioSeedId: String? = null,
-    val radioPending: Boolean = false,
     val radioError: String? = null,
     /** The station built from an artist, shown by the Artist radio screen. */
     val artistRadio: Collection? = null,
     /** Which artist seeded [artistRadio], so revisiting the same artist does not refetch it. */
     val artistRadioArtistId: String? = null,
-    val artistRadioPending: Boolean = false,
     val artistRadioError: String? = null,
     /** The playlists the Add-to-playlist picker may offer: only ones this account may add to. */
     val playlistChoices: List<Playlist> = emptyList(),
-    val playlistChoicesLoading: Boolean = false,
     val playlistChoicesLoaded: Boolean = false,
     val playlistChoicesHasMore: Boolean = false,
     val playlistChoicesError: String? = null

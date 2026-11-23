@@ -22,7 +22,8 @@ internal class PlaylistController(
     private val capabilities: () -> ServiceCapabilities,
     private val onCreated: () -> Unit,
     private val online: () -> Boolean,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val tasks: TaskRegistry
 ) {
 
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
@@ -64,7 +65,8 @@ internal class PlaylistController(
     /** Loads the first page once per picker visit; a later visit reuses the loaded list. */
     fun ensureChoices() {
         val state = store.value
-        if (!state.signedIn || state.playlistChoicesLoaded || state.playlistChoicesLoading) return
+        if (!state.signedIn || state.playlistChoicesLoaded) return
+        if (tasks.isRunning(TaskKey.PlaylistChoices)) return
         loadChoices(reset = true)
     }
 
@@ -85,14 +87,14 @@ internal class PlaylistController(
     }
 
     fun retryChoices() {
-        if (store.value.playlistChoicesLoading) return
+        if (tasks.isRunning(TaskKey.PlaylistChoices)) return
         choicesOffset = 0
         loadChoices(reset = true)
     }
 
     fun loadMoreChoices() {
         val state = store.value
-        if (state.playlistChoicesLoading || !state.playlistChoicesHasMore) return
+        if (!state.playlistChoicesHasMore || tasks.isRunning(TaskKey.PlaylistChoices)) return
         loadChoices(reset = false)
     }
 
@@ -100,12 +102,9 @@ internal class PlaylistController(
         if (!store.value.signedIn) return
         val offset = if (reset) 0 else choicesOffset
         store.update {
-            it.copy(
-                playlistChoicesLoading = true,
-                playlistChoicesError = if (reset) null else it.playlistChoicesError
-            )
+            it.copy(playlistChoicesError = if (reset) null else it.playlistChoicesError)
         }
-        scope.launch {
+        tasks.start(TaskKey.PlaylistChoices) {
             try {
                 val page = catalog.library(LibrarySection.Playlists, offset, CATALOG_PAGE_SIZE)
                 val addable = page.items.filterIsInstance<Playlist>()
@@ -119,7 +118,6 @@ internal class PlaylistController(
                     }
                     it.copy(
                         playlistChoices = merged,
-                        playlistChoicesLoading = false,
                         playlistChoicesLoaded = true,
                         playlistChoicesHasMore = page.hasMore,
                         playlistChoicesError = null
@@ -131,7 +129,6 @@ internal class PlaylistController(
                 if (reset) choicesOffset = 0
                 store.update {
                     it.copy(
-                        playlistChoicesLoading = false,
                         playlistChoicesLoaded = if (reset) false else it.playlistChoicesLoaded,
                         playlistChoicesError = catalogNotice(e)
                     )
@@ -142,10 +139,10 @@ internal class PlaylistController(
 
     private fun invalidateChoices() {
         choicesOffset = 0
+        tasks.cancel(TaskKey.PlaylistChoices)
         store.update {
             it.copy(
                 playlistChoices = emptyList(),
-                playlistChoicesLoading = false,
                 playlistChoicesLoaded = false,
                 playlistChoicesHasMore = false,
                 playlistChoicesError = null

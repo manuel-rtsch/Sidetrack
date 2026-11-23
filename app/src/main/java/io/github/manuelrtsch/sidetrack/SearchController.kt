@@ -2,13 +2,10 @@ package io.github.manuelrtsch.sidetrack
 
 import io.github.manuelrtsch.sidetrack.data.MediaCatalog
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 /**
  * The search screen's state machine: the debounce, the per-category paging and the empty-query
@@ -24,10 +21,8 @@ internal class SearchController(
     private val supportedScopes: () -> Set<SearchScope>,
     private val online: () -> Boolean,
     private val saveSearchHistory: (List<String>) -> Unit,
-    private val coroutineScope: CoroutineScope
+    private val tasks: TaskRegistry
 ) {
-
-    private var searchJob: Job? = null
 
     /**
      * Whether the user put the landing field away during this visit. Session-only on purpose: it is
@@ -39,26 +34,19 @@ internal class SearchController(
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
     fun search(debounceMs: Long) {
-        searchJob?.cancel()
+        // A new attempt replaces the category pages it is about to refetch; a page still arriving
+        // for the old set must not merge into the new one.
+        tasks.cancelWhere { it is TaskKey.SearchMore }
         val query = store.value.query
         if (query.trim().length < 2) {
+            tasks.cancelWhere { it is TaskKey.Search }
             store.update {
-                it.copy(
-                    searchPages = emptyMap(),
-                    searchPending = false,
-                    searchMorePending = emptySet()
-                )
+                it.copy(searchPages = emptyMap())
             }
             return
         }
-        store.update {
-            it.copy(
-                searchPending = true,
-                searchError = null,
-                searchMorePending = emptySet()
-            )
-        }
-        searchJob = coroutineScope.launch {
+        store.update { it.copy(searchError = null) }
+        tasks.restart(TaskKey.Search(query)) {
             delay(debounceMs)
             val scopes = store.value.searchScopes
             var failure: String? = null
@@ -86,7 +74,6 @@ internal class SearchController(
                         )
                     }
                     next = next.copy(
-                        searchPending = false,
                         searchError = if (empty) failure else null
                     )
                     // A failed search with old results stays a notice; an empty one becomes the
@@ -121,29 +108,26 @@ internal class SearchController(
     fun loadMoreSearch(scope: SearchScope) {
         val snapshot = store.value
         val query = snapshot.query
-        if (scope !in snapshot.searchHasMore || scope in snapshot.searchMorePending) return
+        if (scope !in snapshot.searchHasMore || tasks.isRunning(TaskKey.SearchMore(scope))) return
         val offset = snapshot.searchPagesForQuery[scope]?.items?.size ?: 0
-        store.update { it.copy(searchMorePending = it.searchMorePending + scope) }
-        coroutineScope.launch {
+        tasks.start(TaskKey.SearchMore(scope)) {
             try {
                 val more = catalog.search(query, setOf(scope), offset, SEARCH_PAGE_SIZE)
                 store.update {
                     if (it.query != query) {
-                        it.copy(searchMorePending = it.searchMorePending - scope)
+                        it
                     } else {
                         it.withSearchMorePage(
                             scope = scope,
                             next = more.itemsFor(scope),
                             hasMore = more.sizeFor(scope) >= SEARCH_PAGE_SIZE
-                        ).copy(searchMorePending = it.searchMorePending - scope)
+                        )
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update {
-                    it.copy(searchMorePending = it.searchMorePending - scope).say(catalogNotice(e))
-                }
+                store.update { it.say(catalogNotice(e)) }
             }
         }
     }
@@ -181,14 +165,13 @@ internal class SearchController(
         if (query.length < 2) return
         val history = updatedSearchHistory(store.value.searchHistory, query)
         // A new query is a fresh browse: the pages of the previous query have no worth under it.
+        tasks.cancelWhere { it is TaskKey.Search || it is TaskKey.SearchMore }
         store.update {
             it.copy(
                 query = query,
                 searchHistory = history,
                 searchPages = emptyMap(),
-                searchPending = false,
-                searchError = null,
-                searchMorePending = emptySet()
+                searchError = null
             )
         }
         saveSearchHistory(history)
@@ -219,14 +202,12 @@ internal class SearchController(
     }
 
     fun clearQuery() {
-        searchJob?.cancel()
+        tasks.cancelWhere { it is TaskKey.Search || it is TaskKey.SearchMore }
         store.update {
             it.copy(
                 query = "",
                 searchPages = emptyMap(),
-                searchPending = false,
-                searchError = null,
-                searchMorePending = emptySet()
+                searchError = null
             )
         }
     }
