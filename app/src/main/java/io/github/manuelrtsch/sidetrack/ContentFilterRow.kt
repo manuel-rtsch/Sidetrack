@@ -16,6 +16,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.components.SidekitIconItem
 import hrln.interactive.sidekit.design.components.SidekitItemRow
 import hrln.interactive.sidekit.design.icons.SidekitIcon
@@ -23,6 +25,24 @@ import hrln.interactive.sidekit.design.theme.SidekitTheme
 
 // The shared square category row. Library and Search both attach it, so focus order and the
 // disabled-slot behaviour stay identical across the two pages.
+
+/**
+ * The side of one square in the category row: five of them and four gaps fill the page.
+ *
+ * This is the one size in Sidetrack that is not on the row scale, and it cannot be. The row is
+ * bound by the *width*, which the compact-rows setting does not change, while a media row is bound
+ * by the vertical budget of the 425 dp body. So the square has a single value in both modes:
+ * `(480 - 2 x pagePadding - 4 x itemOuterGap) / 5 = (460 - 12) / 5 = 89.6 dp`, which is why it
+ * needs no `LocalCompactRows` (see [rememberMediaRowMetrics]).
+ *
+ * It also cannot take the cover's size. Five 77 dp covers plus the same 3 dp gaps span 397 dp, so
+ * a cover-sized row would either leave 63 dp empty at the right edge or grow its gaps to 18.75 dp;
+ * the first breaks the full-bleed row, the second the design language's minimal spacing. 89.6 sits
+ * between the compact row (78) and the spacious one (97), so it reads as the same weight in both
+ * modes instead of looking derived from either.
+ */
+internal fun categoryCell(width: Dp, columns: Int, gap: Dp): Dp =
+    if (columns <= 0) 0.dp else (width - gap * (columns - 1)) / columns
 
 /**
  * Five square category buttons. Focus selects a category; clicking does too. A category the
@@ -79,7 +99,7 @@ internal fun <T> ContentFilterRow(
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val columns = filters.size
-        val cell = (maxWidth - SidekitTheme.spacing.itemOuterGap * (columns - 1)) / columns.toFloat()
+        val cell = categoryCell(maxWidth, columns, SidekitTheme.spacing.itemOuterGap)
         SidekitItemRow {
             filters.forEachIndexed { index, filter ->
                 val isSelected = filter == selected
