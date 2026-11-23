@@ -77,6 +77,7 @@ fun ShowScreen(
     onArtwork: () -> Unit,
     onLoadMore: () -> Unit,
     loadingMore: Boolean,
+    moreFailed: Boolean = false,
     onShowNotes: () -> Unit,
     onEpisodeNotes: (Episode) -> Unit,
     onDismissNotice: () -> Unit,
@@ -249,7 +250,8 @@ fun ShowScreen(
                             onLoadMore()
                         },
                         Modifier.listFade(listState, moreIndex),
-                        focusState = moreFocus
+                        focusState = moreFocus,
+                        failed = moreFailed
                     )
                 }
             }

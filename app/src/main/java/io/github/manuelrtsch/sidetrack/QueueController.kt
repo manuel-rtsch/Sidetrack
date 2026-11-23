@@ -5,8 +5,6 @@ import io.github.manuelrtsch.sidetrack.data.HistoryRepository
 import io.github.manuelrtsch.sidetrack.data.MediaCatalog
 import io.github.manuelrtsch.sidetrack.data.QueueRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * Edits to Up next and History: add, remove, reorder, clear and undo.
@@ -24,7 +22,7 @@ internal class QueueController(
     private val library: LibraryController,
     private val mediaKeys: MediaKeys,
     private val online: () -> Boolean,
-    private val scope: CoroutineScope
+    private val tasks: TaskRegistry
 ) {
 
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
@@ -82,25 +80,23 @@ internal class QueueController(
             return
         }
         val key = mediaKeys.collection(collection.type, collection.id)
-        if (key in store.value.collectionMorePending) {
+        val task = TaskKey.CollectionMore(key)
+        if (tasks.isRunning(task)) {
             store.update { it.say("This collection is still loading — try again") }
             return
         }
-        store.update { it.copy(collectionMorePending = it.collectionMorePending + key) }
-        scope.launch {
+        tasks.start(task) {
             try {
                 val complete = library.loadAll(collection)
                 if (complete.hasMore) {
                     store.update { it.say("Couldn't load the whole collection — nothing added") }
-                    return@launch
+                    return@start
                 }
                 addToQueue(complete.items)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 store.update { it.say(catalogNotice(e)) }
-            } finally {
-                store.update { it.copy(collectionMorePending = it.collectionMorePending - key) }
             }
         }
     }
@@ -130,30 +126,28 @@ internal class QueueController(
             queueCollection(cached)
             return
         }
-        if (cacheKey in store.value.collectionMorePending) {
+        val task = TaskKey.CollectionMore(cacheKey)
+        if (tasks.isRunning(task)) {
             store.update { it.say("This $noun is still loading — try again") }
             return
         }
-        store.update { it.copy(collectionMorePending = it.collectionMorePending + cacheKey) }
-        scope.launch {
+        tasks.start(task) {
             try {
                 val first = catalog.collection(key, 0, CATALOG_PAGE_SIZE)
                 if (first == null) {
                     store.update { it.say("Nothing to queue") }
-                    return@launch
+                    return@start
                 }
                 val complete = library.loadAll(first)
                 if (complete.hasMore) {
                     store.update { it.say("Couldn't load the whole $noun — nothing added") }
-                    return@launch
+                    return@start
                 }
                 addToQueue(complete.items)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 store.update { it.say(catalogNotice(e)) }
-            } finally {
-                store.update { it.copy(collectionMorePending = it.collectionMorePending - cacheKey) }
             }
         }
     }

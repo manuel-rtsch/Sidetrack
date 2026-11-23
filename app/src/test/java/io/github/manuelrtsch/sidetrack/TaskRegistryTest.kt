@@ -75,6 +75,28 @@ class TaskRegistryTest {
     }
 
     @Test
+    fun `a failure lives until the key runs again or is cancelled`() = runTest {
+        val store = UiStateStore(SidetrackUiState())
+        val registry = TaskRegistry(store, this)
+        val key = TaskKey.LibraryMore(LibraryFilter.Albums)
+
+        registry.fail(key, "Couldn't reach the service")
+        assertEquals("Couldn't reach the service", store.value.taskFailures[key])
+
+        // A retry is the footer's own press: the retry row becomes the spinner, not both.
+        val gate = CompletableDeferred<Unit>()
+        registry.start(key) { gate.await() }
+        runCurrent()
+        assertFalse(key in store.value.taskFailures)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        registry.fail(key, "Couldn't reach the service")
+        registry.cancel(key)
+        assertTrue(store.value.taskFailures.isEmpty())
+    }
+
+    @Test
     fun `cancelWhere leaves the other keys alone`() = runTest {
         val store = UiStateStore(SidetrackUiState())
         val registry = TaskRegistry(store, this)

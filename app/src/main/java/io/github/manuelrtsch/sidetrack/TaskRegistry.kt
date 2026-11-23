@@ -16,6 +16,10 @@ import kotlinx.coroutines.launch
  * key without dropping the key from the running set, because the UI should keep showing "waiting"
  * across a retry rather than flicker idle. The owner token makes the superseded job's `finally`
  * leave the newer one's bookkeeping alone.
+ *
+ * A failure is recorded here only for work that has no cached entry to remember it: a paging footer
+ * whose page kept its rows and its `hasMore`. First-page failures live in the cache the screen
+ * retries from instead, so they are not duplicated into the record.
  */
 internal class TaskRegistry(
     private val store: UiStateStore,
@@ -42,7 +46,12 @@ internal class TaskRegistry(
     fun cancel(key: TaskKey) {
         jobs.remove(key)?.cancel()
         owners.remove(key)
-        store.update { it.copy(runningTasks = it.runningTasks - key) }
+        store.update { it.copy(runningTasks = it.runningTasks - key, taskFailures = it.taskFailures - key) }
+    }
+
+    /** Records why [key]'s last run failed, for a surface that has nowhere else to keep it. */
+    fun fail(key: TaskKey, message: String) {
+        store.update { it.copy(taskFailures = it.taskFailures + (key to message)) }
     }
 
     fun cancelWhere(predicate: (TaskKey) -> Boolean) {
@@ -54,7 +63,8 @@ internal class TaskRegistry(
     private fun launch(key: TaskKey, block: suspend () -> Unit): Job {
         val owner = Any()
         owners[key] = owner
-        store.update { it.copy(runningTasks = it.runningTasks + key) }
+        // Starting again retires the previous failure: the retry row becomes the spinner now.
+        store.update { it.copy(runningTasks = it.runningTasks + key, taskFailures = it.taskFailures - key) }
         // LAZY so the job is recorded before its block can run: on a main-immediate dispatcher a
         // block without a suspension point would otherwise finish before `jobs[key]` is assigned.
         val job = scope.launch(start = CoroutineStart.LAZY) {

@@ -10,6 +10,16 @@ data class SidetrackUiState(
     val recent: List<MediaItem> = emptyList(),
     /** The work in flight right now, keyed by what it is for; see [TaskRegistry]. */
     val runningTasks: Set<TaskKey> = emptySet(),
+    /**
+     * Why the last run of a key failed, for the paging footers only.
+     *
+     * A failed first page has somewhere to put its error — the cached [LibraryPage], `collectionErrors`
+     * or `artistErrors` — because that entry is the thing the screen retries from. A failed
+     * "load more" has no such entry: the page keeps its rows and its `hasMore`, so the failure
+     * would otherwise be dropped on the floor. It lives here, keyed like the work that produced it,
+     * and [TaskRegistry] clears it when the page is asked for again.
+     */
+    val taskFailures: Map<TaskKey, String> = emptyMap(),
     /** Every category opened this session, so switching back paints without a fetch. */
     val libraryPages: Map<LibraryFilter, LibraryPage> = emptyMap(),
     val librarySections: Map<LibraryFilter, List<Any>> = emptyMap(),
@@ -17,19 +27,14 @@ data class SidetrackUiState(
     /** Cached search pages keyed by query, then by category, so a scope toggle never drops the
      *  pages of the categories it leaves untouched. */
     val searchPages: Map<String, Map<SearchScope, LibraryPage>> = emptyMap(),
-    /** Categories whose first page is in flight with nothing cached to show meanwhile. */
-    val libraryPendingPages: Set<LibraryFilter> = emptySet(),
     /** Set when a search request failed and there are no results to keep on screen. */
     val searchError: String? = null,
     /** Failed collection loads, keyed by "type:id", so the screen can offer a retry. */
     val collectionErrors: Map<String, String> = emptyMap(),
     /** Failed artist loads, keyed by artist id, so the screen can offer a retry. */
     val artistErrors: Map<String, String> = emptyMap(),
-    val libraryMorePendingPages: Set<LibraryFilter> = emptySet(),
-    val collectionMorePending: Set<String> = emptySet(),
     val artistAlbumHasMore: Map<String, Boolean> = emptyMap(),
     val artistTrackHasMore: Map<String, Boolean> = emptyMap(),
-    val artistMorePending: Set<String> = emptySet(),
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val shuffle: Boolean = false,
@@ -41,8 +46,6 @@ data class SidetrackUiState(
     val artists: Map<String, Artist> = emptyMap(),
     val artistAlbums: Map<String, List<Album>> = emptyMap(),
     val artistTracks: Map<String, List<Track>> = emptyMap(),
-    val pendingCollections: Set<String> = emptySet(),
-    val pendingArtists: Set<String> = emptySet(),
     val filter: LibraryFilter = LibraryFilter.LikedSongs,
     val searchScopes: Set<SearchScope> = SearchScope.entries.toSet(),
     /** Recent search terms, newest first; the landing screen offers them under "Search in". */
@@ -86,8 +89,6 @@ data class SidetrackUiState(
 
     /** Set when the open category could not load and has no items to show. */
     val libraryError: String? get() = libraryPages[filter]?.error
-    val libraryLoading: Boolean get() = filter in libraryPendingPages
-    val libraryMorePending: Boolean get() = filter in libraryMorePendingPages
 
     // Search, like the library, keeps its rows in a per-category cache and projects the open view
     // from it. The cache here is keyed by the active query as well, because a search result set has

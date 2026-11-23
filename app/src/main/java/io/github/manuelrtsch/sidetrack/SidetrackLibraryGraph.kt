@@ -204,6 +204,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 },
                 onLoadMore = { vm.loadMoreCollection(mediaKey) },
                 loadingMore = mediaKey.encode() in library.collectionMorePending,
+                moreFailed = mediaKey.encode() in library.collectionMoreErrors,
                 onShowNotes = {
                     nav.navigate(
                         notesRoute(
@@ -260,6 +261,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 },
                 onLoadMore = { vm.loadMoreCollection(mediaKey) },
                 loadingMore = mediaKey.encode() in library.collectionMorePending,
+                moreFailed = mediaKey.encode() in library.collectionMoreErrors,
                 onDismissNotice = vm::dismissNotice,
                 onUndoQueueReplace = vm::undoQueueReplace,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice,
@@ -330,6 +332,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 albumHasMore = library.artistAlbumHasMore[artist.id] == true,
                 trackHasMore = library.artistTrackHasMore[artist.id] == true,
                 loadingMore = artist.id in library.artistMorePending,
+                moreFailed = artist.id in library.artistMoreErrors,
                 onDismissNotice = vm::dismissNotice,
                 onUndoQueueReplace = vm::undoQueueReplace,
                 onDismissNowPlaying = vm::dismissNowPlayingNotice,

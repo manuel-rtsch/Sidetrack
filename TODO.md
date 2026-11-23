@@ -75,10 +75,9 @@ effect on the current track until then.
 `SidetrackSettingsGraph.kt`, `PlaybackDriver.kt`
 
 Fourteen pending flags and six error slots (plus `LibraryPage.error`) originally described work in
-flight by hand. The single-request ones now come from one registry; six paging flags remain for
-the Library, collection and artist pages. Each controller still owns its notice policy, and four
-screens hand-write the same `loading → error → empty → content` ladder. The inconsistencies were
-behavioural, not cosmetic:
+flight by hand. All of them now come from one registry, the paged ones included. Each controller
+still owns its notice policy, and four screens hand-write the same `loading → error → empty →
+content` ladder. The inconsistencies were behavioural, not cosmetic:
 
 - `authPending` was set on every sign-in and read by nothing (`AccountController.kt:79`); the
   screen now renders it (see *Sign-in pending state* below).
@@ -86,8 +85,8 @@ behavioural, not cosmetic:
   and were unreachable from any screen; both fields are gone.
 - Search used to show a text-only `EmptyMessage` where every other first load shows the record;
   it now uses the shared surface.
-- A failed load-more permanently drops the rest of the list (`hasMore = false`,
-  `LibraryController.kt:574-611` and `:120-148`) while a failed first page offers Try again.
+- A failed load-more permanently dropped the rest of the list (`hasMore = false`) while a failed
+  first page offered Try again; the footer now keeps the list and offers the page again.
 - Playback has `isPlaying` and `isBuffering` but no "starting": the now-playing UI claims to play
   while `session.play` is still resolving a source (`PlaybackDriver.kt:524-550`), and buffering
   only replaces the elapsed-time label (`Seek.kt:188`).
@@ -113,11 +112,15 @@ no-visual-change reviews.
   `UiSlices.kt` project `runningTasks` back to the fields screens already read. `AccountController`,
   `SearchController`, `RadioController` and `PlaylistController` now start through the registry, so
   their ad-hoc `Job` fields and `isActive` guards are gone too. Covered by `TaskRegistryTest`.
-- [ ] **Migrate the paged domains** — `Library`/`LibraryMore`, `Collection`/`CollectionMore`,
-  `Artist`/`ArtistMore` and `libraryPendingPages`, `libraryMorePendingPages`, `pendingCollections`,
-  `collectionMorePending`, `pendingArtists`, `artistMorePending`. `QueueController` reads
-  `collectionMorePending` for its all-or-nothing guard, so those move together; keep the
-  `libraryLoading`/`libraryMorePending` projections while the call sites move.
+- [x] **Migrate the paged domains** — `Library`/`LibraryMore`, `Collection`/`CollectionMore` and
+  `Artist`/`ArtistMore` are the last six keys the registry starts. The six flag fields
+  (`libraryPendingPages`, `libraryMorePendingPages`, `pendingCollections`, `collectionMorePending`,
+  `pendingArtists`, `artistMorePending`) are gone from `SidetrackUiState`; the `LibraryUiState`
+  slice keeps them as projections of `runningTasks`, so no screen changed shape. `QueueController`
+  resolves a whole collection under `CollectionMore(key)` — the same work one page at a time — so
+  its "still loading — try again" guard is now the registry's dedupe. Sign-out is
+  `tasks.cancelAll()` alone: the old flags survived a cancellation whose block never ran, because
+  only a store update inside the block cleared them.
 - [ ] **Radio stops inferring** — `loading = pending || error == null` (`SidetrackPlaybackGraph.kt`)
   becomes `running` or `(content == null && no error)`; a request that ends without a result can no
   longer spin forever. The running half is already available.
@@ -137,11 +140,14 @@ no-visual-change reviews.
 - [x] **Search first load uses the record** — the query is the title; the category row and the
   `EmptyMessage` loading case are gone. Empty results still keep the plain row, since that is a
   settled state. Covered by `SearchLoadingTest`.
-- [ ] **Load-more failures keep `hasMore`** — the footer becomes a retry row (`Couldn't load more ·
-  Try again`) instead of ending the list. This needs a per-key failure record alongside the paging
-  keys, so it lands with the paged-domain migration; clearing `hasMore` stays for a catalog that
-  says the page is the last one. Retry only on a click, never on scroll, so a dead endpoint cannot
-  loop.
+- [x] **Load-more failures keep `hasMore`** — the footer becomes a retry row (`Couldn't load more ·
+  Try again`) instead of ending the list. The record for it is `SidetrackUiState.taskFailures`,
+  keyed by the same `TaskKey` as the work and written through `TaskRegistry.fail`: a failed first
+  page still uses its cached entry, but a failed page has no entry to keep the message, so it lives
+  beside the key until `start` retires it. Clearing `hasMore` stays for a catalog that says the
+  page is the last one. Retry only on a click, never on scroll, so a dead endpoint cannot loop.
+  The artist's two footers share one key, so one failed page marks both; either retry fetches the
+  list it belongs to. Covered by `LoadMoreRetryTest` and `PaginationFooterTest`.
 - [x] **Artwork screen** — a failed remote fetch now offers Try again in the bar. The retry keeps
   the URL and bumps a reload key, so the fetch effect runs again; a known-missing cover keeps Back
   as the only action because there is nothing to retry.
@@ -208,10 +214,9 @@ no-visual-change reviews.
 - No global connectivity banner. Catalog failures already become page errors with retry or a
   notice with the provider's message; a banner would duplicate both.
 
-Three slices have landed: sign-in pending with the dead section fields, `LoadSurface` with the
-search record and the artwork retry, then the task registry with the single-request domains
-migrated. Land the rest in this order, each shippable on its own: the paged domains and the
-load-more retry they enable, then writes and `transport`, then semantics and tests.
+Two more slices have landed: the paged domains moved onto the registry, and the load-more retry
+that migration made possible. Land the rest in this order, each shippable on its own: writes and
+`transport`, then semantics and tests.
 
 ## Code duplication
 
@@ -249,8 +254,10 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   artwork actions. Budget lowered from 700 to 676.
 - [ ] **HTTP request scaffold** — 93 at `JellyfinAuth.kt:55` ↔ `PlexApi.kt:338`, and 81 at
   `PlexApi.kt:339` ↔ `SubsonicApi.kt:47` plus `JellyfinAuth.kt:56`.
-- [ ] **UI state slices** — 88 tokens at `SidetrackUiState.kt:43` ↔ `UiSlices.kt:41`. The field
-  collapse in *Loading and status surfaces* should shrink this; re-measure before lowering.
+- [x] **UI state slices** — the clone is gone from the report: the six paging flags no longer exist
+  in `SidetrackUiState` to be re-listed, and `LibraryUiState` now projects them from the registry.
+  Budget lowered from 676 to 668, which also absorbs the paging fakes the two list tests now share
+  as `PagingCatalog`.
 - [ ] **`lib.rs:512` ↔ `lib.rs:530`** — 112 tokens in the JNI entry points.
 - [x] **`EpisodeMeta`/`EpisodeProgress` file envelope** — the magic/version/count frame, the atomic
   replace and the version-1 service fallback now live in `EpisodeFileFrame`; only the record body

@@ -213,6 +213,7 @@ class SidetrackViewModel(
         online = { session?.isOnline != false },
         hints = hints,
         notify = { notifier.say(it) },
+        tasks = tasks,
         scope = viewModelScope
     )
 
@@ -238,7 +239,7 @@ class SidetrackViewModel(
         library = library,
         mediaKeys = mediaKeys,
         online = { session?.isOnline != false },
-        scope = viewModelScope
+        tasks = tasks
     )
 
     private val saves = SavesController(

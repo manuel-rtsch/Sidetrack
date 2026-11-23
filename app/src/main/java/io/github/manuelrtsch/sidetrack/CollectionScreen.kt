@@ -67,6 +67,8 @@ fun CollectionScreen(
     onArtwork: () -> Unit,
     onLoadMore: () -> Unit,
     loadingMore: Boolean,
+    /** The last page did not arrive: the rows stay and the footer offers the page again. */
+    moreFailed: Boolean = false,
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
     /** Generated pages such as Song radio re-use the collection body but cannot be saved. */
@@ -329,7 +331,8 @@ fun CollectionScreen(
                             onLoadMore()
                         },
                         Modifier.listFade(listState, moreIndex),
-                        focusState = moreFocus
+                        focusState = moreFocus,
+                        failed = moreFailed
                     )
                 }
             }

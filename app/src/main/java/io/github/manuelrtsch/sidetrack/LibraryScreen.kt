@@ -226,7 +226,8 @@ fun LibraryScreen(
                                 onLoadMore()
                             },
                             Modifier.listFade(listState, moreIndex),
-                            focusState = moreFocus
+                            focusState = moreFocus,
+                            failed = library.libraryMoreError != null
                         )
                     }
                 }

@@ -207,7 +207,7 @@ class SpotifyFallbackStateTest {
         advanceUntilIdle()
 
         assertEquals(all.map { it.id }, vm.state.value.upcoming.map { it.id })
-        assertFalse(vm.state.value.collectionMorePending.contains("spotify:${type.route}:$id"))
+        assertFalse(vm.libraryState.value.collectionMorePending.contains("spotify:${type.route}:$id"))
         assertEquals("Added ${all.size} tracks to queue", vm.state.value.notice)
     }
 
@@ -245,7 +245,7 @@ class SpotifyFallbackStateTest {
 
         assertTrue(vm.state.value.upcoming.isEmpty())
         assertEquals("Couldn't reach the service", vm.state.value.notice)
-        assertFalse(vm.state.value.collectionMorePending.contains("spotify:${type.route}:$id"))
+        assertFalse(vm.libraryState.value.collectionMorePending.contains("spotify:${type.route}:$id"))
     }
 
     @Test fun `a late song radio response does not overwrite queue edits`() = runTest(dispatcher) {

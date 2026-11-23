@@ -36,6 +36,13 @@ import io.github.manuelrtsch.sidetrack.ui.VinylSpinner
 private const val LOADING_DESCRIPTION = "Loading…"
 
 /**
+ * What a footer says when the page it asked for did not arrive. The label keeps the row's shape —
+ * one line, one press — and the list keeps its rows and its footer, so a dead endpoint costs a
+ * retry rather than the rest of the list.
+ */
+private const val LOAD_MORE_FAILED = "Couldn't load more · Try again"
+
+/**
  * A compact navigation row for list-level actions such as "See more", "Search in" and the
  * pagination footer. It mirrors Sidekit's compact item on the same primitives, because the SDK
  * draws its link arrow at `spacing.iconSize` and Sidetrack rows share a narrower one.
@@ -196,6 +203,11 @@ fun LoadMoreFocus(
 /**
  * The one pagination footer every list uses. It only asks for the next batch when the user
  * presses it, so a list never fetches or composes rows the user has not asked to see.
+ *
+ * [failed] is the page's failure, not the list's: the rows above stay and the footer stays
+ * pressable, because a page that did not arrive says nothing about the pages behind it. The retry
+ * is a press like any other, never a scroll: a footer that refetched on approach would loop on a
+ * dead endpoint.
  */
 @Composable
 fun LoadMoreRow(
@@ -203,7 +215,8 @@ fun LoadMoreRow(
     loading: Boolean,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
-    focusState: LoadMoreFocusState? = null
+    focusState: LoadMoreFocusState? = null,
+    failed: Boolean = false
 ) {
     val rowModifier = if (focusState != null) {
         modifier.focusRequester(focusState.moreFocus)
@@ -211,7 +224,8 @@ fun LoadMoreRow(
         modifier
     }
     TerminalRow(
-        label,
+        // While the retry runs the row is the plain footer again: the spinner carries the state.
+        if (failed && !loading) LOAD_MORE_FAILED else label,
         modifier = rowModifier,
         loading = loading,
         // The arrow is only for the idle row; TerminalRow swaps the spinner into its slot while the

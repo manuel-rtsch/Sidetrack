@@ -41,6 +41,8 @@ fun ArtistScreen(
     albumHasMore: Boolean,
     trackHasMore: Boolean,
     loadingMore: Boolean,
+    /** The artist's last page failed; both footers offer it again, since they share one request. */
+    moreFailed: Boolean = false,
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
     canFollow: Boolean = true,
@@ -153,7 +155,8 @@ fun ArtistScreen(
                             onLoadMoreTracks()
                         },
                         Modifier.listFade(listState, moreIndex),
-                        focusState = tracksFocus
+                        focusState = tracksFocus,
+                        failed = moreFailed
                     )
                 }
                 rowIndex += 1
@@ -188,7 +191,8 @@ fun ArtistScreen(
                             onLoadMoreAlbums()
                         },
                         Modifier.listFade(listState, moreIndex),
-                        focusState = albumsFocus
+                        focusState = albumsFocus,
+                        failed = moreFailed
                     )
                 }
             }

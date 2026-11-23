@@ -1,6 +1,7 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -17,6 +18,9 @@ import org.robolectric.annotation.GraphicsMode
  * The pagination footer reports its work with the record spinner, not with a word beside the label.
  * A footer label is a list's own title and can be long, so a trailing "Loading…" was the first thing
  * truncated at exactly the moment it had something to say; the spinner is a fixed square.
+ *
+ * A page that did not arrive keeps the row pressable and swaps the label for the retry, so the list
+ * behind it stays reachable.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -59,6 +63,35 @@ class PaginationFooterTest {
         assertEquals(30f, (short.bottom - short.top).value, 0.5f)
         assertEquals(30f, (long.right - long.left).value, 0.5f)
         assertEquals(30f, (long.bottom - long.top).value, 0.5f)
+    }
+
+    @Test
+    fun aFailedPageOffersTheRetryWhereTheLabelWas() {
+        compose.setContent {
+            SidekitPreviewFrame {
+                LoadMoreRow("Load more tracks", loading = false, onLoadMore = {}, failed = true)
+            }
+        }
+
+        // The footer keeps the list's shape: one line, one press. The rows above it are still
+        // there, so the failure is a retry rather than an ending.
+        compose.onNodeWithText("Couldn't load more · Try again").assertExists().assertHasClickAction()
+        compose.onNodeWithText("Load more tracks").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Loading…", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun aRetryingFooterShowsTheSpinnerAgain() {
+        compose.setContent {
+            SidekitPreviewFrame {
+                LoadMoreRow("Load more tracks", loading = true, onLoadMore = {}, failed = true)
+            }
+        }
+
+        // A press clears the failure before the request starts, so the two states never overlap;
+        // if they did, the spinner is the one that wins.
+        compose.onNodeWithContentDescription("Loading…", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Couldn't load more · Try again").assertDoesNotExist()
     }
 
     @Test

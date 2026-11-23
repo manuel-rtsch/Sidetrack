@@ -24,22 +24,27 @@ internal class LibraryController(
     private val hints: SavedHints,
     private val notify: (String) -> Unit,
     private val now: () -> Long = { SystemClock.elapsedRealtime() },
+    private val tasks: TaskRegistry,
     private val scope: CoroutineScope
 ) {
 
     private var librarySectionsJob: Job? = null
-    private val libraryJobs = mutableMapOf<LibraryFilter, Job>()
-    private val libraryMoreJobs = mutableMapOf<LibraryFilter, Job>()
 
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
+
+    /** Every page this controller can have in flight, for sign-out. */
+    private fun isPage(key: TaskKey): Boolean = when (key) {
+        is TaskKey.Library, is TaskKey.LibraryMore,
+        is TaskKey.Collection, is TaskKey.CollectionMore,
+        is TaskKey.Artist, is TaskKey.ArtistMore -> true
+
+        else -> false
+    }
 
     /** Drops the account's pages. Called when the user signs out. */
     fun reset() {
         librarySectionsJob?.cancel()
-        libraryJobs.values.forEach { it.cancel() }
-        libraryJobs.clear()
-        libraryMoreJobs.values.forEach { it.cancel() }
-        libraryMoreJobs.clear()
+        tasks.cancelWhere(::isPage)
     }
 
     fun collection(type: CollectionType, id: String): Collection? = collection(mediaKeys.media(type, id))
@@ -78,9 +83,8 @@ internal class LibraryController(
     fun ensureCollection(key: MediaKey) {
         val cacheKey = key.encode()
         val snapshot = store.value
-        if (cacheKey in snapshot.collections || cacheKey in snapshot.pendingCollections) return
-        store.update { it.copy(pendingCollections = it.pendingCollections + cacheKey) }
-        scope.launch {
+        if (cacheKey in snapshot.collections) return
+        tasks.start(TaskKey.Collection(cacheKey)) {
             try {
                 val collection = catalog.collection(key, 0, CATALOG_PAGE_SIZE)
                 val saved = if (collection == null) null else hints.savedCollection(key, cacheKey)
@@ -92,7 +96,6 @@ internal class LibraryController(
                     it.copy(
                         collections = if (collection == null) it.collections else it.collections + (cacheKey to collection),
                         savedCollectionKeys = keys,
-                        pendingCollections = it.pendingCollections - cacheKey,
                         collectionErrors = it.collectionErrors - cacheKey
                     )
                 }
@@ -101,10 +104,7 @@ internal class LibraryController(
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.ensureCollection key=$cacheKey failed", e)
                 store.update {
-                    it.copy(
-                        pendingCollections = it.pendingCollections - cacheKey,
-                        collectionErrors = it.collectionErrors + (cacheKey to catalogNotice(e))
-                    )
+                    it.copy(collectionErrors = it.collectionErrors + (cacheKey to catalogNotice(e)))
                 }
             }
         }
@@ -112,7 +112,7 @@ internal class LibraryController(
 
     fun retryCollection(key: MediaKey) {
         val cacheKey = key.encode()
-        if (cacheKey in store.value.pendingCollections) return
+        if (tasks.isRunning(TaskKey.Collection(cacheKey))) return
         store.update { it.copy(collectionErrors = it.collectionErrors - cacheKey) }
         ensureCollection(key)
     }
@@ -121,35 +121,25 @@ internal class LibraryController(
         val cacheKey = key.encode()
         val snapshot = store.value
         val collection = snapshot.collections[cacheKey] ?: return
-        if (!collection.hasMore || cacheKey in snapshot.collectionMorePending) return
-        store.update { it.copy(collectionMorePending = it.collectionMorePending + cacheKey) }
-        scope.launch {
+        if (!collection.hasMore || tasks.isRunning(TaskKey.CollectionMore(cacheKey))) return
+        tasks.start(TaskKey.CollectionMore(cacheKey)) {
             try {
                 val next = catalog.collection(key, collection.items.size, CATALOG_PAGE_SIZE)
                 store.update { state ->
                     val current = state.collections[cacheKey] ?: return@update state
-                    if (next == null) {
-                        state.copy(
-                            collectionMorePending = state.collectionMorePending - cacheKey,
-                            collections = state.collections + (cacheKey to current.copy(hasMore = false))
-                        )
-                    } else {
-                        state.copy(
-                            collectionMorePending = state.collectionMorePending - cacheKey,
-                            collections = state.collections + (cacheKey to current.append(next))
-                        )
-                    }
+                    // A page the catalog does not have is the end of the list; a page it could not
+                    // deliver is not, and keeps its footer (see the catch below).
+                    val page = if (next == null) current.copy(hasMore = false) else current.append(next)
+                    state.copy(collections = state.collections + (cacheKey to page))
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update {
-                    val current = it.collections[cacheKey]
-                    it.copy(
-                        collectionMorePending = it.collectionMorePending - cacheKey,
-                        collections = if (current == null) it.collections else it.collections + (cacheKey to current.copy(hasMore = false))
-                    ).say(catalogNotice(e))
-                }
+                // The rows and the footer stay: the failure becomes a notice and a retry row, so a
+                // dropped page cannot hide the rest of the collection.
+                val message = catalogNotice(e)
+                tasks.fail(TaskKey.CollectionMore(cacheKey), message)
+                store.update { it.say(message) }
             }
         }
     }
@@ -157,27 +147,22 @@ internal class LibraryController(
     fun loadMoreArtistAlbums(artist: Artist) {
         val id = artist.id
         val snapshot = store.value
-        if (snapshot.artistAlbumHasMore[id] != true || id in snapshot.artistMorePending) return
-        store.update { it.copy(artistMorePending = it.artistMorePending + id) }
-        scope.launch {
+        if (snapshot.artistAlbumHasMore[id] != true) return
+        tasks.start(TaskKey.ArtistMore(id)) {
             try {
                 val page = catalog.albums(artist.key, snapshot.artistAlbums[id].orEmpty().size, ARTIST_PAGE_SIZE)
                 store.update {
                     it.copy(
                         artistAlbums = it.artistAlbums + (id to (it.artistAlbums[id].orEmpty() + page.items).distinctBy { album -> album.id }),
-                        artistAlbumHasMore = it.artistAlbumHasMore + (id to page.hasMore),
-                        artistMorePending = it.artistMorePending - id
+                        artistAlbumHasMore = it.artistAlbumHasMore + (id to page.hasMore)
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update {
-                    it.copy(
-                        artistAlbumHasMore = it.artistAlbumHasMore + (id to false),
-                        artistMorePending = it.artistMorePending - id
-                    ).say(catalogNotice(e))
-                }
+                val message = catalogNotice(e)
+                tasks.fail(TaskKey.ArtistMore(id), message)
+                store.update { it.say(message) }
             }
         }
     }
@@ -185,27 +170,22 @@ internal class LibraryController(
     fun loadMoreArtistTracks(artist: Artist) {
         val id = artist.id
         val snapshot = store.value
-        if (snapshot.artistTrackHasMore[id] != true || id in snapshot.artistMorePending) return
-        store.update { it.copy(artistMorePending = it.artistMorePending + id) }
-        scope.launch {
+        if (snapshot.artistTrackHasMore[id] != true) return
+        tasks.start(TaskKey.ArtistMore(id)) {
             try {
                 val page = catalog.topTracks(artist.key, snapshot.artistTracks[id].orEmpty().size, ARTIST_PAGE_SIZE)
                 store.update {
                     it.copy(
                         artistTracks = it.artistTracks + (id to (it.artistTracks[id].orEmpty() + page.items).distinctBy { track -> track.id }),
-                        artistTrackHasMore = it.artistTrackHasMore + (id to page.hasMore),
-                        artistMorePending = it.artistMorePending - id
+                        artistTrackHasMore = it.artistTrackHasMore + (id to page.hasMore)
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update {
-                    it.copy(
-                        artistTrackHasMore = it.artistTrackHasMore + (id to false),
-                        artistMorePending = it.artistMorePending - id
-                    ).say(catalogNotice(e))
-                }
+                val message = catalogNotice(e)
+                tasks.fail(TaskKey.ArtistMore(id), message)
+                store.update { it.say(message) }
             }
         }
     }
@@ -248,15 +228,11 @@ internal class LibraryController(
 
     fun ensureArtist(id: String) {
         val snapshot = store.value
-        if (id in snapshot.artists || id in snapshot.pendingArtists) return
-        store.update { it.copy(pendingArtists = it.pendingArtists + id) }
-        scope.launch {
+        if (id in snapshot.artists) return
+        tasks.start(TaskKey.Artist(id)) {
             try {
                 val artist = catalog.artist(mediaKeys.artist(id))
-                if (artist == null) {
-                    store.update { it.copy(pendingArtists = it.pendingArtists - id) }
-                    return@launch
-                }
+                if (artist == null) return@start
                 val albums = catalog.albums(artist.key, 0, ARTIST_PAGE_SIZE)
                 val tracks = catalog.topTracks(artist.key, 0, ARTIST_PAGE_SIZE)
                 val followed = hints.followedArtist(mediaKeys.artist(id), id)
@@ -272,7 +248,6 @@ internal class LibraryController(
                         artistAlbumHasMore = it.artistAlbumHasMore + (id to albums.hasMore),
                         artistTrackHasMore = it.artistTrackHasMore + (id to tracks.hasMore),
                         followedArtistIds = ids,
-                        pendingArtists = it.pendingArtists - id,
                         artistErrors = it.artistErrors - id
                     )
                 }
@@ -281,10 +256,7 @@ internal class LibraryController(
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.ensureArtist id=$id failed", e)
                 store.update {
-                    it.copy(
-                        pendingArtists = it.pendingArtists - id,
-                        artistErrors = it.artistErrors + (id to catalogNotice(e))
-                    )
+                    it.copy(artistErrors = it.artistErrors + (id to catalogNotice(e)))
                 }
             }
         }
@@ -292,7 +264,7 @@ internal class LibraryController(
 
     /** Retries an artist that failed to load. */
     fun retryArtist(id: String) {
-        if (id in store.value.pendingArtists) return
+        if (tasks.isRunning(TaskKey.Artist(id))) return
         store.update { it.copy(artistErrors = it.artistErrors - id) }
         ensureArtist(id)
     }
@@ -322,11 +294,10 @@ internal class LibraryController(
         if (store.value.current?.id != collection.items.getOrNull(index)?.id) return
         val key = mediaKeys.collection(collection.type, collection.id)
         // A second tap while the first load runs is already playing, and its completion extends
-        // the same queue, so there is nothing to start.
-        if (key in store.value.collectionMorePending) return
-        store.update { it.copy(collectionMorePending = it.collectionMorePending + key) }
+        // the same queue, so there is nothing to start. It is the same key as the footer's page:
+        // both are fetching the rest of this collection, and one at a time is enough.
         val page = collection.items
-        scope.launch {
+        tasks.start(TaskKey.CollectionMore(key)) {
             try {
                 driver.extendCollection(page, loadAll(collection).items)
             } catch (e: CancellationException) {
@@ -334,8 +305,6 @@ internal class LibraryController(
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.playCollection key=$key failed", e)
                 store.update { it.say("Playing what's loaded — ${catalogNotice(e)}") }
-            } finally {
-                store.update { it.copy(collectionMorePending = it.collectionMorePending - key) }
             }
         }
     }
@@ -354,9 +323,8 @@ internal class LibraryController(
             return
         }
         driver.play(page, 0)
-        if (!hasMore || id in store.value.artistMorePending) return
-        store.update { it.copy(artistMorePending = it.artistMorePending + id) }
-        scope.launch {
+        if (!hasMore) return
+        tasks.start(TaskKey.ArtistMore(id)) {
             try {
                 driver.extendCollection(page, loadAllArtistTracks(artist))
             } catch (e: CancellationException) {
@@ -364,8 +332,6 @@ internal class LibraryController(
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.playArtist id=$id failed", e)
                 store.update { it.say("Playing what's loaded — ${catalogNotice(e)}") }
-            } finally {
-                store.update { it.copy(artistMorePending = it.artistMorePending - id) }
             }
         }
     }
@@ -424,20 +390,20 @@ internal class LibraryController(
      */
     fun ensure(filter: LibraryFilter = store.value.filter) {
         if (!store.value.signedIn) return
-        if (filter in store.value.libraryPendingPages || libraryJobs[filter]?.isActive == true) return
+        if (tasks.isRunning(TaskKey.Library(filter))) return
         val page = store.value.libraryPages[filter]
         val fresh = page != null && page.error == null && now() - page.fetchedAt < LIBRARY_CACHE_FRESH_FOR_MS
         // Background work leaves an expanded list alone: replacing it would renumber the rows the
         // user is standing on. Only an explicit refresh may replace one.
         if (fresh || page?.isExpanded == true) return
-        fetch(filter, silent = page != null)
+        fetch(filter)
     }
 
     /** Fetches [filter]'s first page regardless of its age, replacing whatever the cache held. */
     fun refresh(filter: LibraryFilter = store.value.filter) {
         if (!store.value.signedIn) return
-        if (filter in store.value.libraryPendingPages || libraryJobs[filter]?.isActive == true) return
-        fetch(filter, silent = false)
+        if (tasks.isRunning(TaskKey.Library(filter))) return
+        fetch(filter)
     }
 
     /** Forgets [filter] so the next [ensure] fetches it again. */
@@ -451,14 +417,13 @@ internal class LibraryController(
         ensure(filter)
     }
 
-    private fun fetch(filter: LibraryFilter, silent: Boolean) {
+    private fun fetch(filter: LibraryFilter) {
         val existing = store.value.libraryPages[filter]
-        // A silent revalidate keeps the list and its place: no spinner, and an error left over from
-        // an earlier attempt is retired while the retry runs.
-        val spinner = !silent && existing?.isEmpty != false
+        // An error left over from an earlier attempt is retired while the retry runs. A list that
+        // already has rows keeps them, its place and its height: the screen only draws the record
+        // for an empty page.
         store.update {
             it.copy(
-                libraryPendingPages = if (spinner) it.libraryPendingPages + filter else it.libraryPendingPages,
                 libraryPages = if (existing?.error != null) {
                     it.libraryPages + (filter to existing.copy(error = null))
                 } else {
@@ -466,15 +431,14 @@ internal class LibraryController(
                 }
             )
         }
-        libraryJobs[filter] = scope.launch {
+        tasks.start(TaskKey.Library(filter)) {
             try {
                 val page = catalog.library(filter.section(), 0, CATALOG_PAGE_SIZE)
                 store.update {
                     it.withLibrarySaved(filter, page.items, mediaKeys).copy(
                         // Stored under its own category even when the user has moved on: that is
                         // the point of the cache, and it makes a fast round trip free.
-                        libraryPages = it.libraryPages + (filter to LibraryPage(page.items, page.hasMore, now())),
-                        libraryPendingPages = it.libraryPendingPages - filter
+                        libraryPages = it.libraryPages + (filter to LibraryPage(page.items, page.hasMore, now()))
                     )
                 }
             } catch (e: CancellationException) {
@@ -487,7 +451,6 @@ internal class LibraryController(
                     // A list the user can still read beats an error page: the failure becomes a
                     // notice and the rows stay where they are.
                     val next = it.copy(
-                        libraryPendingPages = it.libraryPendingPages - filter,
                         libraryPages = if (cached) {
                             it.libraryPages
                         } else {
@@ -496,8 +459,6 @@ internal class LibraryController(
                     )
                     if (cached) next.say(message) else next
                 }
-            } finally {
-                libraryJobs.remove(filter)
             }
         }
     }
@@ -567,38 +528,28 @@ internal class LibraryController(
     fun loadMoreLibrary() {
         val filter = store.value.filter
         val page = store.value.libraryPages[filter] ?: return
-        if (!page.hasMore || filter in store.value.libraryMorePendingPages) return
-        if (filter in store.value.libraryPendingPages || libraryMoreJobs[filter]?.isActive == true) return
+        if (!page.hasMore || tasks.isRunning(TaskKey.LibraryMore(filter))) return
+        // A page cannot extend a list whose first page has not arrived.
+        if (tasks.isRunning(TaskKey.Library(filter))) return
         val offset = page.items.size
-        store.update { it.copy(libraryMorePendingPages = it.libraryMorePendingPages + filter) }
-        libraryMoreJobs[filter] = scope.launch {
+        tasks.start(TaskKey.LibraryMore(filter)) {
             try {
                 val next = catalog.library(filter.section(), offset, CATALOG_PAGE_SIZE)
                 store.update {
-                    val current = it.libraryPages[filter]
-                        ?: return@update it.copy(libraryMorePendingPages = it.libraryMorePendingPages - filter)
+                    val current = it.libraryPages[filter] ?: return@update it
                     val merged = (current.items + next.items).distinctBy(::mediaRowKey)
                     it.withLibrarySaved(filter, merged, mediaKeys).copy(
-                        libraryPages = it.libraryPages + (filter to current.copy(items = merged, hasMore = next.hasMore)),
-                        libraryMorePendingPages = it.libraryMorePendingPages - filter
+                        libraryPages = it.libraryPages + (filter to current.copy(items = merged, hasMore = next.hasMore))
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update {
-                    val current = it.libraryPages[filter]
-                    it.copy(
-                        libraryPages = if (current == null) {
-                            it.libraryPages
-                        } else {
-                            it.libraryPages + (filter to current.copy(hasMore = false))
-                        },
-                        libraryMorePendingPages = it.libraryMorePendingPages - filter
-                    ).say(catalogNotice(e))
-                }
-            } finally {
-                libraryMoreJobs.remove(filter)
+                // The rows stay and so does the footer: the page did not arrive, which is not the
+                // same as the list ending. The retry row owns the next attempt.
+                val message = catalogNotice(e)
+                tasks.fail(TaskKey.LibraryMore(filter), message)
+                store.update { it.say(message) }
             }
         }
     }
