@@ -41,8 +41,7 @@ import hrln.interactive.sidekit.design.theme.SidekitTheme
  * between the compact row (78) and the spacious one (97), so it reads as the same weight in both
  * modes instead of looking derived from either.
  */
-internal fun categoryCell(width: Dp, columns: Int, gap: Dp): Dp =
-    if (columns <= 0) 0.dp else (width - gap * (columns - 1)) / columns
+internal fun categoryCell(width: Dp, columns: Int, gap: Dp): Dp = if (columns <= 0) 0.dp else (width - gap * (columns - 1)) / columns
 
 /**
  * Five square category buttons. Focus selects a category; clicking does too. A category the
