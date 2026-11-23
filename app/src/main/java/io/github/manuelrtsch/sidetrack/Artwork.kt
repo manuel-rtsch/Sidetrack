@@ -31,8 +31,10 @@ import io.github.manuelrtsch.sidetrack.data.ArtworkAccess
 import io.github.manuelrtsch.sidetrack.data.ArtworkImages
 
 /**
- * Artwork shown beside text inside a 104 dp list tile. 80 dp leaves a 12 dp margin on every side
- * and gives the cover a little more presence than the two-line text block next to it.
+ * Artwork shown beside text in a media row. 80 dp on a 100 dp row leaves a 10 dp margin on every
+ * side (see [rememberMediaRowMetrics]) and still gives the cover more presence than the two-line
+ * text block next to it. The 104 dp tile band on Home has its own copy at the same size; see
+ * `NowPlayingTile`.
  */
 internal val ListArtworkSize = 80.dp
 

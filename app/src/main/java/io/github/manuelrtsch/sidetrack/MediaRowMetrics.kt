@@ -33,25 +33,57 @@ private val ItemCornerRadius = 36.dp
 
 /**
  * The cover's corner radius when it sits [inset] inside a list item: the item radius minus that
- * inset. Only concentric when the inset is the same on every side, which is why the rows now keep
- * their artwork inset equal to the vertical one: 80 on 104 leaves 12 all round (radius 24), and
- * the compact 64 on 82 leaves 9 (radius 27).
+ * inset. Only concentric when the inset is the same on every side, which is why the rows keep
+ * their artwork inset equal to the vertical one: 80 on 100 leaves 10 all round (radius 26), and
+ * the compact 64 on 80 leaves 8 (radius 28).
  */
 fun artworkShapeFor(inset: Dp): RoundedCornerShape = RoundedCornerShape((ItemCornerRadius - inset).coerceAtLeast(0.dp))
 
-/** The dense layout shrinks a row by about a fifth: 104 dp rows become 82 dp. */
-private val CompactRowHeight = 82.dp
+/**
+ * A spacious row is 100 dp, not the 104 dp `SidekitTheme.spacing.itemHeight`, because a row's
+ * height is a budget question on the fixed 480 x 640 canvas. The body between the header and the
+ * action bar is 435 dp in the default compact chrome (640 - 10 pagePadding - 65 header - 10
+ * pageGap - 120 bar, gap and bottom padding), and Sidekit's lists space rows by 3 dp between and
+ * not after. Sidekit's own 104 dp rows filled the older 425 dp body exactly (4 x 104 + 3 x 3),
+ * which read as a list that ended at the fold instead of one that scrolls.
+ *
+ * The rule the rows are solved for: four whole rows plus a quarter of the fifth, so the cover's top
+ * edge says "there is more" after four rows a screen. With n whole rows and f of the next one,
+ * `body = n (h + 3) + f h`, so `h = (body - 3n) / (n + f)`:
+ *
+ * - spacious: `(435 - 12) / 4.25 = 99.53`, therefore 100 dp: 4 x 103 = 412 and 23 dp of the fifth
+ *   row peeking, a shade under the quarter;
+ * - compact: `(435 - 15) / 5.25 = 80` exactly: 5 x 83 = 415 and 20 dp of the sixth peeking.
+ *
+ * Both heights are whole dp on purpose. The canvas pins 1 dp to 1 pixel (`SidekitCanvas`), so a
+ * 99.5 dp row does not exist: it lays out at 100 and would only have hidden the fact that the
+ * quarter is not reachable with whole pixels. 23 of 100 is as close as the budget allows.
+ *
+ * Re-derive both numbers if the chrome changes again: they assume the compact chrome's 65 dp
+ * header. Sidekit's token stays at 104 for every other app and for the tile band on Home.
+ *
+ * Nothing horizontal follows this scale: the library and search category squares are bound by the
+ * page width and keep one size in both modes (see [categoryCell]).
+ */
+private val SpaciousRowHeight = 100.dp
+private val SpaciousArtworkSize = 80.dp
+
+/**
+ * The dense layout buys the fifth row outright: 80 dp rows on an 83 dp pitch show five rows plus a
+ * quarter of the sixth (435 = 5 x 83 + 20).
+ */
+private val CompactRowHeight = 80.dp
 private val CompactArtworkSize = 64.dp
 
 /**
  * The artwork's margin inside a row, and so the row's content inset. Equal on every side, so the
- * cover's radius is exactly the item's 36 minus the gap: 80 on 104 leaves 12 all round (radius
- * 24), the compact 64 on 82 leaves 9 (radius 27).
+ * cover's radius is exactly the item's 36 minus the gap: 80 on 100 leaves 10 all round (radius
+ * 26), the compact 64 on 80 leaves 8 (radius 28).
  */
-internal val ListItemContentInset = 12.dp
-private val CompactItemContentInset = 9.dp
+internal val ListItemContentInset = 10.dp
+private val CompactItemContentInset = 8.dp
 private val CompactContentGap = 10.dp
-private val CompactTextGap = 1.dp
+private val CompactTextGap = 0.dp
 private val CompactTrackNumberWidth = 40.dp
 
 /**
@@ -78,8 +110,9 @@ data class MediaRowMetrics(
 fun rememberMediaRowMetrics(): MediaRowMetrics {
     val compact = LocalCompactRows.current
     val typography = SidekitTheme.typography
-    val spacing = SidekitTheme.spacing
-    return remember(compact, typography, spacing) {
+    // A row's height is its own budget (see [SpaciousRowHeight]) rather than a spacing token, so
+    // the metrics no longer follow [SidekitTheme.spacing] and do not need to re-derive on it.
+    return remember(compact, typography) {
         if (compact) {
             MediaRowMetrics(
                 height = CompactRowHeight,
@@ -90,22 +123,26 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
                 textGap = CompactTextGap,
                 trackNumberWidth = CompactTrackNumberWidth,
                 // 32 -> 27 and 28 -> 24: the two-line block still reads as a title over a
-                // subtitle inside the shorter row without dropping to the tiny label size.
-                titleStyle = typography.bodySmall.copy(fontSize = 27.sp, lineHeight = 33.sp),
+                // subtitle inside the shorter row without dropping to the tiny label size. The
+                // 31 leading and the zero gap are the same tightening the spacious row got, and
+                // keep the block at 60 so the 64 cover stays the taller child.
+                titleStyle = typography.bodySmall.copy(fontSize = 27.sp, lineHeight = 31.sp),
                 secondaryStyle = typography.small,
                 trackNumberStyle = typography.tiny
             )
         } else {
             MediaRowMetrics(
-                height = spacing.itemHeight,
-                artworkSize = ListArtworkSize,
+                height = SpaciousRowHeight,
+                artworkSize = SpaciousArtworkSize,
                 artworkShape = artworkShapeFor(ListItemContentInset),
                 horizontalPadding = ListItemContentInset,
                 contentGap = 13.dp,
-                textGap = 2.dp,
+                textGap = 1.dp,
                 trackNumberWidth = 44.dp,
-                titleStyle = typography.bodySmall,
-                secondaryStyle = typography.caption,
+                // Colour, weight and size already separate the two lines, so their leading gives
+                // back the 3 dp each the shorter row needs: 37 + 1 + 32 = 70 against the 77 cover.
+                titleStyle = typography.bodySmall.copy(lineHeight = 37.sp),
+                secondaryStyle = typography.caption.copy(lineHeight = 32.sp),
                 trackNumberStyle = typography.small
             )
         }

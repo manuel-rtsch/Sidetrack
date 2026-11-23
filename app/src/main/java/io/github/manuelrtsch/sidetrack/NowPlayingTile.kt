@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +57,16 @@ import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * The tile band on Home keeps the 104 dp `SidekitTheme.spacing.itemHeight` it shares with
+ * [SidekitItemRow], so it also keeps the 12 dp inset and the 24 dp corner that go with that height.
+ * Media rows below it are 100 dp with a 10 dp inset ([rememberMediaRowMetrics]); the band is a
+ * deliberate heavier element, not a fifth row, which is why it does not follow them even though its
+ * cover happens to be the same 80 dp.
+ */
+private val TileArtworkSize = 80.dp
+private val TileContentInset = 12.dp
+
 @Composable
 fun NowPlayingTile(
     current: MediaItem?,
@@ -67,18 +76,66 @@ fun NowPlayingTile(
     modifier: Modifier = Modifier
 ) {
     val colors = SidekitTheme.colors
+    SidekitTile(modifier, onClick = onClick, onClickLabel = "Now playing") {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = TileContentInset),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            if (current == null) {
+                Box(Modifier.size(TileArtworkSize).clip(artworkShapeFor(TileContentInset)).background(colors.surfaceA2), contentAlignment = Alignment.Center) {
+                    SidekitIconImage(SidekitIcon.MusicNote2, size = 36.dp)
+                }
+            } else {
+                Cover(current.artRes, Modifier.size(TileArtworkSize), shape = artworkShapeFor(TileContentInset), artUrl = current.artUrl, requestSize = TileArtworkSize)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                // The overline carries the state, so the title keeps the full width and never
+                // competes with a trailing label.
+                NowPlayingOverline(hasCurrent = current != null, transport, sleepTimer)
+                SidekitText(
+                    current?.title ?: "Pick a track",
+                    style = SidekitTheme.typography.bodySmall,
+                    maxLines = 2
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The tile's eyebrow: the play/pause glyph and the one line of state text.
+ *
+ * The sleep timer is collected here rather than in [NowPlayingTile] so its once-a-minute countdown
+ * only recomposes this row: the artwork and title stay put while the timer ticks. It also takes
+ * only whether there is a current item, not the item itself, so changing track does not rebuild
+ * the eyebrow when its own state is unchanged. [Transport.Playing] deliberately has no motion and
+ * no glyph of its own; a permanent record turn here would keep the resting Home screen redrawing
+ * every frame and would read as loading rather than listening.
+ */
+@Composable
+private fun NowPlayingOverline(
+    hasCurrent: Boolean,
+    transport: Transport,
+    sleepTimer: StateFlow<SleepTimerState>
+) {
+    val colors = SidekitTheme.colors
     val timer by sleepTimer.collectAsStateWithLifecycle()
     val timerLabel = timer.tileText()
     val countdown = timer as? SleepTimerState.Countdown
     // One overline slot, ranked: the sleep timer's outcome explains the pause, a frozen or live
     // timer replaces the playing label, and the icon beside the text carries playback state so the
     // text itself can stay inside the tile's one-line budget.
-    val starting = transport == Transport.Starting
-    val paused = current != null && (transport == Transport.Paused || transport == Transport.Idle)
+    //
+    // Buffering is still a start in the user's terms: the source is being fetched and no audio is
+    // running, so it keeps the same arc and the same label as Starting. Playing is the only phase
+    // with nothing to wait for, and the static label is enough there.
+    val starting = transport == Transport.Starting || transport == Transport.Buffering
+    val paused = hasCurrent && (transport == Transport.Paused || transport == Transport.Idle)
     val overlineIcon: SidekitIcon?
     val overlineLabel: String
     when {
-        current == null -> {
+        !hasCurrent -> {
             overlineIcon = null
             overlineLabel = "NOTHING PLAYING"
         }
@@ -129,51 +186,27 @@ fun NowPlayingTile(
             overlineLabel = "NOW PLAYING"
         }
     }
-    SidekitTile(modifier, onClick = onClick, onClickLabel = "Now playing") {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = ListItemContentInset),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(13.dp)
-        ) {
-            if (current == null) {
-                Box(Modifier.size(ListArtworkSize).clip(artworkShapeFor(ListItemContentInset)).background(colors.surfaceA2), contentAlignment = Alignment.Center) {
-                    SidekitIconImage(SidekitIcon.MusicNote2, size = 36.dp)
-                }
-            } else {
-                Cover(current.artRes, Modifier.size(ListArtworkSize), shape = artworkShapeFor(ListItemContentInset), artUrl = current.artUrl, requestSize = ListArtworkSize)
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                // The overline carries the state, so the title keeps the full width and never
-                // competes with a trailing label.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (starting) {
-                        VinylSpinner(
-                            describeAs = "Starting playback",
-                            diameter = 24.dp,
-                            color = colors.surfaceA6
-                        )
-                    } else {
-                        overlineIcon?.let {
-                            SidekitIconImage(it, size = 24.dp, tint = colors.surfaceA6)
-                        }
-                    }
-                    SidekitText(
-                        overlineLabel,
-                        style = SidekitTheme.typography.small,
-                        color = colors.surfaceA6,
-                        maxLines = 1
-                    )
-                }
-                SidekitText(
-                    current?.title ?: "Pick a track",
-                    style = SidekitTheme.typography.bodySmall,
-                    maxLines = 2
-                )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        if (starting) {
+            VinylSpinner(
+                describeAs = "Starting playback",
+                diameter = 24.dp,
+                color = colors.surfaceA6
+            )
+        } else {
+            overlineIcon?.let {
+                SidekitIconImage(it, size = 24.dp, tint = colors.surfaceA6)
             }
         }
+        SidekitText(
+            overlineLabel,
+            style = SidekitTheme.typography.small,
+            color = colors.surfaceA6,
+            maxLines = 1
+        )
     }
 }
 
