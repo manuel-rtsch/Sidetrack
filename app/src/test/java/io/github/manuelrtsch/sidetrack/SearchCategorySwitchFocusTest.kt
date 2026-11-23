@@ -15,12 +15,8 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import hrln.interactive.sidekit.design.canvas.SidekitCanvas
 import hrln.interactive.sidekit.design.input.KeypadTiming
-import hrln.interactive.sidekit.design.theme.SidekitSpacing
-import hrln.interactive.sidekit.design.theme.SidekitTheme
 import java.time.Duration
-import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,37 +31,7 @@ class SearchCategorySwitchFocusTest {
         query: String = "night",
         scopes: Set<SearchScope> = SearchScope.entries.toSet(),
         supportedScopes: Set<SearchScope> = SearchScope.entries.toSet()
-    ) {
-        val results = runBlocking { MockSpotifyDataSource.search(query, scopes, 0, 100) }
-        compose.setContent {
-            SidekitTheme(spacing = SidekitSpacing.Compact) {
-                SidekitCanvas {
-                    SearchResultsScreen(
-                        SearchUiState(query = query, searchResults = results, searchScopes = scopes),
-                        SavedUiState(),
-                        ChromeUiState(),
-                        supportedScopes = supportedScopes,
-                        onBack = {},
-                        onTrack = {},
-                        onAddToQueue = {},
-                        onArtist = {},
-                        onAlbum = {},
-                        onPlaylist = {},
-                        onShow = {},
-                        onSaveTrack = {},
-                        onEnsureSavedTrack = {},
-                        onLoadMore = {},
-                        onRetry = {},
-                        onScopes = {},
-                        onNowPlaying = {},
-                        onDismissNotice = {},
-                        onDismissNowPlaying = {}
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
-    }
+    ) = compose.showSearchResults(query, scopes, supportedScopes)
 
     /** Selecting a category from the row keeps the cursor on the row so Left/Right can keep stepping. */
     @Test

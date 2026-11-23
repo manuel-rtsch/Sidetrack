@@ -26,7 +26,6 @@ import hrln.interactive.sidekit.design.input.KeypadModule
 import hrln.interactive.sidekit.design.input.T9Words
 import hrln.interactive.sidekit.design.theme.SidekitSpacing
 import hrln.interactive.sidekit.design.theme.SidekitTheme
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -44,40 +43,7 @@ class SearchFilterRowTest {
         query: String = "night",
         scopes: Set<SearchScope> = SearchScope.entries.toSet(),
         supportedScopes: Set<SearchScope> = SearchScope.entries.toSet()
-    ) {
-        val results = runBlocking {
-            MockSpotifyDataSource.search(query, scopes, 0, 100)
-        }
-        val state = SearchUiState(query = query, searchResults = results, searchScopes = scopes)
-        compose.setContent {
-            SidekitTheme(spacing = SidekitSpacing.Compact) {
-                SidekitCanvas {
-                    SearchResultsScreen(
-                        state,
-                        SavedUiState(),
-                        ChromeUiState(),
-                        supportedScopes = supportedScopes,
-                        onBack = {},
-                        onTrack = {},
-                        onAddToQueue = {},
-                        onArtist = {},
-                        onAlbum = {},
-                        onPlaylist = {},
-                        onShow = {},
-                        onSaveTrack = {},
-                        onEnsureSavedTrack = {},
-                        onLoadMore = {},
-                        onRetry = {},
-                        onScopes = {},
-                        onNowPlaying = {},
-                        onDismissNotice = {},
-                        onDismissNowPlaying = {}
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
-    }
+    ) = compose.showSearchResults(query, scopes, supportedScopes)
 
     @Test
     fun showsOneCategoryAtATime() {

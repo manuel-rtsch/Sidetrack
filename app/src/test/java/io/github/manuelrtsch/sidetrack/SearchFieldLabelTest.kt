@@ -8,9 +8,6 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import hrln.interactive.sidekit.design.canvas.SidekitCanvas
-import hrln.interactive.sidekit.design.theme.SidekitSpacing
-import hrln.interactive.sidekit.design.theme.SidekitTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,27 +25,7 @@ import org.robolectric.annotation.GraphicsMode
 class SearchFieldLabelTest {
     @get:Rule val compose = createComposeRule()
 
-    private fun show(query: String) {
-        compose.setContent {
-            SidekitTheme(spacing = SidekitSpacing.Compact) {
-                SidekitCanvas {
-                    SearchScreen(
-                        SearchUiState(query = query),
-                        ChromeUiState(),
-                        onBack = {},
-                        onSearch = {},
-                        onClear = {},
-                        onRemoveHistory = {},
-                        onScopes = {},
-                        onNowPlaying = {},
-                        onDismissNotice = {},
-                        onDismissNowPlaying = {}
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
-    }
+    private fun show(query: String) = compose.showSearchField(query)
 
     @Test
     fun anEmptyFieldCarriesNoDuplicateDescription() {

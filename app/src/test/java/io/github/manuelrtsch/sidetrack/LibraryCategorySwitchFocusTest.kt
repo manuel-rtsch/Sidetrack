@@ -1,9 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
 import android.os.Looper
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
@@ -17,12 +14,8 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import hrln.interactive.sidekit.design.canvas.SidekitCanvas
 import hrln.interactive.sidekit.design.input.KeypadTiming
-import hrln.interactive.sidekit.design.theme.SidekitSpacing
-import hrln.interactive.sidekit.design.theme.SidekitTheme
 import java.time.Duration
-import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,45 +26,7 @@ import org.robolectric.Shadows.shadowOf
 class LibraryCategorySwitchFocusTest {
     @get:Rule val compose = createComposeRule()
 
-    private fun show(start: LibraryFilter) {
-        val libraries = LibraryFilter.entries.associateWith {
-            runBlocking { MockSpotifyDataSource.library(it).items }
-        }
-        var filter by mutableStateOf(start)
-        compose.setContent {
-            SidekitTheme(spacing = SidekitSpacing.Compact) {
-                SidekitCanvas {
-                    LibraryScreen(
-                        LibraryUiState(
-                            libraryPages = mapOf(filter to LibraryPage(libraries.getValue(filter))),
-                            filter = filter
-                        ),
-                        SavedUiState(),
-                        ChromeUiState(),
-                        onBack = {},
-                        onSearch = {},
-                        onFilter = { filter = it },
-                        onTrack = {},
-                        onAddToQueue = {},
-                        onPlaylist = {},
-                        onAlbum = {},
-                        onArtist = {},
-                        onShow = {},
-                        onSaveTrack = {},
-                        onEnsureSavedTrack = {},
-                        onLoadMore = {},
-                        onNowPlaying = {},
-                        onRetry = {},
-                        onCreatePlaylist = {},
-                        canCreatePlaylist = false,
-                        onDismissNotice = {},
-                        onDismissNowPlaying = {}
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
-    }
+    private fun show(start: LibraryFilter) = compose.showLibrary(start)
 
     private fun holdRight(from: String) {
         compose.onNodeWithText(from).requestFocus()

@@ -324,10 +324,14 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   it. That needs the mock's users — 23 test classes — to run as demo-variant unit tests, or a
   fixtures source set that carries the fictional catalogue and its cover drawables into both. Both
   are the test-fixture move in the rebalance above; do not rewrite the mock's lists in the meantime.
-- [ ] **Compose library test setup** — `ArtistLibraryGutterTest` /
-  `LibraryFilterRowTest` / `LibraryCategorySwitchFocusTest` share ~150 tokens at `:36`; same shape
-  for `SearchCategorySwitchFocusTest` ↔ `SearchFilterRowTest` (100) and
-  `SearchFieldLabelTest` ↔ `SearchFieldStateDescriptionTest` (97).
+- [x] **Compose screen fixtures** — `ScreenFixtures.kt` renders the three screens those tests
+  drove by hand: `showLibrary`, `showSearchResults` and `showSearchField`, each inside the theme on
+  the canvas with every callback the test does not exercise already answered. The Library fixture
+  also hoists the selected category and builds one page per category from the catalogue, so the
+  four tests that spelled that out now share it, including the one that only wanted
+  `show(LibraryFilter.Albums)`. The tests keep their own driver methods, so a screen change lands in
+  one place and the assertions stay where they belong. Budget lowered from 420 to 298: the clones
+  were larger than the estimate, and the search field pair (97) came with them.
 - [ ] **Screenshot harness** — `SidetrackScreenshotTest` ↔ `StoreScreenshotTest`, 229 tokens over
   two blocks.
 - [ ] **Spotify native test fakes** — `NativeSpotifyGatewayTest` ↔ `SpotifyAudioSinkTest` ↔

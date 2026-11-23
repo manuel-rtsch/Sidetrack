@@ -1,8 +1,5 @@
 package io.github.manuelrtsch.sidetrack
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -17,10 +14,6 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import hrln.interactive.sidekit.design.canvas.SidekitCanvas
-import hrln.interactive.sidekit.design.theme.SidekitSpacing
-import hrln.interactive.sidekit.design.theme.SidekitTheme
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -38,45 +31,7 @@ class LibraryFilterRowTest {
         filter: LibraryFilter,
         supportedFilters: Set<LibraryFilter> = LibraryFilter.entries.toSet(),
         onFilter: (LibraryFilter) -> Unit = {}
-    ) {
-        val state = LibraryUiState(
-            libraryPages = mapOf(
-                filter to LibraryPage(runBlocking { MockSpotifyDataSource.library(filter).items })
-            ),
-            filter = filter
-        )
-        compose.setContent {
-            SidekitTheme(spacing = SidekitSpacing.Compact) {
-                SidekitCanvas {
-                    LibraryScreen(
-                        state,
-                        SavedUiState(),
-                        ChromeUiState(),
-                        onBack = {},
-                        onSearch = {},
-                        onFilter = onFilter,
-                        onTrack = {},
-                        onAddToQueue = {},
-                        onPlaylist = {},
-                        onAlbum = {},
-                        onArtist = {},
-                        onShow = {},
-                        onSaveTrack = {},
-                        onEnsureSavedTrack = {},
-                        onLoadMore = {},
-                        onNowPlaying = {},
-                        onRetry = {},
-                        onCreatePlaylist = {},
-                        canCreatePlaylist = false,
-                        supportedFilters = supportedFilters,
-                        onDismissNotice = {},
-                        onDismissNowPlaying = {}
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
-    }
+    ) = compose.showLibrary(filter, supportedFilters, onFilter)
 
     @Test
     fun rowScrollsAwayWithTheList() {
@@ -106,43 +61,7 @@ class LibraryFilterRowTest {
 
     @Test
     fun steppingAwayAndBackKeepsTheCursorOnTheRow() {
-        val libraries = LibraryFilter.entries.associateWith {
-            runBlocking { MockSpotifyDataSource.library(it).items }
-        }
-        var filter by mutableStateOf(LibraryFilter.Albums)
-        compose.setContent {
-            SidekitTheme(spacing = SidekitSpacing.Compact) {
-                SidekitCanvas {
-                    LibraryScreen(
-                        LibraryUiState(
-                            libraryPages = mapOf(filter to LibraryPage(libraries.getValue(filter))),
-                            filter = filter
-                        ),
-                        SavedUiState(),
-                        ChromeUiState(),
-                        onBack = {},
-                        onSearch = {},
-                        onFilter = { filter = it },
-                        onTrack = {},
-                        onAddToQueue = {},
-                        onPlaylist = {},
-                        onAlbum = {},
-                        onArtist = {},
-                        onShow = {},
-                        onSaveTrack = {},
-                        onEnsureSavedTrack = {},
-                        onLoadMore = {},
-                        onNowPlaying = {},
-                        onRetry = {},
-                        onCreatePlaylist = {},
-                        canCreatePlaylist = false,
-                        onDismissNotice = {},
-                        onDismissNowPlaying = {}
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
+        show(LibraryFilter.Albums)
         // Read the last album so the category has a cursor worth remembering.
         compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(6)
         compose.waitForIdle()
