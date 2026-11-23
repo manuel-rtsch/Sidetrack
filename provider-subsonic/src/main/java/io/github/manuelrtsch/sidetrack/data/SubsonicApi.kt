@@ -42,8 +42,7 @@ data class SubsonicCredentials(
  * `host:4533` on a LAN, so a missing scheme becomes `http://`; the trailing slash is dropped so
  * endpoint paths join predictably.
  */
-fun SubsonicCredentials.normalized(): SubsonicCredentials =
-    copy(serverUrl = normalizeServerUrl(serverUrl, "Enter the server address"), username = username.trim())
+fun SubsonicCredentials.normalized(): SubsonicCredentials = copy(serverUrl = normalizeServerUrl(serverUrl, "Enter the server address"), username = username.trim())
 
 /**
  * The Subsonic/OpenSubsonic client every family member exposes at `/rest`.

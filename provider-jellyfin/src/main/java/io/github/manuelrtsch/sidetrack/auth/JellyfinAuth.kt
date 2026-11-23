@@ -51,8 +51,7 @@ data class JellyfinCredentials(
  * is Jellyfin's HTTPS port only when the certificate is configured inside Jellyfin itself, while a
  * proxied server answers on 443: appending 8920 would turn a working address into a dead one.
  */
-fun normalizeJellyfinServerUrl(value: String): String =
-    normalizeServerUrl(value, "Enter the Jellyfin server address", JELLYFIN_HTTP_PORT)
+fun normalizeJellyfinServerUrl(value: String): String = normalizeServerUrl(value, "Enter the Jellyfin server address", JELLYFIN_HTTP_PORT)
 
 /** The port a default Jellyfin install listens on; see [normalizeJellyfinServerUrl]. */
 private const val JELLYFIN_HTTP_PORT = 8096

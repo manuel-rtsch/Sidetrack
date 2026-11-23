@@ -319,8 +319,7 @@ class HttpPlexTransport(
  * A bare host or a host:port gets `http://` and Plex's default 32400. An explicit scheme and port
  * are kept: a reverse-proxied server may sit under a path or on 443.
  */
-fun normalizePlexServerUrl(value: String): String =
-    normalizeServerUrl(value, "Enter the Plex server address", DEFAULT_PLEX_PORT)
+fun normalizePlexServerUrl(value: String): String = normalizeServerUrl(value, "Enter the Plex server address", DEFAULT_PLEX_PORT)
 
 /** The port a default Plex Media Server listens on. */
 const val DEFAULT_PLEX_PORT = 32400
