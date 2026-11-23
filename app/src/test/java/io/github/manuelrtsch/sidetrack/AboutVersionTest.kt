@@ -2,6 +2,9 @@ package io.github.manuelrtsch.sidetrack
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -33,7 +36,7 @@ class AboutVersionTest {
     }
 
     @Test
-    fun buildNumberOnlyAppearsAfterTheVersionCardIsClicked() {
+    fun buildNumberOnlyAppearsAfterTheVersionRowIsClicked() {
         val context = RuntimeEnvironment.getApplication()
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val versionCode = packageInfo.longVersionCode
@@ -48,25 +51,24 @@ class AboutVersionTest {
         }
         compose.waitForIdle()
 
+        val buildDetails = "Build $versionCode · $spotifyEngineLabel"
+
         compose.onNodeWithText("Sidetrack $versionName").assertExists()
-        compose.onNodeWithText("Build $versionCode").assertDoesNotExist()
-        compose.onNodeWithText(spotifyEngineLabel).assertDoesNotExist()
+        compose.onNodeWithText(buildDetails).assertDoesNotExist()
         compose.onNodeWithText("Sidetrack $versionName").performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("Build $versionCode").assertExists()
         // The engine is part of the same reveal: a tester's screenshot then says whether the APK
         // carries the native bridge or the rate-limited Web API fallback.
-        compose.onNodeWithText(spotifyEngineLabel).assertExists()
+        compose.onNodeWithText(buildDetails).assertExists()
 
-        // The card toggles: a second press puts the plain version back.
+        // The row toggles: a second press puts the plain version back.
         compose.onNodeWithText("Sidetrack $versionName").performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("Build $versionCode").assertDoesNotExist()
-        compose.onNodeWithText(spotifyEngineLabel).assertDoesNotExist()
+        compose.onNodeWithText(buildDetails).assertDoesNotExist()
     }
 
     @Test
-    fun cardsAreFocusStopsInKeypadOrder() {
+    fun rowsAreFocusStopsInKeypadOrder() {
         compose.setContent {
             SidekitTheme(spacing = SidekitSpacing.Compact) {
                 SidekitCanvas {
@@ -76,20 +78,25 @@ class AboutVersionTest {
         }
         compose.waitForIdle()
 
-        // Entry focus lands on the first card rather than nowhere, as on every other list screen.
+        // Entry focus lands on the first row rather than nowhere, as on every other list screen.
         compose.onNodeWithText("Version").assertIsFocused()
         compose.onNodeWithText("Version").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.waitForIdle()
-        compose.onNodeWithText("Author").assertIsFocused()
-        compose.onNodeWithText("Author").performKeyInput { pressKey(Key.DirectionDown) }
         compose.waitForIdle()
         compose.onNodeWithText("Source code").assertIsFocused()
         compose.onNodeWithText("Source code").performKeyInput { pressKey(Key.DirectionDown) }
         compose.waitForIdle()
+        compose.onNodeWithText("Author").assertIsFocused()
+        compose.onNodeWithText("Author").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.waitForIdle()
         compose.onNodeWithText("Built with Sidekit").assertIsFocused()
         compose.onNodeWithText("Built with Sidekit").performKeyInput { pressKey(Key.DirectionDown) }
         compose.waitForIdle()
-        compose.onNodeWithText("Licenses").assertIsFocused()
+        // The licence card is a reading stop: focusable so the list can scroll it into view. Its
+        // text sits under the focus target, so match the focused ancestor.
+        compose.onNode(isFocused() and hasAnyDescendant(hasText("Licenses"))).assertExists()
+        // No toggle: reaching the card is enough for the table to be on the page.
+        compose.onNodeWithText("Jellyfin SDK for Kotlin").assertExists()
+        compose.onNodeWithText("LGPL-3.0").assertExists()
     }
 
     @Test
