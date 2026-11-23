@@ -350,5 +350,15 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   extensions test's `FakeRuntime` is one line over the same class, and `PlaylistControllerTest`'s
   FakeCatalog extends the catalogue. The third copy of the empty catalogue, in the core test, went
   with them. Budget lowered from 191 to 149.
-- [ ] Remaining single-block pairs under 150 tokens (playlist controller tests, PlaybackReporter
-  tests, `NativeSpotifyCatalogTest`, `SubsonicApiTest`, `SpotifyFallbackStateTest` and the rest).
+- [x] **The pairs under 150 tokens** — `PlaybackControllerTest`'s four reconfigure cases share one
+  `playingTrackA()`, `PlaylistControllerTest`'s rename and delete share one `cachedTarget()`,
+  `SpotifyFallbackStateTest`'s radio cases share `lateNightRadio()` and its two paged-queue cases
+  share `longPlaylist()`/`longPlaylistCatalog(all, offlineAfterFirstPage)`, and
+  `PlaybackControllerSessionTest`'s two unconfirmed-resume cases share `startedTrackA()` with one
+  clock they move. `PlaybackReporterTest` and `JellyfinPlaybackReporterTest` were the same five
+  fields twice, so `PlaybackReporterFixture` in `:core`'s testFixtures holds them. Budget lowered
+  from 149 to 74.
+- [ ] **What the 74 lines are** — four of the five remaining groups are the packs ↔
+  `MockSpotifyDataSource` overlap above, which needs the source-set move. The fifth is
+  `SubsonicApiTest`'s rename and add cases (17 lines): the second copy of the same fake transport
+  plus assertions, to be merged into one case when the file is next touched.

@@ -3,12 +3,10 @@ package io.github.manuelrtsch.sidetrack.data
 import io.github.manuelrtsch.sidetrack.MediaKey
 import io.github.manuelrtsch.sidetrack.MediaType
 import io.github.manuelrtsch.sidetrack.ServiceId
-import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.playback.PlaybackEngineState
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.test.PlaybackReporterFixture
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -20,23 +18,7 @@ import org.junit.Test
  * skip only reports where playback stopped. Pinning it once here keeps the per-provider tests for
  * request shape only; the Jellyfin and Plex suites run the same machine with real report objects.
  */
-class PlaybackReporterTest {
-    private val state = MutableStateFlow(PlaybackEngineState())
-    private val ended = MutableSharedFlow<String?>(extraBufferCapacity = 1)
-    private var position = 0L
-    private var now = 1_000L
-
-    private val item = Track(
-        id = "t1",
-        title = "Night Signals",
-        artist = "Aurora Vale",
-        artistId = "ar1",
-        albumId = "a1",
-        artRes = 0,
-        durationMs = 200_000L,
-        service = ServiceId.Jellyfin
-    )
-
+class PlaybackReporterTest : PlaybackReporterFixture() {
     private val calls = mutableListOf<String>()
 
     private inner class Recorder(scope: CoroutineScope) :

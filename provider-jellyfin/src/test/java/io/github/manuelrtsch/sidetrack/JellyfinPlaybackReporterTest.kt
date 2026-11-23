@@ -4,8 +4,7 @@ import io.github.manuelrtsch.sidetrack.data.JellyfinPlaybackInfo
 import io.github.manuelrtsch.sidetrack.data.JellyfinPlaybackReporter
 import io.github.manuelrtsch.sidetrack.playback.PlaybackEngineState
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
+import io.github.manuelrtsch.sidetrack.test.PlaybackReporterFixture
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -16,24 +15,8 @@ import org.junit.Test
  * D12: a finished track is reported and marked played; a skipped track is reported stopped but
  * never marked played. Position reports are throttled and a paused player reports its pause once.
  */
-class JellyfinPlaybackReporterTest {
+class JellyfinPlaybackReporterTest : PlaybackReporterFixture() {
     private val api = FakeJellyfinApi()
-    private val state = MutableStateFlow(PlaybackEngineState())
-    private val ended = MutableSharedFlow<String?>(extraBufferCapacity = 1)
-    private var position = 0L
-    private var now = 1_000L
-
-    private val item = Track(
-        id = "t1",
-        title = "Night Signals",
-        artist = "Aurora Vale",
-        artistId = "ar1",
-        albumId = "a1",
-        artRes = 0,
-        durationMs = 200_000L,
-        service = ServiceId.Jellyfin
-    )
-
     private val info = JellyfinPlaybackInfo(
         url = "https://stream",
         headers = emptyMap(),

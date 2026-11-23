@@ -90,8 +90,7 @@ class SpotifyFallbackStateTest {
     }
 
     @Test fun `song radio queues its station behind the playing seed`() = runTest(dispatcher) {
-        val seed = MockSpotifyDataSource.playlist("late_night")!!.tracks.first()
-        val station = MockSpotifyDataSource.playlist("late_night")!!.tracks.drop(1).take(3)
+        val (seed, station) = lateNightRadio()
         val catalog = object : SpotifyCatalog by MockSpotifyDataSource {
             override suspend fun songRadioStation(trackId: String, limit: Int): Station = Station(station)
         }
@@ -109,8 +108,7 @@ class SpotifyFallbackStateTest {
     }
 
     @Test fun `song radio saves its backing playlist`() = runTest(dispatcher) {
-        val seed = MockSpotifyDataSource.playlist("late_night")!!.tracks.first()
-        val station = MockSpotifyDataSource.playlist("late_night")!!.tracks.drop(1).take(3)
+        val (seed, station) = lateNightRadio()
         val catalog = object : SpotifyCatalog by MockSpotifyDataSource {
             override suspend fun songRadioStation(trackId: String, limit: Int): Station = Station(station, playlistId = "37i9dQZF1DXcBWIGoYBM5M")
         }
@@ -172,28 +170,8 @@ class SpotifyFallbackStateTest {
     }
 
     @Test fun `queueing a paged collection loads every page first`() = runTest(dispatcher) {
-        val base = MockSpotifyDataSource.playlist("late_night")!!.tracks.first()
-        val all = (0 until 120).map { base.copy(id = "paged$it", title = "Paged $it") }
-        val catalog = object : SpotifyCatalog by MockSpotifyDataSource {
-            override suspend fun collection(
-                type: CollectionType,
-                id: String,
-                offset: Int,
-                limit: Int
-            ): Collection {
-                val items = all.drop(offset).take(limit)
-                return Collection(
-                    type = type,
-                    id = id,
-                    title = "Long playlist",
-                    subtitle = "You · ${all.size} tracks",
-                    artRes = base.artRes,
-                    items = items,
-                    totalItems = all.size,
-                    hasMore = offset + items.size < all.size
-                )
-            }
-        }
+        val all = longPlaylist()
+        val catalog = longPlaylistCatalog(all)
         val vm = viewModel(catalog)
         val type = CollectionType.Playlist
         val id = "long"
@@ -212,28 +190,8 @@ class SpotifyFallbackStateTest {
     }
 
     @Test fun `a failed page load queues nothing`() = runTest(dispatcher) {
-        val base = MockSpotifyDataSource.playlist("late_night")!!.tracks.first()
-        val all = (0 until 120).map { base.copy(id = "paged$it", title = "Paged $it") }
-        val catalog = object : SpotifyCatalog by MockSpotifyDataSource {
-            override suspend fun collection(
-                type: CollectionType,
-                id: String,
-                offset: Int,
-                limit: Int
-            ): Collection {
-                if (offset > 0) throw SpotifyGatewayException(SpotifyFailure.Network, "offline")
-                return Collection(
-                    type = type,
-                    id = id,
-                    title = "Long playlist",
-                    subtitle = "You · ${all.size} tracks",
-                    artRes = base.artRes,
-                    items = all.take(limit),
-                    totalItems = all.size,
-                    hasMore = true
-                )
-            }
-        }
+        val all = longPlaylist()
+        val catalog = longPlaylistCatalog(all, offlineAfterFirstPage = true)
         val vm = viewModel(catalog)
         val type = CollectionType.Playlist
         val id = "long"
@@ -249,8 +207,7 @@ class SpotifyFallbackStateTest {
     }
 
     @Test fun `a late song radio response does not overwrite queue edits`() = runTest(dispatcher) {
-        val seed = MockSpotifyDataSource.playlist("late_night")!!.tracks.first()
-        val station = MockSpotifyDataSource.playlist("late_night")!!.tracks.drop(1).take(3)
+        val (seed, station) = lateNightRadio()
         val added = MockSpotifyDataSource.playlist("late_night")!!.tracks.last()
         val gate = CompletableDeferred<Unit>()
         val catalog = object : SpotifyCatalog by MockSpotifyDataSource {
@@ -398,6 +355,43 @@ class SpotifyFallbackStateTest {
         assertEquals(page.items.first().id, vm.state.value.current?.id)
         assertEquals(page.items.drop(1).map { it.id }, vm.state.value.upcoming.map { it.id })
         assertTrue(vm.state.value.notice.orEmpty().startsWith("Playing what's loaded"))
+    }
+
+    /** A radio seed and the station it asks for: the first track of a playlist and the next three. */
+    private fun lateNightRadio(): Pair<Track, List<Track>> {
+        val tracks = MockSpotifyDataSource.playlist("late_night")!!.tracks
+        return tracks.first() to tracks.drop(1).take(3)
+    }
+
+    /** 120 copies of one track, so a collection needs a second page to hold all of them. */
+    private fun longPlaylist(): List<Track> {
+        val base = MockSpotifyDataSource.playlist("late_night")!!.tracks.first()
+        return (0 until 120).map { base.copy(id = "paged$it", title = "Paged $it") }
+    }
+
+    /** The catalogue behind a "long" playlist: every page from [all], or a network failure after the first. */
+    private fun longPlaylistCatalog(all: List<Track>, offlineAfterFirstPage: Boolean = false) = object : SpotifyCatalog by MockSpotifyDataSource {
+        override suspend fun collection(
+            type: CollectionType,
+            id: String,
+            offset: Int,
+            limit: Int
+        ): Collection {
+            if (offlineAfterFirstPage && offset > 0) {
+                throw SpotifyGatewayException(SpotifyFailure.Network, "offline")
+            }
+            val items = all.drop(offset).take(limit)
+            return Collection(
+                type = type,
+                id = id,
+                title = "Long playlist",
+                subtitle = "You · ${all.size} tracks",
+                artRes = all.first().artRes,
+                items = items,
+                totalItems = all.size,
+                hasMore = offset + items.size < all.size
+            )
+        }
     }
 
     private fun viewModel(catalog: SpotifyCatalog) = SidetrackViewModel(SpotifyMediaCatalog(catalog), simulatePlayback = false).also { viewModels += it }

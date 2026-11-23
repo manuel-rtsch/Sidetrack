@@ -11,6 +11,7 @@ import io.github.manuelrtsch.sidetrack.playback.librespotPlaybackController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -113,26 +114,7 @@ class PlaybackControllerTest {
     }
 
     @Test fun `reconfigure while paused rebuilds the player and reloads the current item`() = runTest {
-        val gateway = FakeGateway()
-        val playback = librespotPlaybackController(
-            gateway,
-            CoroutineScope(StandardTestDispatcher(testScheduler)),
-            MediaSessionRegistry()
-        )
-        playback.setNowPlaying(
-            Track(
-                id = "a",
-                title = "A",
-                artist = "Artist",
-                artistId = "artist",
-                albumId = "album",
-                artRes = 0,
-                durationMs = 180_000L,
-                uri = "spotify:track:a"
-            ),
-            12_000L
-        )
-        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 12_000L)
+        val (gateway, playback) = playingTrackA()
         playback.pause()
         advanceTimeBy(1_000L)
         runCurrent()
@@ -147,26 +129,7 @@ class PlaybackControllerTest {
     }
 
     @Test fun `reconfigure while playing waits for the next start`() = runTest {
-        val gateway = FakeGateway()
-        val playback = librespotPlaybackController(
-            gateway,
-            CoroutineScope(StandardTestDispatcher(testScheduler)),
-            MediaSessionRegistry()
-        )
-        playback.setNowPlaying(
-            Track(
-                id = "a",
-                title = "A",
-                artist = "Artist",
-                artistId = "artist",
-                albumId = "album",
-                artRes = 0,
-                durationMs = 180_000L,
-                uri = "spotify:track:a"
-            ),
-            12_000L
-        )
-        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 12_000L)
+        val (gateway, playback) = playingTrackA()
 
         playback.reconfigure()
 
@@ -183,26 +146,7 @@ class PlaybackControllerTest {
     }
 
     @Test fun `a deferred reconfigure says it will apply on pause`() = runTest {
-        val gateway = FakeGateway()
-        val playback = librespotPlaybackController(
-            gateway,
-            CoroutineScope(StandardTestDispatcher(testScheduler)),
-            MediaSessionRegistry()
-        )
-        playback.setNowPlaying(
-            Track(
-                id = "a",
-                title = "A",
-                artist = "Artist",
-                artistId = "artist",
-                albumId = "album",
-                artRes = 0,
-                durationMs = 180_000L,
-                uri = "spotify:track:a"
-            ),
-            12_000L
-        )
-        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 12_000L)
+        val (gateway, playback) = playingTrackA()
 
         playback.reconfigure()
 
@@ -211,26 +155,7 @@ class PlaybackControllerTest {
     }
 
     @Test fun `a deferred reconfigure applies on pause`() = runTest {
-        val gateway = FakeGateway()
-        val playback = librespotPlaybackController(
-            gateway,
-            CoroutineScope(StandardTestDispatcher(testScheduler)),
-            MediaSessionRegistry()
-        )
-        playback.setNowPlaying(
-            Track(
-                id = "a",
-                title = "A",
-                artist = "Artist",
-                artistId = "artist",
-                albumId = "album",
-                artRes = 0,
-                durationMs = 180_000L,
-                uri = "spotify:track:a"
-            ),
-            12_000L
-        )
-        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 12_000L)
+        val (gateway, playback) = playingTrackA()
         playback.reconfigure()
 
         playback.pause()
@@ -369,6 +294,34 @@ class PlaybackControllerTest {
         assertTrue(playback.consumeEndOfTrackTimer())
         assertEquals(SleepTimerState.Finished, playback.sleepTimer.value)
         assertFalse(playback.consumeEndOfTrackTimer())
+    }
+
+    /**
+     * A controller playing track a from 12 s, and the gateway behind it. The four reconfigure cases
+     * differ only in whether they pause first and what they expect from the rebuild.
+     */
+    private suspend fun TestScope.playingTrackA(): Pair<FakeGateway, PlaybackController> {
+        val gateway = FakeGateway()
+        val playback = librespotPlaybackController(
+            gateway,
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            MediaSessionRegistry()
+        )
+        playback.setNowPlaying(
+            Track(
+                id = "a",
+                title = "A",
+                artist = "Artist",
+                artistId = "artist",
+                albumId = "album",
+                artRes = 0,
+                durationMs = 180_000L,
+                uri = "spotify:track:a"
+            ),
+            12_000L
+        )
+        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 12_000L)
+        return gateway to playback
     }
 
     private class FakeGateway(private val failLoad: Boolean = false) : SpotifyGateway {

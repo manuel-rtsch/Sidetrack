@@ -10,6 +10,7 @@ import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Track
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -351,6 +352,23 @@ class PlaybackControllerSessionTest : PlaybackControllerTestBase() {
         assertFalse(controller.shouldApplyEvent(isPlaying = true))
     }
 
+    /** The clock the started controller reads; each case moves it to travel in time. */
+    private var elapsed = 0L
+
+    /**
+     * Granted focus and track a started at 0 s. The two unconfirmed-resume cases below differ only
+     * in when they move [elapsed], so they share this much of the setup.
+     */
+    private suspend fun TestScope.startedTrackA(): PlaybackController {
+        focusResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        elapsed = 0L
+        val playback = newController(FakeEngine(), context = context, elapsedTime = { elapsed })
+        playback.setNowPlaying(track(), 0L, PlaybackSource("a", "spotify:track:a"))
+        playback.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 0L)
+        assertTrue(playback.shouldApplyEvent(isPlaying = true))
+        return playback
+    }
+
     /**
      * Field log 2026-11-22 (SP-01): a resume that raced a silent rebuild load was followed by
      * librespot's `paused` for that load 2.5 s later, outside the old 2 s window, so the session
@@ -358,41 +376,31 @@ class PlaybackControllerSessionTest : PlaybackControllerTestBase() {
      * unconfirmed for 8.5 s in that capture.
      */
     @Test fun `a late paused event cannot flip the UI while a resume is unconfirmed`() = runTest {
-        focusResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-        var now = 0L
-        controller = newController(FakeEngine(), context = context, elapsedTime = { now })
-        controller.setNowPlaying(track(), 0L, PlaybackSource("a", "spotify:track:a"))
-        controller.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 0L)
-        assertTrue(controller.shouldApplyEvent(isPlaying = true))
+        val controller = startedTrackA()
 
-        now = 1_000L
+        elapsed = 1_000L
         controller.pause()
         assertTrue(controller.shouldApplyEvent(isPlaying = false))
 
-        now = 2_000L
+        elapsed = 2_000L
         assertTrue(controller.resume())
-        now = 4_500L
+        elapsed = 4_500L
         assertFalse(
             "the rebuild's paused event must not override the resume the user just asked for",
             controller.shouldApplyEvent(isPlaying = false)
         )
 
-        now = 10_500L
+        elapsed = 10_500L
         assertTrue("the player's playing event ends the wait", controller.shouldApplyEvent(isPlaying = true))
         assertTrue("a confirmed resume stops filtering", controller.shouldApplyEvent(isPlaying = false))
     }
 
     @Test fun `an unconfirmed command stops filtering after the deadline`() = runTest {
-        focusResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-        var now = 0L
-        controller = newController(FakeEngine(), context = context, elapsedTime = { now })
-        controller.setNowPlaying(track(), 0L, PlaybackSource("a", "spotify:track:a"))
-        controller.start(MediaKey(ServiceId.Spotify, MediaType.Track, "a"), "spotify:track:a", 0L)
-        assertTrue(controller.shouldApplyEvent(isPlaying = true))
+        val controller = startedTrackA()
 
-        now = 5_000L
+        elapsed = 5_000L
         assertTrue(controller.resume())
-        now = 5_000L + 12_001L
+        elapsed = 5_000L + 12_001L
 
         assertTrue(
             "a command the player never confirms must not silence events forever",

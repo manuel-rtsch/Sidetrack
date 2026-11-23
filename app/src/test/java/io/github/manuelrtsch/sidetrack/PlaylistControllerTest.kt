@@ -8,6 +8,7 @@ import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
 import io.github.manuelrtsch.sidetrack.test.SilentMediaCatalog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -162,24 +163,18 @@ class PlaylistControllerTest {
 
     @Test
     fun `rename patches the cached page and every cached row`() = runTest {
-        val target = playlist("target", PlaylistActions.All)
+        val cached = cachedTarget()
+        val target = cached.target
         val cacheKey = target.key.encode()
-        val cached = collection("target", listOf(first), PlaylistActions.All)
-        val writer = FakeWriter()
-        val store = store(
-            collections = mapOf(cacheKey to cached),
-            libraryPages = mapOf(LibraryFilter.Playlists to LibraryPage(listOf(target)))
-        )
-        val controller = controller(FakeCatalog(), store, this, writer = writer)
 
-        assertTrue(controller.rename(cached, "  New name  "))
+        assertTrue(cached.controller.rename(cached.collection, "  New name  "))
 
-        assertEquals(target.key, writer.renamedPlaylist)
-        assertEquals("New name", writer.renamedName)
-        assertEquals("New name", store.value.collections.getValue(cacheKey).title)
-        assertEquals("New name", store.value.playlistRow("target").name)
-        assertEquals("Renamed to New name", store.value.notice)
-        assertEquals(NoticeKind.Success, store.value.noticeKind)
+        assertEquals(target.key, cached.writer.renamedPlaylist)
+        assertEquals("New name", cached.writer.renamedName)
+        assertEquals("New name", cached.store.value.collections.getValue(cacheKey).title)
+        assertEquals("New name", cached.store.value.playlistRow("target").name)
+        assertEquals("Renamed to New name", cached.store.value.notice)
+        assertEquals(NoticeKind.Success, cached.store.value.noticeKind)
     }
 
     @Test
@@ -196,23 +191,17 @@ class PlaylistControllerTest {
 
     @Test
     fun `delete drops the page and the row only after the service confirms`() = runTest {
-        val target = playlist("target", PlaylistActions.All)
+        val cached = cachedTarget()
+        val target = cached.target
         val cacheKey = target.key.encode()
-        val cached = collection("target", listOf(first), PlaylistActions.All)
-        val writer = FakeWriter()
-        val store = store(
-            collections = mapOf(cacheKey to cached),
-            libraryPages = mapOf(LibraryFilter.Playlists to LibraryPage(listOf(target)))
-        )
-        val controller = controller(FakeCatalog(), store, this, writer = writer)
 
-        assertTrue(controller.delete(cached))
+        assertTrue(cached.controller.delete(cached.collection))
 
-        assertEquals(target.key, writer.deletedPlaylist)
-        assertTrue(cacheKey !in store.value.collections)
-        assertTrue(store.value.libraryPages.getValue(LibraryFilter.Playlists).items.isEmpty())
-        assertEquals("Deleted Target", store.value.notice)
-        assertEquals(NoticeKind.Success, store.value.noticeKind)
+        assertEquals(target.key, cached.writer.deletedPlaylist)
+        assertTrue(cacheKey !in cached.store.value.collections)
+        assertTrue(cached.store.value.libraryPages.getValue(LibraryFilter.Playlists).items.isEmpty())
+        assertEquals("Deleted Target", cached.store.value.notice)
+        assertEquals(NoticeKind.Success, cached.store.value.noticeKind)
     }
 
     @Test
@@ -274,6 +263,26 @@ class PlaylistControllerTest {
         .flatMap { it.items }
         .filterIsInstance<Playlist>()
         .first { it.id == id }
+
+    /** A cached "target" playlist, the store holding it, and the writer the controller writes through. */
+    private class CachedTarget(
+        val target: Playlist,
+        val collection: Collection,
+        val store: UiStateStore,
+        val writer: FakeWriter,
+        val controller: PlaylistController
+    )
+
+    private fun TestScope.cachedTarget(): CachedTarget {
+        val target = playlist("target", PlaylistActions.All)
+        val collection = collection("target", listOf(first), PlaylistActions.All)
+        val writer = FakeWriter()
+        val store = store(
+            collections = mapOf(target.key.encode() to collection),
+            libraryPages = mapOf(LibraryFilter.Playlists to LibraryPage(listOf(target)))
+        )
+        return CachedTarget(target, collection, store, writer, controller(FakeCatalog(), store, this, writer = writer))
+    }
 
     private fun store(
         collections: Map<String, Collection> = emptyMap(),
