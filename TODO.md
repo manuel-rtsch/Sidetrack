@@ -66,3 +66,55 @@ effect on the current track until then.
   content.
 - Promo takes 02–04 still need the pacing work already applied to 01 (dead guards and long scroll
   hunts) to stay inside the 40 s clip.
+
+## Code duplication
+
+**Where:** the whole repo, measured by `./gradlew cpdCheck`
+
+PMD CPD runs over the Kotlin and Rust sources at 80 tokens with `--ignore-identifiers
+--ignore-literals`, so every hit below is a structural clone rather than two functions that happen
+to share a shape. `./gradlew cpd` writes the full blocks to `build/reports/cpd/`; `cpdCheck` fails
+when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (800 today). Lower
+that number in the same commit that lands one of these, or the budget will not stop the next one.
+
+The list is ordered by what the duplication risks, not by its size: duplicated retry logic is a bug
+waiting to happen, duplicated test setup is mostly a patience tax.
+
+### Production
+
+- [ ] **`catalog.rs` playlist-change retry scaffold** — 209 tokens over four blocks at
+  `1887/2014` and `1922/1985`, plus 206 more at `1097/1158` and `1127/1187`. The
+  `sp_request` → `invalidate_collection` → retry-on-`is_revision_conflict` shape is written out per
+  caller, and the copies already differ only in their log text. Extract one helper before a retry
+  policy change has to be made four times.
+- [ ] **Playlist mutations across the providers** — 142 tokens at `JellyfinCatalog.kt:166` ↔
+  `SubsonicApi.kt:428` and 92 at `LocalCatalog.kt:85` ↔ `SubsonicApi.kt:338`. The same
+  `addToPlaylist`/`removeFromPlaylist`/`renamePlaylist`/`deletePlaylist` quartet delegating to a
+  client. A shared delegation helper would cover all three.
+- [ ] **DI wiring** — 124 tokens at `SidetrackLibraryGraph.kt:297` ↔ `SidetrackPlaybackGraph.kt:147`,
+  and 84 more inside `SidetrackPlaybackGraph.kt` itself at `120/192`.
+- [ ] **HTTP request scaffold** — 93 at `JellyfinAuth.kt:55` ↔ `PlexApi.kt:338`, and 81 at
+  `PlexApi.kt:339` ↔ `SubsonicApi.kt:47` plus `JellyfinAuth.kt:56`.
+- [ ] **UI state slices** — 88 tokens at `SidetrackUiState.kt:43` ↔ `UiSlices.kt:41`.
+- [ ] **`lib.rs:512` ↔ `lib.rs:530`** — 112 tokens in the JNI entry points.
+- [x] **`EpisodeMeta`/`EpisodeProgress` file envelope** — the magic/version/count frame, the atomic
+  replace and the version-1 service fallback now live in `EpisodeFileFrame`; only the record body
+  differs. Budget lowered from 824 to 800. Covered by `EpisodeMetaStoreTest`.
+
+### Test and demo
+
+- [ ] **`FictionalPack.kt` ↔ `RealPack.kt`** — 2057 tokens in three blocks, the largest single
+  finding in the repo. Two demo catalogues sharing their whole construction; parameterise one
+  builder over two data sets. Both also duplicate five blocks against `MockSpotifyDataSource.kt`
+  (up to 251 tokens).
+- [ ] **Compose library test setup** — `ArtistLibraryGutterTest` /
+  `LibraryFilterRowTest` / `LibraryCategorySwitchFocusTest` share ~150 tokens at `:36`; same shape
+  for `SearchCategorySwitchFocusTest` ↔ `SearchFilterRowTest` (100) and
+  `SearchFieldLabelTest` ↔ `SearchFieldStateDescriptionTest` (97).
+- [ ] **Screenshot harness** — `SidetrackScreenshotTest` ↔ `StoreScreenshotTest`, 229 tokens over
+  two blocks.
+- [ ] **Spotify native test fakes** — `NativeSpotifyGatewayTest` ↔ `SpotifyAudioSinkTest` ↔
+  `SpotifySessionNativeTest`, four blocks between 106 and 193 tokens.
+- [ ] **`RecordingServiceRuntime` ↔ `ServiceRuntimeExtensionsTest`** — 191 tokens over two blocks.
+- [ ] Remaining single-block pairs under 150 tokens (playlist controller tests, PlaybackReporter
+  tests, `NativeSpotifyCatalogTest`, `SubsonicApiTest`, `SpotifyFallbackStateTest` and the rest).
