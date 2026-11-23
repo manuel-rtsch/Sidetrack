@@ -1,8 +1,12 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import hrln.interactive.sidekit.design.canvas.SidekitCanvas
 import hrln.interactive.sidekit.design.theme.SidekitSpacing
@@ -53,6 +57,39 @@ class AboutVersionTest {
         // The engine is part of the same reveal: a tester's screenshot then says whether the APK
         // carries the native bridge or the rate-limited Web API fallback.
         compose.onNodeWithText(spotifyEngineLabel).assertExists()
+
+        // The card toggles: a second press puts the plain version back.
+        compose.onNodeWithText("Sidetrack $versionName").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Build $versionCode").assertDoesNotExist()
+        compose.onNodeWithText(spotifyEngineLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun cardsAreFocusStopsInKeypadOrder() {
+        compose.setContent {
+            SidekitTheme(spacing = SidekitSpacing.Compact) {
+                SidekitCanvas {
+                    SidetrackAboutScreen(onBack = {})
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        // Entry focus lands on the first card rather than nowhere, as on every other list screen.
+        compose.onNodeWithText("Version").assertIsFocused()
+        compose.onNodeWithText("Version").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Author").assertIsFocused()
+        compose.onNodeWithText("Author").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Source code").assertIsFocused()
+        compose.onNodeWithText("Source code").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Built with Sidekit").assertIsFocused()
+        compose.onNodeWithText("Built with Sidekit").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Licenses").assertIsFocused()
     }
 
     @Test

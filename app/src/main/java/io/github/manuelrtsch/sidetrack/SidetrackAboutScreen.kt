@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,37 +17,46 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import hrln.interactive.sidekit.design.action.ActionMotion
-import hrln.interactive.sidekit.design.action.ActionTone
-import hrln.interactive.sidekit.design.action.SideAction
 import hrln.interactive.sidekit.design.components.SidekitCard
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.SidekitText
 import hrln.interactive.sidekit.design.components.listFade
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import io.github.manuelrtsch.sidetrack.ui.InlineLinkArrowSize
+import io.github.manuelrtsch.sidetrack.ui.LinkArrow
 
-/** Where Sidetrack's source lives; the About page's "Source code" action opens it in a browser. */
+/** Where Sidetrack's source lives; the About page's "Source code" card opens it in a browser. */
 internal const val SOURCE_CODE_URL = "https://github.com/manuel-rtsch/Sidetrack"
 
+/** The author's page, opened from the Author card. */
+internal const val AUTHOR_URL = "https://github.com/manuel-rtsch"
+
+/** Sidekit's source lives in its author's repository; the Sidekit card opens it. */
+internal const val SIDEKIT_URL = "https://github.com/HarlenPostill/Sidekit"
+
 /**
- * Hands [SOURCE_CODE_URL] to whatever browser the device has. A ROM without one leaves the press
- * with nothing to do — there is no notice bar on the About page and nothing to undo — so the
- * missing activity is swallowed rather than crashing the app the user is reading about it in.
+ * Hands a page to whatever browser the device has. A ROM without one leaves the press with
+ * nothing to do — there is no notice bar on the About page and nothing to undo — so the missing
+ * activity is swallowed rather than crashing the app the user is reading about it in.
  */
-internal fun openSourceCode(context: Context) {
+internal fun openPage(context: Context, url: String) {
     try {
         context.startActivity(
-            Intent(Intent.ACTION_VIEW, SOURCE_CODE_URL.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     } catch (_: ActivityNotFoundException) {
         // No browser installed.
     }
 }
+
+internal fun openSourceCode(context: Context) = openPage(context, SOURCE_CODE_URL)
 
 private data class Licence(val software: String, val licence: String)
 
@@ -98,28 +108,29 @@ fun SidetrackAboutScreen(onBack: () -> Unit, backLabel: String = "Settings") {
     val versionName = packageInfo.versionName.orEmpty()
     val versionCode = packageInfo.longVersionCode
     val listState = rememberLazyListState()
+    // Every card is an action and therefore a focus stop: D-pad navigation scrolls the list the
+    // same way it does on the settings screens, instead of stalling on the one clickable card.
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     // The build number stays out of the screenshot: the plain tag is enough until it is asked
     // for, and a commit-count build number would change the image on every build.
     var showBuild by rememberSaveable { mutableStateOf(false) }
+    // The licence table is a reference, not a first read. Folding it away keeps the page short
+    // enough to reach every card with the keypad.
+    var showLicences by rememberSaveable { mutableStateOf(false) }
 
     SidekitScaffold(
         title = "About",
-        actions = sidetrackBack(backLabel, onBack) + SideAction(
-            "sourceCode",
-            "Source code",
-            tone = ActionTone.Muted,
-            motion = ActionMotion.Up,
-            onClick = { openSourceCode(context) }
-        )
+        actions = sidetrackBack(backLabel, onBack)
     ) { padding ->
         SidekitList(padding, state = listState) {
             item(key = "version") {
                 SidekitCard(
-                    Modifier.listFade(listState, 0).fillMaxWidth(),
-                    onClick = { showBuild = true }
+                    Modifier.listFade(listState, 0).fillMaxWidth().focusRequester(first),
+                    onClick = { showBuild = !showBuild }
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SidekitText("Version", style = SidekitTheme.typography.headline)
+                        CardHeading("Version") { DisclosureLabel(showBuild) }
                         SidekitText(
                             "Sidetrack ${plainVersionName(versionName)}",
                             style = SidekitTheme.typography.label,
@@ -143,10 +154,17 @@ fun SidetrackAboutScreen(onBack: () -> Unit, backLabel: String = "Settings") {
                 }
             }
             item(key = "author") {
-                SidekitCard(Modifier.listFade(listState, 1).fillMaxWidth()) {
+                SidekitCard(
+                    Modifier.listFade(listState, 1).fillMaxWidth(),
+                    onClick = { openPage(context, AUTHOR_URL) }
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SidekitText("Author", style = SidekitTheme.typography.headline)
-                        SidekitText("Manuel Rottschäfer", style = SidekitTheme.typography.label, maxLines = Int.MAX_VALUE)
+                        CardHeading("Author") { CardLinkArrow() }
+                        SidekitText(
+                            "Manuel Rottschäfer",
+                            style = SidekitTheme.typography.label,
+                            maxLines = Int.MAX_VALUE
+                        )
                         SidekitText(
                             "github.com/manuel-rtsch",
                             style = SidekitTheme.typography.caption,
@@ -156,10 +174,29 @@ fun SidetrackAboutScreen(onBack: () -> Unit, backLabel: String = "Settings") {
                     }
                 }
             }
-            item(key = "sidekit") {
-                SidekitCard(Modifier.listFade(listState, 2).fillMaxWidth()) {
+            item(key = "source") {
+                SidekitCard(
+                    Modifier.listFade(listState, 2).fillMaxWidth(),
+                    onClick = { openSourceCode(context) }
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SidekitText("Built with Sidekit", style = SidekitTheme.typography.headline)
+                        CardHeading("Source code") { CardLinkArrow() }
+                        SidekitText(
+                            "github.com/manuel-rtsch/Sidetrack",
+                            style = SidekitTheme.typography.caption,
+                            color = SidekitTheme.colors.surfaceA6,
+                            maxLines = Int.MAX_VALUE
+                        )
+                    }
+                }
+            }
+            item(key = "sidekit") {
+                SidekitCard(
+                    Modifier.listFade(listState, 3).fillMaxWidth(),
+                    onClick = { openPage(context, SIDEKIT_URL) }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        CardHeading("Built with Sidekit") { CardLinkArrow() }
                         SidekitText(
                             "Sidekit SDK ${BuildConfig.SIDEKIT_VERSION}",
                             style = SidekitTheme.typography.label,
@@ -180,17 +217,58 @@ fun SidetrackAboutScreen(onBack: () -> Unit, backLabel: String = "Settings") {
                 }
             }
             item(key = "licenses") {
-                SidekitCard(Modifier.listFade(listState, 3).fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SidekitText("Licenses", style = SidekitTheme.typography.headline)
-                        licences.forEach { entry ->
-                            LicenceRow(entry)
+                SidekitCard(
+                    Modifier.listFade(listState, 4).fillMaxWidth(),
+                    onClick = { showLicences = !showLicences }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(if (showLicences) 12.dp else 4.dp)) {
+                        CardHeading("Licenses") { DisclosureLabel(showLicences) }
+                        if (showLicences) {
+                            licences.forEach { entry ->
+                                LicenceRow(entry)
+                            }
+                        } else {
+                            SidekitText(
+                                licences.map { it.licence }.distinct().joinToString(" · "),
+                                style = SidekitTheme.typography.caption,
+                                color = SidekitTheme.colors.surfaceA6,
+                                maxLines = Int.MAX_VALUE
+                            )
                         }
                     }
                 }
             }
         }
     }
+}
+
+/** A card's title on the left, with the thing the card does on the right. */
+@Composable
+private fun CardHeading(title: String, trailing: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SidekitText(title, Modifier.weight(1f), style = SidekitTheme.typography.headline)
+        trailing()
+    }
+}
+
+/** The arrow on a card that opens a page, at the same weight as the muted caption under it. */
+@Composable
+private fun CardLinkArrow() {
+    LinkArrow(size = InlineLinkArrowSize, tint = SidekitTheme.colors.surfaceA6)
+}
+
+/** The expandable cards say what OK will do, because the card itself cannot show a link arrow. */
+@Composable
+private fun DisclosureLabel(expanded: Boolean) {
+    SidekitText(
+        if (expanded) "Hide" else "Show",
+        style = SidekitTheme.typography.caption,
+        color = SidekitTheme.colors.surfaceA6
+    )
 }
 
 /**
