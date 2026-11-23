@@ -41,7 +41,7 @@ fun NavGraphBuilder.sidetrackGraph(
     navigation(startDestination = startDestination, route = ROOT) {
         libraryGraph(nav)
         playbackGraph(nav, onKeypadBackOverride)
-        settingsGraph(nav, hostBacked)
+        settingsGraph(nav, hostBacked, onKeypadBackOverride)
     }
 }
 

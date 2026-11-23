@@ -2,6 +2,7 @@ package io.github.manuelrtsch.sidetrack
 
 import android.view.KeyEvent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,10 +21,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.components.SidekitText
+import hrln.interactive.sidekit.design.input.Keypad
 import hrln.interactive.sidekit.design.input.KeypadModule
 import hrln.interactive.sidekit.design.input.SystemKeys
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.design.theme.contentColorFor
+import hrln.interactive.sidekit.sdk.input.SharedPreferencesKeypadPreferences
 
 /**
  * The habit a welcome row teaches. Rows are compared by habit, not by their printed label, so a
@@ -64,6 +67,13 @@ internal fun keypadHabitForKey(module: KeypadModule, keyCode: Int): KeypadHabit?
     else -> null
 }
 
+/**
+ * The module's name as Sidetrack prints it. Sidekit calls the controller a "Game controller";
+ * Sidetrack says "Gamepad", which fits the layout row and reads as one word next to the others.
+ */
+internal fun keypadModuleLabel(module: KeypadModule): String =
+    if (module == KeypadModule.GamePad) "Gamepad" else module.label
+
 /** The module after [current] in the order the modules are printed, wrapping at the end. */
 internal fun nextKeypadModule(current: KeypadModule): KeypadModule {
     val modules = KeypadModule.entries
@@ -72,18 +82,37 @@ internal fun nextKeypadModule(current: KeypadModule): KeypadModule {
 }
 
 /**
+ * Applies a picked keypad module to the attached keypad, or remembers it when there is none.
+ *
+ * A custom mapping fixes the module by design: picking a module is choosing which one the attached
+ * keys are read as, which is exactly what [Keypad.useCustomMapping] does. Without this branch the
+ * mapping would keep overriding the choice and the picker would appear to do nothing.
+ */
+internal fun selectKeypadModule(
+    keypad: Keypad?,
+    prefs: SharedPreferencesKeypadPreferences,
+    module: KeypadModule
+) {
+    when {
+        keypad == null -> prefs.writeModule(module)
+        keypad.mapper.customModule != null -> keypad.useCustomMapping(module)
+        else -> keypad.chooseModule(module)
+    }
+}
+
+/**
  * The keypad habits Sidetrack depends on, written for the attached module.
  *
  * T9 and QWERTY have dedicated Back and Options keys; the Sundial and GamePad turn gestures on
- * other keys into the same controls. Keeping the translation here means Welcome and Keyboard
+ * other keys into the same controls. Keeping the translation here means Welcome and the Keypad settings
  * cannot drift into giving different instructions for the same module.
  */
 internal fun keypadEssentials(module: KeypadModule): List<KeypadEssential> {
     fun back(key: String, detail: String = "Go back a screen.") = KeypadEssential(key, detail, KeypadHabit.Back)
 
-    fun options(key: String, detail: String = "Tap for this page’s actions. Hold for the action bar.") = KeypadEssential(key, detail, KeypadHabit.Options)
+    fun options(key: String, detail: String = "Tap for this page’s actions.") = KeypadEssential(key, detail, KeypadHabit.Options)
 
-    val item = KeypadEssential("•••", "Press ••• for a focused row’s actions.", KeypadHabit.RowMenu)
+    val item = KeypadEssential("•••", "Press ••• for item actions.", KeypadHabit.RowMenu)
     return when (module) {
         KeypadModule.T9, KeypadModule.Qwerty -> listOf(
             back("Back"),
@@ -113,8 +142,8 @@ internal fun keypadEssentials(module: KeypadModule): List<KeypadEssential> {
 
 /**
  * The compact key cheat sheet on Welcome. It is deliberately not a diagram:
- * the full [hrln.interactive.sidekit.sdk.settings.KeypadGuide] is a reference and lives behind
- * "Keypad guide", while these rows are the actions a new listener has to know immediately.
+ * the full [SidetrackKeypadGuide] is a reference and lives behind "Keypad guide", while these
+ * rows are the actions a new listener has to know immediately.
  */
 @Composable
 internal fun KeypadEssentials(
@@ -124,7 +153,9 @@ internal fun KeypadEssentials(
     /** The row the last key press demonstrated, held for a moment so the press has an answer. */
     pressed: KeypadHabit? = null,
     /** The Options bar is open, which is what that key did even though it never reaches a screen. */
-    optionsOpen: Boolean = false
+    optionsOpen: Boolean = false,
+    /** When set, the card is a focus target and activates like a row. */
+    onClick: (() -> Unit)? = null
 ) {
     val essentials = remember(module) { keypadEssentials(module) }
     val surface = SidekitTheme.colors.surfaceA3
@@ -135,8 +166,7 @@ internal fun KeypadEssentials(
     val keyStyle = SidekitTheme.typography.small
     val density = LocalDensity.current
     val keycapWidth = remember(essentials, keyStyle, density) {
-        val widest = (essentials.map { it.key } + TOUCH_KEY)
-            .maxOf { measurer.measure(it, keyStyle).size.width }
+        val widest = essentials.maxOf { measurer.measure(it.key, keyStyle).size.width }
         // Never narrower than a keycap reads as a key, and never narrow enough to clip a label.
         (with(density) { widest.toDp() } + KEYCAP_PADDING * 2).coerceAtLeast(76.dp)
     }
@@ -146,6 +176,7 @@ internal fun KeypadEssentials(
                 .fillMaxWidth()
                 .clip(SidekitTheme.shapes.item)
                 .background(surface)
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -167,21 +198,6 @@ internal fun KeypadEssentials(
                     )
                 }
             }
-            // Touch screens have no round trigger to press, so the row menu is a swipe.
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Keycap(TOUCH_KEY, keycapWidth)
-                SidekitText(
-                    "On touch, drag a row left to reveal its menu.",
-                    Modifier.weight(1f),
-                    style = SidekitTheme.typography.small,
-                    color = contentColor,
-                    maxLines = 2
-                )
-            }
         }
         if (customMapping) {
             SidekitText(
@@ -194,9 +210,6 @@ internal fun KeypadEssentials(
         }
     }
 }
-
-/** The label of the touch gesture, which is a keycap like the rest so the column stays one width. */
-private const val TOUCH_KEY = "← Drag"
 
 /** The space either side of a keycap's label. */
 private val KEYCAP_PADDING = 10.dp

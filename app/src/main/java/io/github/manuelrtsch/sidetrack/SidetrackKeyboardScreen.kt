@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.components.SidekitCompactItem
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.SidekitText
@@ -28,7 +27,6 @@ import hrln.interactive.sidekit.sdk.input.SharedPreferencesKeypadPreferences
 import hrln.interactive.sidekit.sdk.input.applyInputMode
 import hrln.interactive.sidekit.sdk.settings.KeyCaptureScreen
 import hrln.interactive.sidekit.sdk.settings.KeyTesterScreen
-import hrln.interactive.sidekit.sdk.settings.KeypadGuide
 import hrln.interactive.sidekit.sdk.settings.KeypadMappingScreen
 
 private enum class KeyboardPage { Main, Mapping, Capture, Tester }
@@ -38,7 +36,8 @@ private enum class KeyboardPage { Main, Mapping, Capture, Tester }
 fun SidetrackKeyboardScreen(
     onBack: () -> Unit,
     backLabel: String = "Settings",
-    keypadAccessAvailable: Boolean = true
+    keypadAccessAvailable: Boolean = true,
+    onOpenModulePicker: (() -> Unit)? = null
 ) {
     val context = LocalContext.current.applicationContext
     val local = remember(context) { SidetrackLocalSettings(context) }
@@ -71,7 +70,7 @@ fun SidetrackKeyboardScreen(
             onEnableKeypadBack = {
                 runCatching { accessSettings.launch(SidetrackKeypadAccess.settingsIntent()) }
             },
-            onModule = { next -> keypad?.chooseModule(next) ?: keypadPrefs.writeModule(next) },
+            onOpenModulePicker = onOpenModulePicker,
             onInputMode = { next ->
                 local.inputMode = next
                 inputMode = next
@@ -108,54 +107,55 @@ private fun KeyboardSettings(
     keypadAccessAvailable: Boolean,
     keypadBackEnabled: Boolean,
     onEnableKeypadBack: () -> Unit,
-    onModule: (KeypadModule) -> Unit,
+    onOpenModulePicker: (() -> Unit)?,
     onInputMode: (T9Mode) -> Unit,
     onMapping: () -> Unit
 ) {
     val list = rememberLazyListState()
     var showGuide by remember { mutableStateOf(false) }
-    SidekitScaffold("Keyboard", actions = listOf(SideAction.back("back", backLabel, onBack))) { padding ->
+    SidekitScaffold("Keypad settings", actions = listOf(SideAction.back("back", backLabel, onBack))) { padding ->
         SidekitList(padding, state = list) {
             if (keypadAccessAvailable) {
                 item(key = "keypadBack") {
-                    SidekitCompactItem(
-                        "Keypad Back key",
+                    SidetrackItem(
+                        "Back key",
                         secondary = if (keypadBackEnabled) "On" else "Off · Enable",
+                        secondaryToEnd = true,
                         onClick = onEnableKeypadBack
                     )
                 }
             }
             item(key = "keypad") {
-                SidekitCompactItem(
-                    "Keypad",
-                    secondary = custom?.let { "${it.label} · custom" } ?: module.label,
-                    onClick = {
-                        if (custom != null) {
-                            onMapping()
-                        } else {
-                            onModule(KeypadModule.entries[(module.ordinal + 1) % KeypadModule.entries.size])
-                        }
-                    }
+                SidetrackItem(
+                    "Layout",
+                    secondary = custom?.let { "${keypadModuleLabel(it)} · custom" } ?: keypadModuleLabel(module),
+                    secondaryToEnd = true,
+                    showLinkArrow = true,
+                    showLinkArrowWithSecondary = true,
+                    onClick = onOpenModulePicker ?: {}
                 )
             }
             item(key = "inputMode") {
-                SidekitCompactItem(
+                SidetrackItem(
                     "Input mode",
                     secondary = if (inputMode == T9Mode.Numeric) "Numbers" else "Letters",
+                    secondaryToEnd = true,
                     onClick = { onInputMode(T9Mode.entries[(inputMode.ordinal + 1) % T9Mode.entries.size]) }
                 )
             }
             item(key = "mapping") {
-                SidekitCompactItem(
-                    "Keypad mapping",
+                SidetrackItem(
+                    "Key mapping",
                     secondary = "Customise",
+                    secondaryToEnd = true,
                     onClick = onMapping
                 )
             }
             item(key = "guideRow") {
-                SidekitCompactItem(
+                SidetrackItem(
                     "Keypad guide",
                     secondary = if (showGuide) "Hide" else "Show",
+                    secondaryToEnd = true,
                     onClick = { showGuide = !showGuide }
                 )
             }
@@ -171,7 +171,7 @@ private fun KeyboardSettings(
                         )
                     }
                 }
-                item(key = "guide") { KeypadGuide(module) }
+                item(key = "guide") { SidetrackKeypadGuide(module) }
             }
         }
     }

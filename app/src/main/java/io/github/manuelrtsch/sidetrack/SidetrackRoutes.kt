@@ -35,6 +35,7 @@ internal val AUDIO_QUALITY = "$ROOT/audio-quality"
 internal val SIGN_IN = SIDE_PLAY_SIGN_IN
 internal val APPEARANCE = "$ROOT/appearance"
 internal val KEYBOARD = "$ROOT/keyboard"
+internal val KEYPAD_MODULE = "$ROOT/keypad"
 internal val ABOUT = "$ROOT/about"
 internal val ARTWORK = "$ROOT/artwork/{artRes}?url={url}&label={label}&ratio={ratio}"
 internal val NOTES = "$ROOT/notes/{key}"
@@ -80,6 +81,7 @@ private val KEYPAD_BACK_ROUTES = setOf(
     AUDIO_QUALITY,
     APPEARANCE,
     KEYBOARD,
+    KEYPAD_MODULE,
     ABOUT,
     ARTWORK,
     NOTES

@@ -26,7 +26,11 @@ import hrln.interactive.sidekit.sdk.theme.rememberSidekitThemeConfig
  * the host really does own.
  */
 @Composable
-fun SidetrackAppearanceScreen(hostBacked: Boolean, onBack: () -> Unit) {
+fun SidetrackAppearanceScreen(
+    hostBacked: Boolean,
+    onBack: () -> Unit,
+    backLabel: String = "Settings"
+) {
     val context = LocalContext.current.applicationContext
     val compactRows = rememberCompactRows()
     val backdrop = rememberNowPlayingBackdropSetting()
@@ -42,7 +46,7 @@ fun SidetrackAppearanceScreen(hostBacked: Boolean, onBack: () -> Unit) {
     // keeps the write path (`store.writeCompact`) off the screen entirely in that case.
     val theme = rememberSidekitThemeConfig(store)
 
-    SidekitScaffold("Appearance", actions = listOf(SideAction.back("back", "Settings", onBack))) { padding ->
+    SidekitScaffold("Appearance", actions = listOf(SideAction.back("back", backLabel, onBack))) { padding ->
         SidekitList(padding, state = list) {
             if (!hostBacked) {
                 item {

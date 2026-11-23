@@ -10,6 +10,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import hrln.interactive.sidekit.design.input.KeypadModule
+import hrln.interactive.sidekit.design.input.LocalKeypad
+import hrln.interactive.sidekit.sdk.input.SharedPreferencesKeypadPreferences
 import io.github.manuelrtsch.sidetrack.auth.LocalAudioPermission
 import io.github.manuelrtsch.sidetrack.data.AppSessions
 import io.github.manuelrtsch.sidetrack.data.KnownServices
@@ -18,7 +21,8 @@ import kotlinx.coroutines.launch
 
 internal fun NavGraphBuilder.settingsGraph(
     nav: NavHostController,
-    hostBacked: Boolean
+    hostBacked: Boolean,
+    onKeypadBackOverride: ((() -> Boolean)?) -> Unit = {}
 ) {
     composable(SETTINGS) { entry ->
         val vm = entry.sidetrackViewModel(nav)
@@ -56,12 +60,15 @@ internal fun NavGraphBuilder.settingsGraph(
                 }
             },
             onDismissNotice = vm::dismissNotice,
-            // A host-backed Sidekit owns the theme and the keypad, so the Keyboard row is hidden
+            // A host-backed Sidekit owns the theme and the keypad, so the Keypad row is hidden
             // rather than offering edits the host would ignore. Appearance stays: the host owns
             // the case colour and compact layout inside it, but not Sidetrack's own row density
             // or its Now Playing backdrop, and the screen drops the host-owned rows itself.
             onAppearance = { nav.navigate(APPEARANCE) },
             onKeyboard = if (hostBacked) null else ({ nav.navigate(KEYBOARD) }),
+            // The Help route is the same Welcome body: it keeps its Back action and returns here
+            // instead of clearing the onboarding flag on the way out.
+            onTutorial = { nav.navigate(HELP) },
             onAbout = { nav.navigate(ABOUT) }
         )
     }
@@ -99,23 +106,37 @@ internal fun NavGraphBuilder.settingsGraph(
             account,
             chrome,
             onBack = { nav.popBackStack() },
+            backLabel = settingsBackLabel(nav),
             onSelect = vm::setAudioQuality,
             onDismissNotice = vm::dismissNotice
         )
     }
     composable(APPEARANCE) {
-        SidetrackAppearanceScreen(hostBacked = hostBacked, onBack = { nav.popBackStack() })
+        SidetrackAppearanceScreen(
+            hostBacked = hostBacked,
+            backLabel = settingsBackLabel(nav),
+            onBack = { nav.popBackStack() }
+        )
     }
     composable(KEYBOARD) {
-        val backLabel = if (nav.previousBackStackEntry?.destination?.route in setOf(ONBOARDING, HELP)) {
-            "Welcome"
-        } else {
-            "Settings"
-        }
         SidetrackKeyboardScreen(
             onBack = { nav.popBackStack() },
-            backLabel = backLabel,
-            keypadAccessAvailable = !hostBacked
+            backLabel = settingsBackLabel(nav),
+            keypadAccessAvailable = !hostBacked,
+            onOpenModulePicker = { nav.navigate(KEYPAD_MODULE) }
+        )
+    }
+    composable(KEYPAD_MODULE) {
+        val context = LocalContext.current
+        val keypad = LocalKeypad.current
+        val keypadPrefs = remember(context) {
+            SharedPreferencesKeypadPreferences(context, SidetrackLocalSettings.KEYPAD_FILE)
+        }
+        SidetrackKeypadModuleScreen(
+            module = keypad?.mapper?.customModule ?: keypad?.module ?: keypadPrefs.module() ?: KeypadModule.T9,
+            onBack = { nav.popBackStack() },
+            onSelect = { module -> selectKeypadModule(keypad, keypadPrefs, module) },
+            backLabel = keypadModuleBackLabel(nav)
         )
     }
     composable(ABOUT) {
@@ -127,30 +148,46 @@ internal fun NavGraphBuilder.settingsGraph(
         SidetrackAboutScreen(onBack = { nav.popBackStack() }, backLabel = backLabel)
     }
     composable(ONBOARDING) {
+        val context = LocalContext.current
+        val appSession = remember(context) { AppSessions.get(context) }
+        val signedIn by appSession.signedIn.collectAsStateWithLifecycle()
         SidetrackOnboardingScreen(
             hostBacked = hostBacked,
             onAbout = { nav.navigate(ABOUT) },
             onKeyboard = { nav.navigate(KEYBOARD) },
+            onAppearance = { nav.navigate(APPEARANCE) },
+            onAudioQuality = { nav.navigate(AUDIO_QUALITY) },
+            canSetQuality = signedIn &&
+                appSession.runtimeOrNull?.capabilities?.supportsQualitySelection == true,
             onDone = {
                 nav.navigate(HOME) {
-                    // Replace Welcome (and anything still below it, such as Sign in), so Back
-                    // from Home leaves Sidetrack instead of replaying the welcome. The flag is
-                    // written by the screen before this runs.
+                    // Replace setup (and anything still below it, such as Sign in), so Back from
+                    // Home leaves Sidetrack instead of replaying the pages. The flag is written
+                    // by the screen before this runs.
                     popUpTo(ROOT) { inclusive = false }
                     launchSingleTop = true
                 }
-            }
+            },
+            onKeypadBackOverride = onKeypadBackOverride
         )
     }
     composable(HELP) {
-        // The same Welcome body the first run shows, opened before a service is chosen: it
-        // teaches the keypad, so it is the most useful thing a first-run user can read here.
+        // The same pages the first run shows, opened before a service is chosen: they teach the
+        // keypad, so they are the most useful thing a first-run user can read here.
+        val context = LocalContext.current
+        val appSession = remember(context) { AppSessions.get(context) }
+        val signedIn by appSession.signedIn.collectAsStateWithLifecycle()
         SidetrackOnboardingScreen(
             hostBacked = hostBacked,
             onAbout = { nav.navigate(ABOUT) },
             onKeyboard = { nav.navigate(KEYBOARD) },
+            onAppearance = { nav.navigate(APPEARANCE) },
+            onAudioQuality = { nav.navigate(AUDIO_QUALITY) },
+            canSetQuality = signedIn &&
+                appSession.runtimeOrNull?.capabilities?.supportsQualitySelection == true,
             onDone = { nav.popBackStack() },
-            onBack = { nav.popBackStack() }
+            onBack = { nav.popBackStack() },
+            onKeypadBackOverride = onKeypadBackOverride
         )
     }
     composable(SIGN_IN) { entry ->
@@ -200,4 +237,18 @@ internal fun NavGraphBuilder.settingsGraph(
             pending = account.authPending
         )
     }
+}
+
+/** Back returns to the page that opened a settings screen, not always to Settings. */
+private fun settingsBackLabel(nav: NavHostController): String = if (nav.previousBackStackEntry?.destination?.route in setOf(ONBOARDING, HELP)) {
+    "Welcome"
+} else {
+    "Settings"
+}
+
+/** The module picker is reached from setup and from the keypad settings page. */
+private fun keypadModuleBackLabel(nav: NavHostController): String = when (nav.previousBackStackEntry?.destination?.route) {
+    ONBOARDING, HELP -> "Welcome"
+    KEYBOARD -> "Keypad"
+    else -> "Settings"
 }

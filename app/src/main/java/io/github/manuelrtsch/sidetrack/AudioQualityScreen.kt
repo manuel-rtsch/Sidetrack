@@ -24,9 +24,12 @@ fun AudioQualityScreen(
     chrome: ChromeUiState,
     onBack: () -> Unit,
     onSelect: (AudioQuality) -> Unit,
-    onDismissNotice: () -> Unit
+    onDismissNotice: () -> Unit,
+    backLabel: String = "Settings"
 ) {
-    val baseActions = remember { listOf(SideAction.back("back", "Settings", onBack)) }
+    val baseActions = remember(backLabel, onBack) {
+        listOf(SideAction.back("back", backLabel, onBack))
+    }
     val actions = withNotice(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
     SidekitScaffold(
         title = "Audio quality",

@@ -77,8 +77,21 @@ internal class SidetrackLocalSettings(context: Context) {
 
     fun needsOnboarding(): Boolean = !hasSeenOnboarding()
 
+    /**
+     * How far through the three-step setup the user got. Persisted so killing the app mid-setup does
+     * not send them back to the first page, and cleared when setup is finished or skipped.
+     */
+    var onboardingStep: Int
+        get() = prefs.getInt(KEY_ONBOARDING_STEP, 0).coerceAtLeast(0)
+        set(value) {
+            prefs.edit { putInt(KEY_ONBOARDING_STEP, value) }
+        }
+
     fun markOnboardingSeen() {
-        prefs.edit { putBoolean(KEY_ONBOARDING_SEEN, true) }
+        prefs.edit {
+            putBoolean(KEY_ONBOARDING_SEEN, true)
+            remove(KEY_ONBOARDING_STEP)
+        }
     }
 
     /**
@@ -100,6 +113,7 @@ internal class SidetrackLocalSettings(context: Context) {
         private const val KEY_NOW_PLAYING_BACKDROP = "artwork_backdrop"
         private const val KEY_COMPACT_ROWS = "compact_rows"
         private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
+        private const val KEY_ONBOARDING_STEP = "onboarding_step"
         private const val KEY_SEARCH_HISTORY = "search_history"
 
         // A query cannot contain a unit separator: the field is single-line and this is not a

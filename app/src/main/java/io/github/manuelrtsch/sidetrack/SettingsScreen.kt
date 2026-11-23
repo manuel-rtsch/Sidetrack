@@ -45,6 +45,7 @@ fun SettingsScreen(
     onDismissNotice: () -> Unit,
     onAppearance: () -> Unit,
     onKeyboard: (() -> Unit)? = null,
+    onTutorial: () -> Unit = {},
     onAbout: () -> Unit = {}
 ) {
     var confirmation by remember { mutableStateOf<SettingsConfirmation?>(null) }
@@ -201,13 +202,24 @@ fun SettingsScreen(
             if (onKeyboard != null) {
                 row("keyboard") { modifier ->
                     SidetrackItem(
-                        "Keyboard",
+                        "Keypad",
                         modifier,
                         showLinkArrow = true,
                         showLinkArrowWithSecondary = true,
                         onClick = onKeyboard
                     )
                 }
+            }
+            // The Welcome page is useful after setup too: reopening it re-reads the attached
+            // keypad and lets a listener revise the module without clearing app data.
+            row("tutorial") { modifier ->
+                SidetrackItem(
+                    "Tutorial",
+                    modifier,
+                    showLinkArrow = true,
+                    showLinkArrowWithSecondary = true,
+                    onClick = onTutorial
+                )
             }
         }
     }
