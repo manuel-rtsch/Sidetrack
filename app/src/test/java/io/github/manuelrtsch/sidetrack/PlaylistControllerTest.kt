@@ -5,6 +5,7 @@ import hrln.interactive.sidekit.design.action.NoticeKind
 import io.github.manuelrtsch.sidetrack.data.MediaCatalog
 import io.github.manuelrtsch.sidetrack.data.MediaLibraryWriter
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.test.SilentMediaCatalog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -329,8 +330,7 @@ class PlaylistControllerTest {
 
     private class FakeCatalog(
         private val playlistPages: Map<Int, List<Playlist>> = emptyMap()
-    ) : MediaCatalog {
-        override val capabilities: ServiceCapabilities = ServiceCapabilities.All
+    ) : SilentMediaCatalog(ServiceCapabilities.All) {
         val requestedOffsets = mutableListOf<Int>()
 
         override suspend fun library(section: LibrarySection, offset: Int, limit: Int): Page<LibraryEntry> {
@@ -343,11 +343,6 @@ class PlaylistControllerTest {
             )
         }
 
-        override suspend fun collection(key: MediaKey, offset: Int, limit: Int): Collection? = null
-        override suspend fun artist(key: MediaKey): Artist? = null
-        override suspend fun albums(artist: MediaKey, offset: Int, limit: Int): Page<Album> = Page()
-        override suspend fun topTracks(artist: MediaKey, offset: Int, limit: Int): Page<Track> = Page()
-        override suspend fun search(query: String, scopes: Set<SearchScope>, offset: Int, limit: Int): SearchResults = SearchResults()
         override suspend fun resolvePlaybackSource(item: MediaItem): PlaybackSource = PlaybackSource(id = item.key.encode(), uri = "")
     }
 

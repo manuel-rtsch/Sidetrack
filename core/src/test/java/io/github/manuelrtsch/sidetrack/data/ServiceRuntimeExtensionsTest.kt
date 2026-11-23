@@ -1,25 +1,8 @@
 package io.github.manuelrtsch.sidetrack.data
 
 import io.github.manuelrtsch.sidetrack.AudioQuality
-import io.github.manuelrtsch.sidetrack.LibraryEntry
-import io.github.manuelrtsch.sidetrack.LibrarySection
-import io.github.manuelrtsch.sidetrack.MediaItem
-import io.github.manuelrtsch.sidetrack.MediaKey
-import io.github.manuelrtsch.sidetrack.Page
-import io.github.manuelrtsch.sidetrack.SearchResults
-import io.github.manuelrtsch.sidetrack.SearchScope
-import io.github.manuelrtsch.sidetrack.ServiceCapabilities
 import io.github.manuelrtsch.sidetrack.ServiceId
-import io.github.manuelrtsch.sidetrack.playback.Media3PlaybackEngine
-import io.github.manuelrtsch.sidetrack.playback.Media3Player
-import io.github.manuelrtsch.sidetrack.playback.Media3PlayerListener
-import io.github.manuelrtsch.sidetrack.playback.Media3PlayerStatus
-import io.github.manuelrtsch.sidetrack.playback.PlaybackController
-import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import io.github.manuelrtsch.sidetrack.test.SilentServiceRuntime
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -98,37 +81,7 @@ class ServiceRuntimeExtensionsTest {
     private fun fake() = FakeRuntime()
 
     /** A runtime with no optional interfaces, as a Jellyfin or Navidrome install sees it. */
-    private open class FakeRuntime : ServiceRuntime {
-        override val service: ServiceId = ServiceId.Local
-        override val capabilities: ServiceCapabilities = ServiceCapabilities.Subsonic
-        override val catalog: MediaCatalog = EmptyCatalog()
-        override val writer: MediaLibraryWriter? = null
-        override val queue = QueueRepository()
-        override val history = HistoryRepository()
-        override val settings: StateFlow<PlaybackSettings> = MutableStateFlow(PlaybackSettings())
-        override val playback: PlaybackController = PlaybackController(
-            Media3PlaybackEngine { NullPlayer() },
-            scope = CoroutineScope(Dispatchers.Unconfined)
-        )
-        override val signedIn: StateFlow<Boolean> = MutableStateFlow(false)
-        override val network: NetworkMonitor? = null
-        override val isOnline: Boolean = true
-        override val resumePoint: ResumePoint? = null
-        override val episodeProgress = EpisodeProgressRepository()
-        override val episodeMeta = EpisodeMetaRepository()
-
-        override suspend fun signIn(input: AuthInput) = Unit
-        override fun signOut() = Unit
-        override suspend fun play(item: MediaItem, positionMs: Long, gapless: Boolean) = Unit
-        override suspend fun resume(): Boolean = false
-        override suspend fun seek(positionMs: Long) = Unit
-        override fun pause() = Unit
-        override fun togglePlayback() = Unit
-        override fun stopPlayback() = Unit
-        override fun haltPlayback() = Unit
-        override fun setAutoplay(enabled: Boolean) = Unit
-        override fun clearCaches() = Unit
-    }
+    private open class FakeRuntime : SilentServiceRuntime(ServiceId.Local)
 
     private class NativeRuntime :
         FakeRuntime(),
@@ -172,44 +125,5 @@ class ServiceRuntimeExtensionsTest {
         override suspend fun clearAudioCache() {
             cleared = true
         }
-    }
-
-    private class EmptyCatalog : MediaCatalog {
-        override val capabilities: ServiceCapabilities = ServiceCapabilities.Subsonic
-
-        override suspend fun library(section: LibrarySection, offset: Int, limit: Int): Page<LibraryEntry> = Page()
-
-        override suspend fun collection(key: MediaKey, offset: Int, limit: Int): io.github.manuelrtsch.sidetrack.Collection? = null
-
-        override suspend fun artist(key: MediaKey): io.github.manuelrtsch.sidetrack.Artist? = null
-
-        override suspend fun albums(artist: MediaKey, offset: Int, limit: Int): Page<io.github.manuelrtsch.sidetrack.Album> = Page()
-
-        override suspend fun topTracks(artist: MediaKey, offset: Int, limit: Int): Page<io.github.manuelrtsch.sidetrack.Track> = Page()
-
-        override suspend fun search(query: String, scopes: Set<SearchScope>, offset: Int, limit: Int): SearchResults = SearchResults()
-
-        override suspend fun resolvePlaybackSource(item: MediaItem): PlaybackSource = PlaybackSource(id = item.key.encode(), uri = item.uri.orEmpty())
-    }
-
-    /** No player is ever prepared in these tests; the engine only needs a factory. */
-    private class NullPlayer : Media3Player {
-        override var listener: Media3PlayerListener? = null
-
-        override fun prepare(source: PlaybackSource, startPositionMs: Long, playWhenReady: Boolean) = Unit
-
-        override fun play() = Unit
-
-        override fun pause() = Unit
-
-        override fun stop() = Unit
-
-        override fun seekTo(positionMs: Long) = Unit
-
-        override fun release() = Unit
-
-        override val isPlaying: Boolean = false
-        override val currentPositionMs: Long = 0L
-        override val status: Media3PlayerStatus = Media3PlayerStatus.Idle
     }
 }

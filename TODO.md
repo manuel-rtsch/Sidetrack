@@ -342,6 +342,13 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   all thirty members of `SpotifyNative` to answer `null` and `true`, then overrode the two or three
   the test cared about. `SilentSpotifyNative` holds that floor now, so each fake is its fields plus
   the entry points it models. Budget lowered from 227 to 191.
-- [ ] **`RecordingServiceRuntime` ↔ `ServiceRuntimeExtensionsTest`** — 191 tokens over two blocks.
+- [x] **`RecordingServiceRuntime` ↔ `ServiceRuntimeExtensionsTest`** — :core already carries a
+  `testFixtures` source set that :app's unit tests can see, so the floors the two modules kept
+  separately live there now: `SilentServiceRuntime` (signed out, online, no writer, every transport
+  call accepted), `SilentMediaCatalog` (every page empty) and `SilentMedia3Player` (never plays,
+  reports idle). `RecordingServiceRuntime` extends the runtime and adds only its recording, the
+  extensions test's `FakeRuntime` is one line over the same class, and `PlaylistControllerTest`'s
+  FakeCatalog extends the catalogue. The third copy of the empty catalogue, in the core test, went
+  with them. Budget lowered from 191 to 149.
 - [ ] Remaining single-block pairs under 150 tokens (playlist controller tests, PlaybackReporter
   tests, `NativeSpotifyCatalogTest`, `SubsonicApiTest`, `SpotifyFallbackStateTest` and the rest).
