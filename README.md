@@ -88,7 +88,7 @@ Spotify library and search need the native bridge, a bundled librespot client. W
 1. Install Sidetrack. [Sidekit](https://github.com/HarlenPostill/Sidekit/releases/latest) is optional.
 2. Choose a service. Plex finds your server from the account.
 3. To try the app without a server, choose **Navidrome** and submit the blank sign-in form. It signs in to the shared demo at [demo.navidrome.org](https://demo.navidrome.org) (`demo` / `demo`).
-4. Follow the **Welcome** screen to set up your keyboard and keypad.
+4. Follow the three setup screens to set up your keypad, look up what its keys do, and choose your appearance.
 
 ## Building from source
 

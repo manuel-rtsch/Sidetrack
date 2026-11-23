@@ -22,7 +22,7 @@ Three gates stand in the way:
 build fails on the machine that runs it. Debug, dev, profile and demo builds stay
 native-optional.
 
-The About screen's version card reports which engine the installed APK carries ("Native Spotify
+The About screen's version row reports which engine the installed APK carries ("Native Spotify
 engine" or "Spotify Web API, no native bridge"), so a tester report states it instead of requiring
 a guess.
 

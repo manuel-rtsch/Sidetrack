@@ -66,10 +66,8 @@ bar alone.
 ## Known gaps
 
 - Some screens still publish no options and show the grey "No options here" button for a moment:
-  Settings, Audio quality, Appearance, Sleep timer, About, Keyboard, Sign in, the service picker,
+  Settings, Audio quality, Appearance, Sleep timer, About, Keypad settings, Sign in, the service picker,
   New playlist, Add to playlist, Notes, Artwork. Empty options are only defensible for transient
   states (nothing playing, queue reordering).
 - "Now playing" is an option on several screens but absent from Home and from every Settings-like
   screen. There is no written rule yet for what belongs in Options.
-- The onboarding card teaches that Options opens About, which is not true on the service picker
-  that shares the same "Welcome" title.
