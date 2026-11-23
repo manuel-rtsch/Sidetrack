@@ -74,7 +74,7 @@ effect on the current track until then.
 PMD CPD runs over the Kotlin and Rust sources at 80 tokens with `--ignore-identifiers
 --ignore-literals`, so every hit below is a structural clone rather than two functions that happen
 to share a shape. `./gradlew cpd` writes the full blocks to `build/reports/cpd/`; `cpdCheck` fails
-when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (740 today). Lower
+when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (700 today). Lower
 that number in the same commit that lands one of these, or the budget will not stop the next one.
 
 The list is ordered by what the duplication risks, not by its size: duplicated retry logic is a bug
@@ -88,10 +88,14 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   the same file share `read_bytes`/`skip_field`, so the collection parsers no longer repeat the
   field-skipping arms. Budget lowered from 800 to 740. Covered by
   `a_collection_page_skips_unknown_fields` and `a_truncated_collection_page_stops_at_the_bad_length`.
-- [ ] **Playlist mutations across the providers** — 142 tokens at `JellyfinCatalog.kt:166` ↔
-  `SubsonicApi.kt:428` and 92 at `LocalCatalog.kt:85` ↔ `SubsonicApi.kt:338`. The same
-  `addToPlaylist`/`removeFromPlaylist`/`renamePlaylist`/`deletePlaylist` quartet delegating to a
-  client. A shared delegation helper would cover all three.
+- [x] **Playlist mutations across the providers** — `ClientPlaylistWriter` now supplies the
+  `MediaKey`/`MediaItem` quartet from a client's `PlaylistTransport`, which `JellyfinApi` and
+  `SubsonicApi` implement, so those two catalogs hold one property instead of four copies of the
+  same delegation. Plex and the device library keep `MediaLibraryWriter` directly: Plex names
+  playlist entries rather than tracks, and the device library writes local files. The second cited
+  pair was not the quartet but the `Collection` mapping of a playlist, now shared as
+  `playlistCollection` by the four catalogs that mapped it field for field (Spotify keeps its
+  own: its playlist subtitle carries the track count). Budget lowered from 740 to 700.
 - [ ] **DI wiring** — 124 tokens at `SidetrackLibraryGraph.kt:297` ↔ `SidetrackPlaybackGraph.kt:147`,
   and 84 more inside `SidetrackPlaybackGraph.kt` itself at `120/192`.
 - [ ] **HTTP request scaffold** — 93 at `JellyfinAuth.kt:55` ↔ `PlexApi.kt:338`, and 81 at

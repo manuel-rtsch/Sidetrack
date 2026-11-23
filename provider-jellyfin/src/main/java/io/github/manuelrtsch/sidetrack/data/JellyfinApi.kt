@@ -9,7 +9,7 @@ import io.github.manuelrtsch.sidetrack.SearchScope
  * A fake implements this for catalog tests; [SdkJellyfinApi] is the only class that knows the
  * official Kotlin SDK. Failures are expected to surface as [ServiceException].
  */
-interface JellyfinApi {
+interface JellyfinApi : PlaylistTransport {
     suspend fun likedSongs(offset: Int, limit: Int): JellyfinPage
     suspend fun playlists(offset: Int, limit: Int): JellyfinPage
     suspend fun albums(offset: Int, limit: Int): JellyfinPage
@@ -30,10 +30,10 @@ interface JellyfinApi {
     suspend fun markPlayed(id: String)
 
     suspend fun createPlaylist(name: String, itemIds: List<String> = emptyList()): String?
-    suspend fun addToPlaylist(playlistId: String, itemId: String): Int
-    suspend fun removeFromPlaylist(playlistId: String, itemId: String, index: Int? = null)
-    suspend fun renamePlaylist(playlistId: String, name: String) = Unit
-    suspend fun deletePlaylist(playlistId: String) = Unit
+    override suspend fun addToPlaylist(playlistId: String, itemId: String): Int
+    override suspend fun removeFromPlaylist(playlistId: String, itemId: String, index: Int?)
+    override suspend fun renamePlaylist(playlistId: String, name: String) = Unit
+    override suspend fun deletePlaylist(playlistId: String) = Unit
 
     suspend fun playback(itemId: String, maxStreamingBitrate: Int?): JellyfinPlaybackInfo
     fun imageUrl(id: String, tag: String?, maxHeight: Int = ARTWORK_MAX_HEIGHT): String

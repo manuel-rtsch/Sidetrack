@@ -175,6 +175,36 @@ data class Collection(
 }
 
 /**
+ * The playlist kind of [Collection]. Every provider pages a playlist's tracks and reports the same
+ * facts about it, so the mapping lives here; only the id, names, artwork and action set are the
+ * provider's own.
+ */
+fun playlistCollection(
+    id: String,
+    title: String,
+    subtitle: String,
+    items: List<MediaItem>,
+    artUrl: String?,
+    totalItems: Int,
+    hasMore: Boolean,
+    actions: PlaylistActions?,
+    service: ServiceId
+): Collection = Collection(
+    type = CollectionType.Playlist,
+    id = id,
+    title = title,
+    subtitle = subtitle,
+    artRes = 0,
+    items = items,
+    artUrl = artUrl,
+    totalItems = totalItems,
+    hasMore = hasMore,
+    saveable = false,
+    playlistActions = actions,
+    service = service
+)
+
+/**
  * A radio station: its resolved tracks and, when the transport can report it, the playlist that
  * backs the station. Saving that playlist is how a station becomes a library playlist.
  */

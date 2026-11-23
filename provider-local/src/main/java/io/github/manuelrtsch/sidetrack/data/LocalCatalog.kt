@@ -18,6 +18,7 @@ import io.github.manuelrtsch.sidetrack.ServiceCapabilities
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.playlistCollection
 
 /**
  * The device's music library behind the neutral [MediaCatalog] contract.
@@ -84,18 +85,15 @@ class LocalCatalog(
 
         MediaType.Playlist -> playlists().firstOrNull { it.id == key.id }?.let { playlist ->
             val items = playlist.tracks.drop(offset).take(limit)
-            Collection(
-                type = CollectionType.Playlist,
+            playlistCollection(
                 id = playlist.id,
                 title = playlist.name,
                 subtitle = playlist.owner,
-                artRes = 0,
                 items = items,
                 artUrl = playlist.artUrl,
                 totalItems = playlist.trackCount,
                 hasMore = offset + items.size < playlist.trackCount,
-                saveable = false,
-                playlistActions = playlist.actions,
+                actions = playlist.actions,
                 service = service
             )
         }

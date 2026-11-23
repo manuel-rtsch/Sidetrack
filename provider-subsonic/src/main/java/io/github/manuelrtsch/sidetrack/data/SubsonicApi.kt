@@ -21,6 +21,7 @@ import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.mediaTextOrNull
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.playlistCollection
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -65,7 +66,7 @@ class SubsonicApi(
     private val family: SubsonicFamily = SubsonicFamily.Navidrome,
     private val transport: SubsonicTransport = HttpSubsonicTransport(),
     private val salt: () -> String = defaultSalt()
-) {
+) : PlaylistTransport {
     private val credentials = credentials.normalized()
 
     suspend fun ping() = call("ping")
@@ -164,7 +165,7 @@ class SubsonicApi(
         return playlist.copy(actions = PlaylistActions.All)
     }
 
-    suspend fun addToPlaylist(playlistId: String, songId: String): Int {
+    override suspend fun addToPlaylist(playlistId: String, songId: String): Int {
         val current = playlist(playlistId)
         // The server decides on a playlist it did not describe. When it did, do not send a write the
         // owner rule already rules out: Subsonic has no permission flag, and a foreign playlist only
@@ -184,7 +185,7 @@ class SubsonicApi(
      * still holds that song, otherwise the last match, because an append — the Undo case — leaves its
      * copy at the end. Picking the first match instead would rotate the order on `[A, B, C, A]`.
      */
-    suspend fun removeFromPlaylist(playlistId: String, songId: String, index: Int? = null) {
+    override suspend fun removeFromPlaylist(playlistId: String, songId: String, index: Int?) {
         val current = playlist(playlistId)
         if (current != null && !current.actions.canRemoveItems) {
             throw ServiceException(ServiceFailure.NotAllowed, "This playlist belongs to another account")
@@ -197,7 +198,7 @@ class SubsonicApi(
     }
 
     /** Renames a playlist the account owns. */
-    suspend fun renamePlaylist(playlistId: String, name: String) {
+    override suspend fun renamePlaylist(playlistId: String, name: String) {
         val current = playlist(playlistId)
         if (current != null && !current.actions.canRename) {
             throw ServiceException(ServiceFailure.NotAllowed, "This playlist belongs to another account")
@@ -206,7 +207,7 @@ class SubsonicApi(
     }
 
     /** Deletes a playlist the account owns. */
-    suspend fun deletePlaylist(playlistId: String) {
+    override suspend fun deletePlaylist(playlistId: String) {
         val current = playlist(playlistId)
         if (current != null && !current.actions.canDelete) {
             throw ServiceException(ServiceFailure.NotAllowed, "This playlist belongs to another account")
@@ -296,7 +297,7 @@ class SubsonicCatalog(
     private val api: () -> SubsonicApi?,
     private val settings: () -> PlaybackSettings = { PlaybackSettings() }
 ) : MediaCatalog,
-    MediaLibraryWriter {
+    ClientPlaylistWriter {
     override val capabilities: ServiceCapabilities = ServiceCapabilities.Subsonic
 
     private fun client(): SubsonicApi = api() ?: throw ServiceException(ServiceFailure.NotConnected, "Connect your Subsonic server in Settings")
@@ -337,18 +338,15 @@ class SubsonicCatalog(
 
         MediaType.Playlist -> client().playlist(key.id)?.let { playlist ->
             val items = playlist.tracks.drop(offset).take(limit)
-            Collection(
-                type = CollectionType.Playlist,
+            playlistCollection(
                 id = playlist.id,
                 title = playlist.name,
                 subtitle = playlist.owner,
-                artRes = 0,
                 items = items,
                 artUrl = playlist.artUrl,
                 totalItems = playlist.trackCount,
                 hasMore = offset + items.size < playlist.trackCount,
-                saveable = false,
-                playlistActions = playlist.actions,
+                actions = playlist.actions,
                 service = family.id
             )
         }
@@ -425,21 +423,7 @@ class SubsonicCatalog(
 
     override suspend fun setFollowed(artist: MediaKey, followed: Boolean) = Unit
 
-    override suspend fun addToPlaylist(playlist: MediaKey, item: MediaItem): Int? = client().addToPlaylist(playlist.id, item.id)
-
-    override suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int?) {
-        client().removeFromPlaylist(playlist.id, item.id, index)
-    }
-
-    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
-        client().renamePlaylist(playlist.id, name)
-        return true
-    }
-
-    override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
-        client().deletePlaylist(playlist.id)
-        return true
-    }
+    override val playlistTransport: PlaylistTransport get() = client()
 
     override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist? = runCatching {
         client().createPlaylist(name, seed.map { it.id })

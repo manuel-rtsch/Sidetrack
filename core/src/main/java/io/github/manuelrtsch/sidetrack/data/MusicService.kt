@@ -173,6 +173,53 @@ interface MediaLibraryWriter {
 }
 
 /**
+ * The id-level playlist calls a server client makes. Each family spells its ids differently — item
+ * id, song id, rating key — but the four writes have the same shape, which is why the catalogs share
+ * [ClientPlaylistWriter] over this contract.
+ */
+interface PlaylistTransport {
+    /** Appends [itemId] to [playlistId]; returns the index it landed at, when the service reports one. */
+    suspend fun addToPlaylist(playlistId: String, itemId: String): Int?
+
+    /** Removes one occurrence of [itemId]; see [MediaLibraryWriter.removeFromPlaylist]. */
+    suspend fun removeFromPlaylist(playlistId: String, itemId: String, index: Int? = null)
+
+    /** Renames [playlistId]; a refusal is thrown, so the caller can report the service's reason. */
+    suspend fun renamePlaylist(playlistId: String, name: String)
+
+    /** Deletes [playlistId]; a refusal is thrown, so the caller can report the service's reason. */
+    suspend fun deletePlaylist(playlistId: String)
+}
+
+/**
+ * The playlist writes of [MediaLibraryWriter] in terms of the client's [PlaylistTransport].
+ *
+ * The catalog contract passes a [MediaKey] and a [MediaItem]; the client takes ids. A provider whose
+ * client implements [PlaylistTransport] supplies only that client and inherits the unwrapping, plus
+ * the `true` the boolean returns promise once the service has answered. A provider that cannot
+ * express its edits this way (the device library writes local files; Plex names playlist entries
+ * rather than tracks) implements [MediaLibraryWriter] directly instead.
+ */
+interface ClientPlaylistWriter : MediaLibraryWriter {
+    /** The client whose id-level calls perform the writes. */
+    val playlistTransport: PlaylistTransport
+
+    override suspend fun addToPlaylist(playlist: MediaKey, item: MediaItem): Int? = playlistTransport.addToPlaylist(playlist.id, item.id)
+
+    override suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int?) = playlistTransport.removeFromPlaylist(playlist.id, item.id, index)
+
+    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
+        playlistTransport.renamePlaylist(playlist.id, name)
+        return true
+    }
+
+    override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
+        playlistTransport.deletePlaylist(playlist.id)
+        return true
+    }
+}
+
+/**
  * A service this build can provision, whether or not it is the selected one. The picker needs a name
  * before any runtime exists, so identity and label live here; both come from the provider's own
  * constants, so a name cannot drift between the picker and the running service.

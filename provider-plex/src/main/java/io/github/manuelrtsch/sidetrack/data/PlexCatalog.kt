@@ -18,6 +18,7 @@ import io.github.manuelrtsch.sidetrack.ServiceCapabilities
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.playlistCollection
 
 /**
  * Plex's read and write side behind Sidetrack's neutral catalog contracts.
@@ -84,18 +85,15 @@ class PlexCatalog(
                 val playlist = client.item(key.id) ?: return null
                 val page = client.playlistItems(key.id, offset, limit)
                 val total = playlist.leafCount ?: page.total
-                Collection(
-                    type = CollectionType.Playlist,
+                playlistCollection(
                     id = playlist.ratingKey,
                     title = playlist.title,
                     subtitle = PLEX_PLAYLIST_OWNER,
-                    artRes = 0,
                     items = page.items.map { it.toTrack(client) },
                     artUrl = client.artUrl(playlist.composite),
                     totalItems = total,
                     hasMore = offset + page.items.size < total,
-                    saveable = false,
-                    playlistActions = playlist.playlistActions,
+                    actions = playlist.playlistActions,
                     service = ServiceId.Plex
                 )
             }

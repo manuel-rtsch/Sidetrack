@@ -19,6 +19,7 @@ import io.github.manuelrtsch.sidetrack.ServiceCapabilities
 import io.github.manuelrtsch.sidetrack.ServiceId
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
+import io.github.manuelrtsch.sidetrack.playlistCollection
 
 /**
  * The read and write side of Jellyfin behind the neutral catalog contracts.
@@ -34,7 +35,7 @@ class JellyfinCatalog(
     private val api: () -> JellyfinApi?,
     private val settings: () -> PlaybackSettings = { PlaybackSettings() }
 ) : MediaCatalog,
-    MediaLibraryWriter {
+    ClientPlaylistWriter {
     override val capabilities: ServiceCapabilities = ServiceCapabilities.Jellyfin
 
     /** The last resolved playback per item, so the reporter can quote the server's own ids. */
@@ -84,18 +85,15 @@ class JellyfinCatalog(
             val playlist = client().playlist(key.id) ?: return null
             val page = client().playlistItems(key.id, offset, limit)
             val total = playlist.item.childCount?.takeIf { it > 0 } ?: page.total
-            Collection(
-                type = CollectionType.Playlist,
+            playlistCollection(
                 id = playlist.item.id,
                 title = playlist.item.name,
                 subtitle = PLAYLIST_OWNER,
-                artRes = 0,
                 items = page.items.map { it.toTrack(client()) },
                 artUrl = playlist.item.artUrl(client()),
                 totalItems = total,
                 hasMore = offset + page.items.size < total,
-                saveable = false,
-                playlistActions = playlist.actions,
+                actions = playlist.actions,
                 service = ServiceId.Jellyfin
             )
         }
@@ -163,21 +161,7 @@ class JellyfinCatalog(
         client().setFavorite(artist.id, followed)
     }
 
-    override suspend fun addToPlaylist(playlist: MediaKey, item: MediaItem): Int? = client().addToPlaylist(playlist.id, item.id)
-
-    override suspend fun removeFromPlaylist(playlist: MediaKey, item: MediaItem, index: Int?) {
-        client().removeFromPlaylist(playlist.id, item.id, index)
-    }
-
-    override suspend fun renamePlaylist(playlist: MediaKey, name: String): Boolean {
-        client().renamePlaylist(playlist.id, name)
-        return true
-    }
-
-    override suspend fun deletePlaylist(playlist: MediaKey): Boolean {
-        client().deletePlaylist(playlist.id)
-        return true
-    }
+    override val playlistTransport: PlaylistTransport get() = client()
 
     override suspend fun createPlaylist(name: String, seed: List<MediaKey>): Playlist? {
         val client = client()
