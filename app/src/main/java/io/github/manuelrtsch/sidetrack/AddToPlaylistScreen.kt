@@ -63,26 +63,22 @@ fun AddToPlaylistScreen(
         val listState = rememberLazyListState()
         bar.DismissOnScroll(listState)
         val loading = playlists.loading && choices.isEmpty()
+        val nothingToShow = choices.isEmpty() && playlists.loaded && !playlists.hasMore
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-            when {
-                track == null -> StatusScreen(
+            if (track == null) {
+                StatusScreen(
                     "This track is no longer available",
                     hint = "Go back and open it again"
                 )
-
-                loading -> LoadingScreen(title = "Loading playlists…", hint = null)
-
-                loadFailed -> StatusScreen(
-                    "Couldn't load playlists",
-                    hint = playlists.error
+            } else {
+                LoadSurface(
+                    loading = loading,
+                    loadingTitle = "Loading playlists…",
+                    error = playlists.error.takeIf { loadFailed },
+                    errorTitle = "Couldn't load playlists",
+                    emptyTitle = "No playlists you can add to".takeIf { nothingToShow },
+                    emptyHint = "Create one from Library → Playlists"
                 )
-
-                choices.isEmpty() && playlists.loaded && !playlists.hasMore -> StatusScreen(
-                    "No playlists you can add to",
-                    hint = "Create one from Library → Playlists"
-                )
-
-                choices.isNotEmpty() || playlists.hasMore -> Unit
             }
         }
         // A page can hold only read-only playlists; if the service says there is another page,

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,11 +71,27 @@ fun SidetrackArtworkScreen(
     // SDK's cache trim and take the process down.
     val knownNoArtwork = remoteUrl == null && painter == null
     var loadFailed by remember(remoteUrl, artRes) { mutableStateOf(false) }
+    // A retry keeps the same URL, so the fetch effect needs a key of its own to run again.
+    var reloadKey by remember { mutableIntStateOf(0) }
     val unavailable = knownNoArtwork || loadFailed
+    val actions = remember(loadFailed, onBack) {
+        buildList {
+            addAll(sidetrackBack("Back", onBack))
+            // A missing cover is a settled fact, not a failed fetch: only a fetch can be retried.
+            if (loadFailed) {
+                add(
+                    retryAction {
+                        loadFailed = false
+                        reloadKey++
+                    }
+                )
+            }
+        }
+    }
 
     // No title: the image is the page, and the 640 px panel cannot fit a full-width square plus
     // a header above the action bar.
-    SidekitScaffold(title = null, actions = sidetrackBack("Back", onBack)) { padding ->
+    SidekitScaffold(title = null, actions = actions) { padding ->
         if (unavailable) {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 StatusScreen(
@@ -99,6 +116,7 @@ fun SidetrackArtworkScreen(
                                 remoteUrl,
                                 label,
                                 Modifier.fillMaxSize(),
+                                reloadKey = reloadKey,
                                 onUnavailable = { loadFailed = true }
                             )
 
@@ -128,6 +146,7 @@ private fun RemoteArtworkContent(
     url: String,
     label: String,
     modifier: Modifier = Modifier,
+    reloadKey: Int = 0,
     onUnavailable: () -> Unit
 ) {
     val context = LocalContext.current.applicationContext
@@ -139,7 +158,7 @@ private fun RemoteArtworkContent(
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val widthPx = with(density) { maxWidth.roundToPx() }
         val heightPx = with(density) { maxHeight.roundToPx() }
-        LaunchedEffect(url, widthPx, heightPx, headers) {
+        LaunchedEffect(url, widthPx, heightPx, headers, reloadKey) {
             if (inspection || widthPx <= 0 || heightPx <= 0) return@LaunchedEffect
             val loaded: Bitmap? = try {
                 RemoteArtwork.cached(context, url, widthPx, heightPx, headers)

@@ -476,24 +476,14 @@ fun SearchResultsScreen(
             }
             return@SidekitScaffold
         }
-        if (failed) {
+        if (failed || loading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                StatusScreen(
-                    "Couldn't search",
-                    hint = search.searchError
+                LoadSurface(
+                    loading = loading,
+                    loadingTitle = "Searching for \"$query\"…",
+                    error = if (failed) search.searchError else null,
+                    errorTitle = "Couldn't search"
                 )
-            }
-            return@SidekitScaffold
-        }
-        if (loading) {
-            SidekitList(padding, state = listState) {
-                item(key = "loading") {
-                    EmptyMessage(
-                        "Searching for \"$query\"",
-                        Modifier.listFade(listState, 0),
-                        hint = "Searching"
-                    )
-                }
             }
             return@SidekitScaffold
         }

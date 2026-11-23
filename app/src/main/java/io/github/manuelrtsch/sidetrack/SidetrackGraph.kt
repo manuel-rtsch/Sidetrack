@@ -65,19 +65,14 @@ internal fun MissingCollectionScreen(
             androidx.compose.ui.Modifier.fillMaxSize().padding(padding),
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
-            when {
-                loading -> LoadingScreen(title = loadingTitle)
-
-                error != null -> StatusScreen(
-                    errorTitle,
-                    hint = error
-                )
-
-                else -> StatusScreen(
-                    missingTitle,
-                    hint = "Go back and choose another item"
-                )
-            }
+            LoadSurface(
+                loading = loading,
+                loadingTitle = loadingTitle,
+                error = error,
+                errorTitle = errorTitle,
+                emptyTitle = missingTitle,
+                emptyHint = "Go back and choose another item"
+            )
         }
     }
 }

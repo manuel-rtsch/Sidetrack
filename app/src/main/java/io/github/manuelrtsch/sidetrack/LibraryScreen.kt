@@ -146,22 +146,14 @@ fun LibraryScreen(
                     Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    when {
-                        loading -> LoadingScreen(
-                            title = "Loading ${filter.label.lowercase()}…",
-                            hint = null
-                        )
-
-                        library.libraryError != null -> StatusScreen(
-                            "Couldn't load ${filter.label.lowercase()}",
-                            hint = library.libraryError
-                        )
-
-                        else -> StatusScreen(
-                            filter.empty,
-                            hint = "Search to find something to save"
-                        )
-                    }
+                    LoadSurface(
+                        loading = loading,
+                        loadingTitle = "Loading ${filter.label.lowercase()}…",
+                        error = library.libraryError,
+                        errorTitle = "Couldn't load ${filter.label.lowercase()}",
+                        emptyTitle = filter.empty,
+                        emptyHint = "Search to find something to save"
+                    )
                 }
             }
         } else {

@@ -82,8 +82,8 @@ cosmetic:
   screen now renders it (see *Sign-in pending state* below).
 - `librarySectionsLoading` and `librarySectionsError` were written by the post-sign-in prefetch
   and were unreachable from any screen; both fields are gone.
-- Search shows a text-only `EmptyMessage` where every other first load shows the record
-  (`SearchScreen.kt:488-497`), and that row is not announced.
+- Search used to show a text-only `EmptyMessage` where every other first load shows the record;
+  it now uses the shared surface.
 - A failed load-more permanently drops the rest of the list (`hasMore = false`,
   `LibraryController.kt:574-611` and `:120-148`) while a failed first page offers Try again.
 - Playback has `isPlaying` and `isBuffering` but no "starting": the now-playing UI claims to play
@@ -133,29 +133,31 @@ no-visual-change reviews.
 
 ### One renderer
 
-- [ ] **`MissingCollectionScreen` grows into `LoadSurface`** — it already takes
-  `loading`/`loadingTitle`/`error`/`onRetry` and is the only place that renders the full-page
-  record with a retry action. Add `empty` content and use it for Library, Search and
-  Add-to-playlist too (the two radio routes already go through it), deleting their four copies of
-  the `when` ladder. Retry stays in the action bar, not in the block: that is the existing contract
-  (`StatusScreens.kt:124-127`).
-- [ ] **Search first load uses the record** — `LoadSurface(loading = searchPending && results empty)`
-  with the query in the hint; drop the `EmptyMessage` loading case. Empty results keep the plain
-  row, since that is a settled state.
+- [x] **`MissingCollectionScreen` grows into `LoadSurface`** — `StatusScreens.kt` now owns the
+  loading/error/empty switch, and `MissingCollectionScreen`, Library, Search and Add-to-playlist all
+  route through it; a null `emptyTitle` keeps Add-to-playlist's transient nothing-yet state blank
+  instead of claiming the account has no playlists. Retry stays in the action bar, not in the block.
+  The collection route lost its old "Fetching" hint: no other first load carried one.
+- [x] **Search first load uses the record** — the query is the title; the category row and the
+  `EmptyMessage` loading case are gone. Empty results still keep the plain row, since that is a
+  settled state. Covered by `SearchLoadingTest`.
 - [ ] **Load-more failures keep `hasMore`** — the footer becomes a retry row (`Couldn't load more ·
-  Try again`) instead of ending the list. Clear `hasMore` only when the catalog says so, and only
-  retry on a click, never on scroll, so a dead endpoint cannot loop.
-- [ ] **Artwork screen** — add the retry action to the bar alongside Back. The manual loader already
-  reports failure (`SidetrackArtworkScreen.kt:124-175`); it just has nowhere to go today.
+  Try again`) instead of ending the list. This needs a per-key failure record first, so it lands
+  with `TaskState`; clearing `hasMore` stays for a catalog that says the page is the last one. Retry
+  only on a click, never on scroll, so a dead endpoint cannot loop.
+- [x] **Artwork screen** — a failed remote fetch now offers Try again in the bar. The retry keeps
+  the URL and bumps a reload key, so the fetch effect runs again; a known-missing cover keeps Back
+  as the only action because there is nothing to retry.
 - [x] **Sign-in pending state** — `authPending` drives `LoadingScreen` with "Waiting for
   <service>…", "Signing in…" or "Waiting for access…" and clears back to the form (values kept)
   when the attempt settles. The action bar stays live because a second press deliberately supersedes
   a stale browser attempt (`AccountController.startSignIn`); disabling it would remove that
   recovery. Covered by `SignInPendingTest`.
-- [ ] **Slow hint, no artificial delay** — one helper swaps the hint to "Still loading…" after 8 s.
-  Do not delay the record: every first-load branch only renders when there is nothing cached, so
-  there is no flash to hide. Do not add a minimum display time either; it would slow the
-  common case to flatter the rare one.
+- [x] **Slow hint, no artificial delay** — `LoadSurface` swaps its hint to "Still loading…" after
+  8 s. Sign-in is the one screen with a more useful hint ("Finish in the browser") and calls
+  `LoadingScreen` directly, so it keeps it. Do not delay the record: every first-load branch only
+  renders when there is nothing cached, so there is no flash to hide. Do not add a minimum display
+  time either; it would slow the common case to flatter the rare one.
 
 ### Writes and playback
 
@@ -209,9 +211,10 @@ no-visual-change reviews.
 - No global connectivity banner. Catalog failures already become page errors with retry or a
   notice with the provider's message; a banner would duplicate both.
 
-The first slice has landed (sign-in pending and the dead section fields). Land the rest in this
-order, each shippable on its own: `LoadSurface` over the existing flags, then `TaskState`, then
-writes and `transport`, then semantics and tests.
+Two slices have landed: sign-in pending with the dead section fields, then `LoadSurface` with the
+search record, the artwork retry and the slow hint. Land the rest in this order, each shippable on
+its own: `TaskState` (with the load-more retry it enables), then writes and `transport`, then
+semantics and tests.
 
 ## Code duplication
 

@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.components.SidekitText
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import kotlinx.coroutines.delay
 
 /**
  * The vinyl record used by the loading and status screens. It is drawn once and can be rotated by
@@ -189,5 +193,55 @@ fun StatusScreen(
                 )
             }
         }
+    }
+}
+
+/** How long a first load may run before the surface admits it is slow. */
+private const val SLOW_LOAD_MS = 8_000L
+
+/**
+ * The one status surface for a region with nothing else to show: loading, failed, or settled
+ * empty. Both states come from [LoadingScreen] and [StatusScreen], so a library page, a search and
+ * a playlist picker wait and fail in the same shape instead of each owning a branch of the same
+ * `when`.
+ *
+ * Retry is deliberately absent: the screen's action bar owns it (see [StatusScreen]), and a caller
+ * with no retry simply passes none.
+ *
+ * [emptyTitle] is null for a caller that has a transient nothing-yet state (an initial fetch that
+ * has not marked itself loading); it then renders nothing rather than claiming the region is
+ * empty. [loadingTitle] is required because "Loading…" never says what is loading.
+ */
+@Composable
+internal fun LoadSurface(
+    loading: Boolean,
+    loadingTitle: String,
+    modifier: Modifier = Modifier,
+    loadingHint: String? = null,
+    error: String? = null,
+    errorTitle: String = "Couldn't load this",
+    emptyTitle: String? = null,
+    emptyHint: String? = null
+) {
+    // A slow request gets one honest sentence after a while, without a second state machine: the
+    // timer only matters while this surface is showing a load.
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(loading, loadingTitle) {
+        slow = false
+        if (loading) {
+            delay(SLOW_LOAD_MS)
+            slow = true
+        }
+    }
+    when {
+        loading -> LoadingScreen(
+            modifier,
+            title = loadingTitle,
+            hint = if (slow) "Still loading…" else loadingHint
+        )
+
+        error != null -> StatusScreen(errorTitle, modifier, hint = error)
+
+        emptyTitle != null -> StatusScreen(emptyTitle, modifier, hint = emptyHint)
     }
 }
