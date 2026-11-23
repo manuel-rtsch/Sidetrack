@@ -121,9 +121,11 @@ no-visual-change reviews.
   its "still loading — try again" guard is now the registry's dedupe. Sign-out is
   `tasks.cancelAll()` alone: the old flags survived a cancellation whose block never ran, because
   only a store update inside the block cleared them.
-- [ ] **Radio stops inferring** — `loading = pending || error == null` (`SidetrackPlaybackGraph.kt`)
-  becomes `running` or `(content == null && no error)`; a request that ends without a result can no
-  longer spin forever. The running half is already available.
+- [x] **Radio stops inferring** — the station screens read `RadioUiState.songStation(seed)` and
+  `artistStation(id)` instead of `pending || error == null`. The seed (or artist) a request stamps
+  before it runs is the attempt's identity, so a stamped request with no station and no error is
+  over rather than still working, and the screen settles on the missing state. A station and an
+  error built for another artist stay off this artist's screen. Covered by `RadioStationStateTest`.
 - [x] **Delete the section-prefetch fields** — the prefetch is a cache warmer whose failure the
   Library's own first page already surfaces. `librarySectionsLoading`, `librarySectionsError` and
   the `catch` that stored them are gone; a failed preview now reports through the notice, including

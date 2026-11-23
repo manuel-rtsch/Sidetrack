@@ -95,16 +95,17 @@ internal fun NavGraphBuilder.playbackGraph(
         val playback by vm.playbackState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) { vm.ensureRadio() }
-        val radio = radioState.radio
+        // The seed is the attempt's identity; before the request stamps it, the screen is loading
+        // rather than empty, and one that ended without a station settles on the missing state.
+        val station = radioState.songStation(playback.current?.id)
+        val radio = station.station
         if (radio == null) {
             MissingCollectionScreen(
                 onBack = { nav.popBackStack() },
                 title = "Song radio",
-                // Before the LaunchedEffect runs there is no request state yet; treat that
-                // first frame as loading instead of flashing the empty station message.
-                loading = radioState.radioPending || radioState.radioError == null,
+                loading = station.loading,
                 loadingTitle = "Starting radio",
-                error = radioState.radioError,
+                error = station.error,
                 errorTitle = "Couldn't start song radio",
                 missingTitle = "No radio for this track",
                 onRetry = vm::retryRadio
@@ -132,17 +133,17 @@ internal fun NavGraphBuilder.playbackGraph(
             val vm = route.vm
             val radioState by vm.radioState.collectAsStateWithLifecycle()
             LaunchedEffect(artist.id) { vm.ensureArtistRadio(artist) }
-            // A station built for another artist is not this screen's station, even before the
-            // request above has reset the state.
-            val radio = radioState.artistRadio?.takeIf { radioState.artistRadioArtistId == artist.id }
+            // A station built for another artist is not this screen's station, nor is its error:
+            // the identity of the attempt is what says the request has settled.
+            val station = radioState.artistStation(artist.id)
+            val radio = station.station
             if (radio == null) {
                 MissingCollectionScreen(
                     onBack = { nav.popBackStack() },
                     title = "Artist radio",
-                    // Before the LaunchedEffect runs there is no request state yet.
-                    loading = radioState.artistRadioPending || radioState.artistRadioError == null,
+                    loading = station.loading,
                     loadingTitle = "Starting radio",
-                    error = radioState.artistRadioError,
+                    error = station.error,
                     errorTitle = "Couldn't start artist radio",
                     missingTitle = "No radio for this artist",
                     onRetry = { vm.retryArtistRadio(artist) }

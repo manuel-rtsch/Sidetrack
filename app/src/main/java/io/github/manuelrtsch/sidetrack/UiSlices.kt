@@ -124,6 +124,52 @@ data class RadioUiState(
     val artistRadioError: String? = null
 )
 
+/**
+ * What a station screen has to show: the station once it exists, the load while it does not, and
+ * the reason it ended without one.
+ *
+ * The screen renders [station] when it is non-null and the [loading]/[error]/empty ladder of
+ * [LoadSurface] otherwise, so it never has to answer "is this still working" on its own.
+ */
+internal data class StationScreenState(
+    val station: Collection?,
+    val loading: Boolean,
+    val error: String?
+)
+
+/**
+ * The song station for [seedId], and whether it is still being requested.
+ *
+ * A request stamps its seed before it runs, so the seed is the attempt's identity: a matching
+ * seed with no station and no error is an attempt that is over without a result (cancelled, or
+ * superseded), not one still on its way. Inferring the load from the absence of an error instead
+ * left that screen spinning forever, because nothing would ever write one.
+ */
+internal fun RadioUiState.songStation(seedId: String?): StationScreenState {
+    val attempted = seedId != null && radioSeedId == seedId
+    val station = radio.takeIf { attempted }
+    return StationScreenState(
+        station = station,
+        loading = radioPending || (station == null && radioError == null && !attempted),
+        error = radioError.takeIf { station == null }
+    )
+}
+
+/**
+ * The artist station for [artistId]. A station built for another artist is not this screen's, and
+ * neither is its error: the screen is about to ask for its own.
+ */
+internal fun RadioUiState.artistStation(artistId: String): StationScreenState {
+    val attempted = artistRadioArtistId == artistId
+    val station = artistRadio.takeIf { attempted }
+    val error = artistRadioError.takeIf { attempted }
+    return StationScreenState(
+        station = station,
+        loading = artistRadioPending || (station == null && error == null && !attempted),
+        error = error.takeIf { station == null }
+    )
+}
+
 val SidetrackUiState.playback: PlaybackUiState
     get() = PlaybackUiState(current, upcoming, history, recent, isPlaying, isBuffering, shuffle, repeat)
 
