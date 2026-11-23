@@ -308,10 +308,22 @@ waiting to happen, duplicated test setup is mostly a patience tax.
 
 ### Test and demo
 
-- [ ] **`FictionalPack.kt` ↔ `RealPack.kt`** — 2057 tokens in three blocks, the largest single
-  finding in the repo. Two demo catalogues sharing their whole construction; parameterise one
-  builder over two data sets. Both also duplicate five blocks against `MockSpotifyDataSource.kt`
-  (up to 251 tokens).
+- [x] **`FictionalPack.kt` ↔ `RealPack.kt`** — the two packs are now data only. `DemoLibrary` holds
+  what a pack serves and `PackedCatalog` holds everything the fixture does with it — the paging, the
+  lookups, radio, search, the library filters, the in-memory saves and the history/queue seed — so a
+  behaviour cannot land in one pack and not the other. The five invented shows both packs carried
+  are `sharedShows(uri)`, because only each pack's own first show and the URI its episodes play ever
+  differed. `FictionalPack` and `RealPack` keep their titles, artwork, playback URIs and doc
+  comments. Their own blocks are gone from the report; budget lowered from 640 to 420, which also
+  covers the two providers' and native moves above.
+- [ ] **The packs ↔ `MockSpotifyDataSource.kt`** — 595 tokens in four blocks, and the reason they are
+  still there is that they cannot be shared yet: the packs live in `app/src/demo` and the mock in
+  `app/src/test`, and no source set sees both (`src/test` compiles for `debug`, where the demo
+  sources are not on the classpath, and the demo content must stay unreferenceable from `main`). The
+  mock is the fictional pack with different durations, so the fix is to delete it, not to reformat
+  it. That needs the mock's users — 23 test classes — to run as demo-variant unit tests, or a
+  fixtures source set that carries the fictional catalogue and its cover drawables into both. Both
+  are the test-fixture move in the rebalance above; do not rewrite the mock's lists in the meantime.
 - [ ] **Compose library test setup** — `ArtistLibraryGutterTest` /
   `LibraryFilterRowTest` / `LibraryCategorySwitchFocusTest` share ~150 tokens at `:36`; same shape
   for `SearchCategorySwitchFocusTest` ↔ `SearchFilterRowTest` (100) and
