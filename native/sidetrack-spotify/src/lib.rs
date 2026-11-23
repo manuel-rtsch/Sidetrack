@@ -7,10 +7,35 @@ mod engine;
 use jni::objects::{JObject, JString};
 use jni::sys::{jboolean, jbyteArray, jlong, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
+use librespot_core::Session;
 use std::time::Duration;
 
 fn string(env: &mut JNIEnv, value: &JString) -> Option<String> {
     env.get_string(value).ok().map(Into::into)
+}
+
+/// The `(id, uris)` pair every playlist mutation takes: both strings, the URIs as a JSON array.
+/// `None` means an argument did not cross the bridge; the caller returns its empty value.
+fn uri_args(env: &mut JNIEnv, id: &JString, uris: &JString) -> Option<(String, Vec<String>)> {
+    let id = string(env, id)?;
+    let uris: Vec<String> = serde_json::from_str(&string(env, uris)?).unwrap_or_default();
+    Some((id, uris))
+}
+
+/// Reads those two arguments, runs `call` inside the session and answers as a JSON result string.
+/// A missing argument or a failed call becomes the usual error JSON, so no entry point has to
+/// check for one.
+fn uri_list_call(
+    env: &mut JNIEnv,
+    id: JString,
+    uris: JString,
+    call: impl FnOnce(&Session, &str, &str, &[String]) -> Result<String, String>,
+) -> jstring {
+    let Some((id, uris)) = uri_args(env, &id, &uris) else {
+        return std::ptr::null_mut();
+    };
+    let result = engine::with_session_and_token(|session, token| call(session, token, &id, &uris));
+    catalog_result(env, result)
 }
 
 fn new_string(env: &mut JNIEnv, value: &str) -> jstring {
@@ -437,14 +462,9 @@ pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_
     set: JString,
     uris: JString,
 ) -> jni::sys::jstring {
-    let (Some(set), Some(uris)) = (string(&mut env, &set), string(&mut env, &uris)) else {
-        return std::ptr::null_mut();
-    };
-    let uris: Vec<String> = serde_json::from_str(&uris).unwrap_or_default();
-    let result = engine::with_session_and_token(|session, token| {
-        engine::run(catalog::collection_contains(session, token, &set, &uris))
-    });
-    catalog_result(&mut env, result)
+    uri_list_call(&mut env, set, uris, |session, token, set, uris| {
+        engine::run(catalog::collection_contains(session, token, set, uris))
+    })
 }
 
 #[no_mangle]
@@ -455,10 +475,9 @@ pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_
     uris: JString,
     removed: jboolean,
 ) -> jboolean {
-    let (Some(set), Some(uris)) = (string(&mut env, &set), string(&mut env, &uris)) else {
+    let Some((set, uris)) = uri_args(&mut env, &set, &uris) else {
         return JNI_FALSE;
     };
-    let uris: Vec<String> = serde_json::from_str(&uris).unwrap_or_default();
     let result = engine::with_session_and_token(|session, token| {
         engine::run(catalog::collection_write(
             session,
@@ -515,15 +534,10 @@ pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_
     id: JString,
     uris: JString,
 ) -> jni::sys::jstring {
-    let (Some(id), Some(uris)) = (string(&mut env, &id), string(&mut env, &uris)) else {
-        return std::ptr::null_mut();
-    };
-    let uris: Vec<String> = serde_json::from_str(&uris).unwrap_or_default();
-    let result = engine::with_session_and_token(|session, token| {
-        engine::run(catalog::playlist_items_add(session, token, &id, &uris))
+    uri_list_call(&mut env, id, uris, |session, token, id, uris| {
+        engine::run(catalog::playlist_items_add(session, token, id, uris))
             .and_then(|index| serde_json::to_string(&index).map_err(|e| e.to_string()))
-    });
-    catalog_result(&mut env, result)
+    })
 }
 
 #[no_mangle]
@@ -533,15 +547,10 @@ pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_
     id: JString,
     uris: JString,
 ) -> jni::sys::jstring {
-    let (Some(id), Some(uris)) = (string(&mut env, &id), string(&mut env, &uris)) else {
-        return std::ptr::null_mut();
-    };
-    let uris: Vec<String> = serde_json::from_str(&uris).unwrap_or_default();
-    let result = engine::with_session_and_token(|session, token| {
-        engine::run(catalog::playlist_items_remove(session, token, &id, &uris))
+    uri_list_call(&mut env, id, uris, |session, token, id, uris| {
+        engine::run(catalog::playlist_items_remove(session, token, id, uris))
             .map(|()| "ok".to_string())
-    });
-    catalog_result(&mut env, result)
+    })
 }
 
 #[no_mangle]

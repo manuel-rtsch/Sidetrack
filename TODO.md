@@ -296,8 +296,12 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   in `SidetrackUiState` to be re-listed, and `LibraryUiState` now projects them from the registry.
   Budget lowered from 676 to 668, which also absorbs the paging fakes the two list tests now share
   as `PagingCatalog`.
-- [ ] **`lib.rs` ↔ `lib.rs`** — 112 tokens between the JNI entry points the report cited at lines
-  512 and 530 before the address move shifted the file.
+- [x] **`lib.rs` JNI entry points** — `uri_args` reads the `(id, uris)` pair every playlist mutation
+  takes and `uri_list_call` runs the catalogue call inside the session and answers as a JSON result,
+  so the four `*Contains`/`*Write`/`ItemsAdd`/`ItemsRemove` entry points are one closure each instead
+  of the same six-line marshalling block. `CollectionWrite` answers a boolean rather than a result
+  string, so it takes `uri_args` alone and keeps its own reply; the single-argument and name-taking
+  entry points never read a pair. The Rust report is empty now; budget lowered from 652 to 640.
 - [x] **`EpisodeMeta`/`EpisodeProgress` file envelope** — the magic/version/count frame, the atomic
   replace and the version-1 service fallback now live in `EpisodeFileFrame`; only the record body
   differs. Budget lowered from 824 to 800. Covered by `EpisodeMetaStoreTest`.
