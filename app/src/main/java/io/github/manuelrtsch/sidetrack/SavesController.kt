@@ -24,6 +24,34 @@ internal class SavesController(
 
     private fun catalogNotice(error: Exception): String = catalogMessage(error, online())
 
+    /**
+     * The one optimistic write: [apply] renders the new value now, [write] tells the service, and a
+     * failure renders the *old* value through the same lambda and says why.
+     *
+     * Taking the value to render rather than separate flip and undo lambdas keeps the rollback
+     * from drifting away from the forward move. The write runs under [key], so a rapid second tap
+     * supersedes the first: the state already shows the newer intent, and only that intent reaches
+     * the service. A service with no writer still flips locally; there is nothing to tell.
+     */
+    private fun optimistic(
+        key: TaskKey,
+        desired: Boolean,
+        apply: (SidetrackUiState, Boolean) -> SidetrackUiState,
+        write: suspend (MediaLibraryWriter) -> Unit
+    ) {
+        store.update { apply(it, desired) }
+        val writer = writer ?: return
+        tasks.restart(key) {
+            try {
+                write(writer)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                store.update { apply(it, !desired).say(catalogNotice(e)) }
+            }
+        }
+    }
+
     fun toggleSaveCurrent() {
         val track = store.value.current as? Track ?: return
         toggleTrackSaved(track.id, track)
@@ -36,42 +64,23 @@ internal class SavesController(
         track: Track?
     ) {
         val savedKey = mediaKeys.track(id).encode()
-        val wasSaved = savedKey in store.value.savedTrackIds
-        val saved = !wasSaved
+        val desired = savedKey !in store.value.savedTrackIds
         hints.markTrack(savedKey)
-        store.update {
-            val ids = it.savedTrackIds.toMutableSet()
-            if (saved) ids.add(savedKey) else ids.remove(savedKey)
-            var next = it.copy(savedTrackIds = ids)
-            next = if (saved) {
-                track?.let { item -> next.withLibraryItemAdded(LibraryFilter.LikedSongs, item, mediaKeys) } ?: next
-            } else {
-                next.withLibraryItemRemoved(LibraryFilter.LikedSongs, id, mediaKeys)
-            }
-            next
-        }
-        val writer = writer ?: return
-        // The toggle is optimistic, so a rapid second tap has already flipped the state back: the
-        // newer write supersedes the older one and only it decides what the service ends up with.
-        tasks.restart(TaskKey.Action(TaskKey.Action.Kind.Save, savedKey)) {
-            try {
-                writer.setSaved(mediaKeys.track(id), saved)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                store.update {
-                    val ids = it.savedTrackIds.toMutableSet()
-                    if (wasSaved) ids.add(savedKey) else ids.remove(savedKey)
-                    var next = it.copy(savedTrackIds = ids).say(catalogNotice(e))
-                    next = if (wasSaved) {
-                        track?.let { item -> next.withLibraryItemAdded(LibraryFilter.LikedSongs, item, mediaKeys) } ?: next
-                    } else {
-                        next.withLibraryItemRemoved(LibraryFilter.LikedSongs, id, mediaKeys)
-                    }
-                    next
+        optimistic(
+            key = TaskKey.Action(TaskKey.Action.Kind.Save, savedKey),
+            desired = desired,
+            apply = { state, saved ->
+                val ids = state.savedTrackIds.toMutableSet()
+                if (saved) ids.add(savedKey) else ids.remove(savedKey)
+                val next = state.copy(savedTrackIds = ids)
+                if (saved) {
+                    track?.let { item -> next.withLibraryItemAdded(LibraryFilter.LikedSongs, item, mediaKeys) } ?: next
+                } else {
+                    next.withLibraryItemRemoved(LibraryFilter.LikedSongs, id, mediaKeys)
                 }
-            }
-        }
+            },
+            write = { writer -> writer.setSaved(mediaKeys.track(id), desired) }
+        )
     }
 
     fun savedCollection(collection: Collection): Boolean = mediaKeys.collection(collection.type, collection.id) in store.value.savedCollectionKeys
@@ -80,39 +89,24 @@ internal class SavesController(
 
     private fun toggleSaved(type: CollectionType, id: String, collection: Collection) {
         val key = mediaKeys.collection(type, id)
-        val wasSaved = key in store.value.savedCollectionKeys
-        val saved = !wasSaved
+        val desired = key !in store.value.savedCollectionKeys
         val addedItem = libraryItemFor(collection)
         hints.markCollection(key)
-        store.update {
-            val keys = it.savedCollectionKeys.toMutableSet()
-            if (saved) keys.add(key) else keys.remove(key)
-            val next = it.copy(savedCollectionKeys = keys)
-            if (saved) {
-                addedItem?.let { item -> next.withLibraryItemAdded(libraryFilterFor(type), item, mediaKeys) } ?: next
-            } else {
-                next.withLibraryItemRemoved(libraryFilterFor(type), id, mediaKeys)
-            }
-        }
-        val writer = writer ?: return
-        tasks.restart(TaskKey.Action(TaskKey.Action.Kind.Save, key)) {
-            try {
-                writer.setSaved(mediaKeys.media(type, id), saved)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                store.update {
-                    val keys = it.savedCollectionKeys.toMutableSet()
-                    if (wasSaved) keys.add(key) else keys.remove(key)
-                    val next = it.copy(savedCollectionKeys = keys).say(catalogNotice(e))
-                    if (wasSaved) {
-                        addedItem?.let { item -> next.withLibraryItemAdded(libraryFilterFor(type), item, mediaKeys) } ?: next
-                    } else {
-                        next.withLibraryItemRemoved(libraryFilterFor(type), id, mediaKeys)
-                    }
+        optimistic(
+            key = TaskKey.Action(TaskKey.Action.Kind.Save, key),
+            desired = desired,
+            apply = { state, saved ->
+                val keys = state.savedCollectionKeys.toMutableSet()
+                if (saved) keys.add(key) else keys.remove(key)
+                val next = state.copy(savedCollectionKeys = keys)
+                if (saved) {
+                    addedItem?.let { item -> next.withLibraryItemAdded(libraryFilterFor(type), item, mediaKeys) } ?: next
+                } else {
+                    next.withLibraryItemRemoved(libraryFilterFor(type), id, mediaKeys)
                 }
-            }
-        }
+            },
+            write = { writer -> writer.setSaved(mediaKeys.media(type, id), desired) }
+        )
     }
 
     fun followed(artist: Artist): Boolean = mediaKeys.artist(artist.id).encode() in store.value.followedArtistIds
@@ -120,38 +114,23 @@ internal class SavesController(
     fun toggleFollow(artist: Artist) {
         val id = artist.id
         val followedKey = mediaKeys.artist(id).encode()
-        val wasFollowing = followedKey in store.value.followedArtistIds
-        val following = !wasFollowing
+        val desired = followedKey !in store.value.followedArtistIds
         hints.markFollow(followedKey)
-        store.update {
-            val ids = it.followedArtistIds.toMutableSet()
-            if (following) ids.add(followedKey) else ids.remove(followedKey)
-            val next = it.copy(followedArtistIds = ids)
-            if (following) {
-                next.withLibraryItemAdded(LibraryFilter.Artists, artist, mediaKeys)
-            } else {
-                next.withLibraryItemRemoved(LibraryFilter.Artists, id, mediaKeys)
-            }
-        }
-        val writer = writer ?: return
-        tasks.restart(TaskKey.Action(TaskKey.Action.Kind.Follow, followedKey)) {
-            try {
-                writer.setFollowed(mediaKeys.artist(id), following)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                store.update {
-                    val ids = it.followedArtistIds.toMutableSet()
-                    if (wasFollowing) ids.add(followedKey) else ids.remove(followedKey)
-                    val next = it.copy(followedArtistIds = ids).say(catalogNotice(e))
-                    if (wasFollowing) {
-                        next.withLibraryItemAdded(LibraryFilter.Artists, artist, mediaKeys)
-                    } else {
-                        next.withLibraryItemRemoved(LibraryFilter.Artists, id, mediaKeys)
-                    }
+        optimistic(
+            key = TaskKey.Action(TaskKey.Action.Kind.Follow, followedKey),
+            desired = desired,
+            apply = { state, following ->
+                val ids = state.followedArtistIds.toMutableSet()
+                if (following) ids.add(followedKey) else ids.remove(followedKey)
+                val next = state.copy(followedArtistIds = ids)
+                if (following) {
+                    next.withLibraryItemAdded(LibraryFilter.Artists, artist, mediaKeys)
+                } else {
+                    next.withLibraryItemRemoved(LibraryFilter.Artists, id, mediaKeys)
                 }
-            }
-        }
+            },
+            write = { writer -> writer.setFollowed(mediaKeys.artist(id), desired) }
+        )
     }
 
     /**

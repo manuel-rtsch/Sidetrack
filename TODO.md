@@ -178,9 +178,12 @@ no-visual-change reviews.
   registry's refusal is the guard; the row tap returns early too. `ClearCache` is the one kind not
   wired yet, because that item below owns its failure path. Covered by `TaskRegistryTest` and the
   two double-submit cases in `PlaylistControllerTest`.
-- [ ] **`runOptimistic`** — the flip → call → rollback + notice shape exists three times in
-  `SavesController` and again in `PlaylistController.add`; one helper owns it. Notice wording stays
-  the callers'.
+- [x] **`runOptimistic`** — `SavesController.optimistic` owns the flip → call → rollback + notice
+  shape for the track, collection and artist toggles. The lambda renders the value it is given
+  rather than coming in two halves, so a rollback cannot drift from the move it undoes; the notice
+  wording stays the caller's. `PlaylistController.add` no longer has the shape: it patches the
+  count only after the service confirms, so there is nothing to roll back. Covered by
+  `SavesControllerTest`.
 - [x] **Clear cache gets a failure path** — `SettingsController.clearCache` runs under
   `Action(ClearCache)`: a throwing directory becomes "Couldn't clear the cache" in the bar instead
   of a crash, a second press while it runs is refused, and the size is re-read in `finally` — a
