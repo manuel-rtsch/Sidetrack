@@ -1,5 +1,8 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.runtime.Composable
+import io.github.manuelrtsch.sidetrack.playback.SleepTimerState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -33,5 +36,54 @@ internal fun screenshotState(): SidetrackUiState {
         transport = Transport.Playing,
         savedTrackIds = setOf(current.id),
         filter = LibraryFilter.Albums
+    )
+}
+
+/** The Home screen at one point of the player, as both screenshot suites shoot it. */
+@Composable
+internal fun HomeShot(state: SidetrackUiState, sleepTimer: SleepTimerState) {
+    SidetrackHomeScreen(
+        state.playback,
+        state.chrome,
+        sleepTimer = MutableStateFlow(sleepTimer),
+        onNowPlaying = {},
+        onLibrary = {},
+        onSearch = {},
+        onSettings = {},
+        onPlay = {},
+        onOpenQueue = {},
+        onAddToQueue = {},
+        onRemoveHistory = { null },
+        onHistory = {},
+        onDismissNotice = {},
+        onDismissNowPlaying = {}
+    )
+}
+
+/** The Library with its albums page, as both screenshot suites shoot it. */
+@Composable
+internal fun LibraryShot(state: SidetrackUiState) {
+    LibraryScreen(
+        state.library,
+        state.saved,
+        state.chrome,
+        onBack = {},
+        onSearch = {},
+        onFilter = {},
+        onTrack = {},
+        onAddToQueue = {},
+        onPlaylist = {},
+        onAlbum = {},
+        onArtist = {},
+        onShow = {},
+        onSaveTrack = {},
+        onEnsureSavedTrack = {},
+        onLoadMore = {},
+        onNowPlaying = {},
+        onRetry = {},
+        onCreatePlaylist = {},
+        canCreatePlaylist = false,
+        onDismissNotice = {},
+        onDismissNowPlaying = {}
     )
 }

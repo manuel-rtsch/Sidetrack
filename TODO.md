@@ -332,8 +332,11 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   `show(LibraryFilter.Albums)`. The tests keep their own driver methods, so a screen change lands in
   one place and the assertions stay where they belong. Budget lowered from 420 to 298: the clones
   were larger than the estimate, and the search field pair (97) came with them.
-- [ ] **Screenshot harness** — `SidetrackScreenshotTest` ↔ `StoreScreenshotTest`, 229 tokens over
-  two blocks.
+- [x] **Screenshot harness** — the two suites differ only in the frame they render inside
+  (`SidekitPreviewFrame` against the Lavender case in keypad mode), so the screens they shoot twice
+  are now `HomeShot(state, sleepTimer)` and `LibraryShot(state)` in `ScreenshotFixtures.kt`. Both
+  suites name the shot and the one thing it varies: six Home variants and the Library. The
+  baselines did not move. Budget lowered from 298 to 227.
 - [ ] **Spotify native test fakes** — `NativeSpotifyGatewayTest` ↔ `SpotifyAudioSinkTest` ↔
   `SpotifySessionNativeTest`, four blocks between 106 and 193 tokens.
 - [ ] **`RecordingServiceRuntime` ↔ `ServiceRuntimeExtensionsTest`** — 191 tokens over two blocks.

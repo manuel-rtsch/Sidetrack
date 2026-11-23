@@ -72,48 +72,11 @@ class StoreScreenshotTest {
     private fun field(owner: Class<*>, name: String) = owner.getDeclaredField(name).apply { isAccessible = true }
 
     @Test fun home() = shoot("sidetrack_home") {
-        SidetrackHomeScreen(
-            state.playback,
-            state.chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Off),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state, SleepTimerState.Off)
     }
 
     @Test fun library() = shoot("sidetrack_library") {
-        LibraryScreen(
-            state.library,
-            state.saved,
-            state.chrome,
-            onBack = {},
-            onSearch = {},
-            onFilter = {},
-            onTrack = {},
-            onAddToQueue = {},
-            onPlaylist = {},
-            onAlbum = {},
-            onArtist = {},
-            onShow = {},
-            onSaveTrack = {},
-            onEnsureSavedTrack = {},
-            onLoadMore = {},
-            onNowPlaying = {},
-            onRetry = {},
-            onCreatePlaylist = {},
-            canCreatePlaylist = false,
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        LibraryShot(state)
     }
 
     @Test fun nowPlayingBackdrop() {

@@ -32,117 +32,27 @@ class SidetrackScreenshotTest {
     private val state = screenshotState()
 
     @Test fun home() = shoot("sidetrack_home") {
-        SidetrackHomeScreen(
-            state.playback,
-            state.chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Off),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state, SleepTimerState.Off)
     }
 
     @Test fun homeWithSleepTimer() = shoot("sidetrack_home_sleep_timer") {
-        SidetrackHomeScreen(
-            state.playback,
-            state.chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Countdown(30, 1_800_000L, 23)),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state, SleepTimerState.Countdown(30, 1_800_000L, 23))
     }
 
     @Test fun homePaused() = shoot("sidetrack_home_paused") {
-        SidetrackHomeScreen(
-            state.copy(transport = Transport.Paused).playback,
-            state.chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Off),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state.copy(transport = Transport.Paused), SleepTimerState.Off)
     }
 
     @Test fun homePausedWithSleepTimer() = shoot("sidetrack_home_paused_timer") {
-        SidetrackHomeScreen(
-            state.copy(transport = Transport.Paused).playback,
-            state.chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Countdown(30, 1_800_000L, 23)),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state.copy(transport = Transport.Paused), SleepTimerState.Countdown(30, 1_800_000L, 23))
     }
 
     @Test fun homeSleepTimerFinished() = shoot("sidetrack_home_sleep_timer_finished") {
-        SidetrackHomeScreen(
-            state.copy(transport = Transport.Paused).playback,
-            state.chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Finished),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state.copy(transport = Transport.Paused), SleepTimerState.Finished)
     }
 
     @Test fun nowPlayingNotice() = shoot("sidetrack_now_playing_notice") {
-        SidetrackHomeScreen(
-            state.copy(nowPlayingNotice = state.current).playback,
-            state.copy(nowPlayingNotice = state.current).chrome,
-            sleepTimer = MutableStateFlow(SleepTimerState.Off),
-            onNowPlaying = {},
-            onLibrary = {},
-            onSearch = {},
-            onSettings = {},
-            onPlay = {},
-            onOpenQueue = {},
-            onAddToQueue = {},
-            onRemoveHistory = { null },
-            onHistory = {},
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        HomeShot(state.copy(nowPlayingNotice = state.current), SleepTimerState.Off)
     }
 
     @Test fun history() = shoot("sidetrack_history") {
@@ -161,29 +71,7 @@ class SidetrackScreenshotTest {
     }
 
     @Test fun library() = shoot("sidetrack_library") {
-        LibraryScreen(
-            state.library,
-            state.saved,
-            state.chrome,
-            onBack = {},
-            onSearch = {},
-            onFilter = {},
-            onTrack = {},
-            onAddToQueue = {},
-            onPlaylist = {},
-            onAlbum = {},
-            onArtist = {},
-            onShow = {},
-            onSaveTrack = {},
-            onEnsureSavedTrack = {},
-            onLoadMore = {},
-            onNowPlaying = {},
-            onRetry = {},
-            onCreatePlaylist = {},
-            canCreatePlaylist = false,
-            onDismissNotice = {},
-            onDismissNowPlaying = {}
-        )
+        LibraryShot(state)
     }
 
     @Test fun album() = shoot("sidetrack_album") {
