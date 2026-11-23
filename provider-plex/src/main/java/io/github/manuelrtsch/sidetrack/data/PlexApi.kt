@@ -4,7 +4,6 @@ import android.util.Log
 import io.github.manuelrtsch.sidetrack.auth.PlexCredentials
 import io.github.manuelrtsch.sidetrack.plex.BuildConfig
 import java.io.IOException
-import java.net.URL
 import java.net.URLEncoder
 import org.json.JSONArray
 import org.json.JSONObject
@@ -320,20 +319,8 @@ class HttpPlexTransport(
  * A bare host or a host:port gets `http://` and Plex's default 32400. An explicit scheme and port
  * are kept: a reverse-proxied server may sit under a path or on 443.
  */
-fun normalizePlexServerUrl(value: String): String {
-    val trimmed = value.trim().trimEnd('/')
-    val withScheme = if ("://" in trimmed) trimmed else "http://$trimmed"
-    val parsed = runCatching { URL(withScheme) }.getOrNull()
-    if (parsed == null || parsed.host.isNullOrEmpty() || (parsed.protocol != "http" && parsed.protocol != "https")) {
-        throw ServiceException(ServiceFailure.NotConnected, "Enter the Plex server address")
-    }
-    // An explicit port is already right; an https URL without one is usually a reverse proxy on
-    // 443, not a Plex Media Server on 32400.
-    if (parsed.port != -1 || parsed.protocol == "https") return withScheme
-    val authorityStart = withScheme.indexOf("://") + 3
-    val authorityEnd = withScheme.indexOf('/', authorityStart).let { if (it == -1) withScheme.length else it }
-    return withScheme.substring(0, authorityEnd) + ":" + DEFAULT_PLEX_PORT + withScheme.substring(authorityEnd)
-}
+fun normalizePlexServerUrl(value: String): String =
+    normalizeServerUrl(value, "Enter the Plex server address", DEFAULT_PLEX_PORT)
 
 /** The port a default Plex Media Server listens on. */
 const val DEFAULT_PLEX_PORT = 32400

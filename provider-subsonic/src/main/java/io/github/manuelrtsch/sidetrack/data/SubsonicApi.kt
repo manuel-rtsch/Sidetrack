@@ -23,8 +23,6 @@ import io.github.manuelrtsch.sidetrack.mediaTextOrNull
 import io.github.manuelrtsch.sidetrack.playback.PlaybackSource
 import io.github.manuelrtsch.sidetrack.playlistCollection
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -44,15 +42,8 @@ data class SubsonicCredentials(
  * `host:4533` on a LAN, so a missing scheme becomes `http://`; the trailing slash is dropped so
  * endpoint paths join predictably.
  */
-fun SubsonicCredentials.normalized(): SubsonicCredentials {
-    val trimmed = serverUrl.trim().trimEnd('/')
-    val withScheme = if ("://" in trimmed) trimmed else "http://$trimmed"
-    val parsed = runCatching { URL(withScheme) }.getOrNull()
-    if (parsed == null || parsed.host.isNullOrEmpty() || (parsed.protocol != "http" && parsed.protocol != "https")) {
-        throw ServiceException(ServiceFailure.NotConnected, "Enter the server address")
-    }
-    return copy(serverUrl = withScheme, username = username.trim())
-}
+fun SubsonicCredentials.normalized(): SubsonicCredentials =
+    copy(serverUrl = normalizeServerUrl(serverUrl, "Enter the server address"), username = username.trim())
 
 /**
  * The Subsonic/OpenSubsonic client every family member exposes at `/rest`.

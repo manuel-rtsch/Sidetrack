@@ -8,11 +8,11 @@ import io.github.manuelrtsch.sidetrack.data.RuntimeAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceAccount
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
+import io.github.manuelrtsch.sidetrack.data.normalizeServerUrl
 import io.github.manuelrtsch.sidetrack.jellyfin.BuildConfig
 import io.github.manuelrtsch.sidetrack.storage.GuardedEncryptedStore
 import io.github.manuelrtsch.sidetrack.storage.JsonStore
 import java.io.IOException
-import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.exception.ApiClientException
@@ -44,31 +44,18 @@ data class JellyfinCredentials(
 }
 
 /**
- * Trims a typed server address into the base URL the SDK expects: the scheme is added when missing, a
- * trailing slash dropped, and a missing port becomes Jellyfin's default, so a bare `192.168.1.20`
- * reaches a default install.
+ * Trims a typed server address into the base URL the SDK expects, filling in a missing port with
+ * Jellyfin's default so a bare `192.168.1.20` reaches a default install.
  *
  * Only `http` gets the default filled in. An `https://` address keeps its implicit 443, because 8920
  * is Jellyfin's HTTPS port only when the certificate is configured inside Jellyfin itself, while a
  * proxied server answers on 443: appending 8920 would turn a working address into a dead one.
  */
-fun normalizeJellyfinServerUrl(value: String): String {
-    val trimmed = value.trim().trimEnd('/')
-    val withScheme = if ("://" in trimmed) trimmed else "http://$trimmed"
-    val parsed = runCatching { URL(withScheme) }.getOrNull()
-    if (parsed == null || parsed.host.isNullOrEmpty() || (parsed.protocol != "http" && parsed.protocol != "https")) {
-        throw ServiceException(ServiceFailure.NotConnected, "Enter the Jellyfin server address")
-    }
-    if (parsed.protocol != "http" || parsed.port != -1) return withScheme
-    // The port goes at the end of the authority so a typed base path survives: a proxied server can
-    // sit under one (the demo's `/stable`), and that path belongs after the port.
-    val authorityStart = withScheme.indexOf("://") + 3
-    val authorityEnd = withScheme.indexOf('/', authorityStart).let { if (it == -1) withScheme.length else it }
-    return withScheme.substring(0, authorityEnd) + ":" + DEFAULT_HTTP_PORT + withScheme.substring(authorityEnd)
-}
+fun normalizeJellyfinServerUrl(value: String): String =
+    normalizeServerUrl(value, "Enter the Jellyfin server address", JELLYFIN_HTTP_PORT)
 
 /** The port a default Jellyfin install listens on; see [normalizeJellyfinServerUrl]. */
-private const val DEFAULT_HTTP_PORT = 8096
+private const val JELLYFIN_HTTP_PORT = 8096
 
 /**
  * Jellyfin signs in with a password once and keeps the token, unlike Navidrome, which needs the

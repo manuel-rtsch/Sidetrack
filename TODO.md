@@ -284,13 +284,20 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   error / missing fallback they were both spelling out; `RadioCollectionScreen` holds the collection
   body the song and artist stations share, which leaves each radio route with only its own play and
   artwork actions. Budget lowered from 700 to 676.
-- [ ] **HTTP request scaffold** — 93 at `JellyfinAuth.kt:55` ↔ `PlexApi.kt:338`, and 81 at
-  `PlexApi.kt:339` ↔ `SubsonicApi.kt:47` plus `JellyfinAuth.kt:56`.
+- [x] **Server address normalisation** — the socket scaffold was already shared by `httpFetch`, so
+  the surviving clone was the address reader the three providers each spelled out: trim, add
+  `http://` when the scheme is missing, refuse anything that is not an http(s) host, then fill in the
+  provider's default port after the authority. `normalizeServerUrl` in `:core` owns that, and
+  `normalizeJellyfinServerUrl`, `normalizePlexServerUrl` and `SubsonicCredentials.normalized` keep
+  their names, their ports and their wording as one-liners over it. Jellyfin's and Plex's port rule
+  was already the same condition written two ways: `http` without a port. Covered by
+  `ServerUrlTest`. Budget lowered from 668 to 652.
 - [x] **UI state slices** — the clone is gone from the report: the six paging flags no longer exist
   in `SidetrackUiState` to be re-listed, and `LibraryUiState` now projects them from the registry.
   Budget lowered from 676 to 668, which also absorbs the paging fakes the two list tests now share
   as `PagingCatalog`.
-- [ ] **`lib.rs:512` ↔ `lib.rs:530`** — 112 tokens in the JNI entry points.
+- [ ] **`lib.rs` ↔ `lib.rs`** — 112 tokens between the JNI entry points the report cited at lines
+  512 and 530 before the address move shifted the file.
 - [x] **`EpisodeMeta`/`EpisodeProgress` file envelope** — the magic/version/count frame, the atomic
   replace and the version-1 service fallback now live in `EpisodeFileFrame`; only the record body
   differs. Budget lowered from 824 to 800. Covered by `EpisodeMetaStoreTest`.
