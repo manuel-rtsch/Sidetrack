@@ -4,12 +4,9 @@ import androidx.core.util.AtomicFile
 import io.github.manuelrtsch.sidetrack.Episode
 import io.github.manuelrtsch.sidetrack.MediaItem
 import io.github.manuelrtsch.sidetrack.ServiceId
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
-import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -122,61 +119,32 @@ class EpisodeMetaRepository(
 class FileEpisodeMetaStore(file: File) : EpisodeMetaStore {
     private val file = AtomicFile(file)
 
-    override fun read(): Map<String, EpisodeMeta> {
-        val stream = try {
-            file.openRead()
-        } catch (_: IOException) {
-            return emptyMap()
-        }
-        return try {
-            DataInputStream(BufferedInputStream(stream)).use { input ->
-                if (input.readInt() != MAGIC) return emptyMap()
-                val version = input.readInt()
-                if (version != VERSION_1 && version != VERSION_2) return emptyMap()
-                val count = input.readInt()
-                if (count !in 0..MAX_ENTRIES) throw IOException("Invalid episode metadata count $count")
-                buildMap {
-                    repeat(count) {
-                        val service = if (version >= VERSION_2) ServiceId(input.readUTF()) else ServiceId.Spotify
-                        val id = input.readUTF()
-                        val description = readNullableString(input)
-                        val number = input.readInt().takeIf { it > 0 }
-                        val explicit = input.readBoolean()
-                        val updated = input.readLong()
-                        if (id.isNotEmpty()) {
-                            put(id, EpisodeMeta(id, description, number, explicit, updated, service))
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            emptyMap()
-        }
+    override fun read(): Map<String, EpisodeMeta> = EpisodeFileFrame.read(file, MAGIC, MAX_ENTRIES, "episode metadata") { input, service, id ->
+        EpisodeMeta(
+            episodeId = id,
+            description = readNullableString(input),
+            episodeNumber = input.readInt().takeIf { it > 0 },
+            explicit = input.readBoolean(),
+            updatedAtMs = input.readLong(),
+            service = service
+        )
     }
 
-    override fun write(entries: Map<String, EpisodeMeta>) {
-        val out = file.startWrite()
-        try {
-            val data = DataOutputStream(BufferedOutputStream(out))
-            data.writeInt(MAGIC)
-            data.writeInt(VERSION_2)
-            val values = entries.values.sortedByDescending { it.updatedAtMs }.take(MAX_ENTRIES)
-            data.writeInt(values.size)
-            values.forEach { entry ->
-                data.writeUTF(entry.service.value)
-                data.writeUTF(entry.episodeId)
-                writeNullableString(data, entry.description)
-                data.writeInt(entry.episodeNumber ?: 0)
-                data.writeBoolean(entry.explicit)
-                data.writeLong(entry.updatedAtMs)
-            }
-            data.flush()
-            file.finishWrite(out)
-        } catch (e: Exception) {
-            file.failWrite(out)
-            throw e
+    override fun write(entries: Map<String, EpisodeMeta>) = EpisodeFileFrame.write(
+        file = file,
+        magic = MAGIC,
+        maxEntries = MAX_ENTRIES,
+        entries = entries,
+        id = EpisodeMeta::episodeId,
+        service = EpisodeMeta::service,
+        updatedAt = EpisodeMeta::updatedAtMs,
+        body = { data, entry ->
+            writeNullableString(data, entry.description)
+            data.writeInt(entry.episodeNumber ?: 0)
+            data.writeBoolean(entry.explicit)
+            data.writeLong(entry.updatedAtMs)
         }
-    }
+    )
 
     private fun writeNullableString(data: DataOutputStream, value: String) {
         data.writeBoolean(value.isNotEmpty())
@@ -187,8 +155,6 @@ class FileEpisodeMetaStore(file: File) : EpisodeMetaStore {
 
     private companion object {
         const val MAGIC = 0x534B544D // "SKTM"
-        const val VERSION_1 = 1
-        const val VERSION_2 = 2
         const val MAX_ENTRIES = 20_000
     }
 }

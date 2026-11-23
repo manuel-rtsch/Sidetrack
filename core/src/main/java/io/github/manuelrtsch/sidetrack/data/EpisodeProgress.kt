@@ -2,12 +2,7 @@ package io.github.manuelrtsch.sidetrack.data
 
 import androidx.core.util.AtomicFile
 import io.github.manuelrtsch.sidetrack.ServiceId
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
 import java.io.File
-import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -164,66 +159,35 @@ class EpisodeProgressRepository(
 class FileEpisodeProgressStore(file: File) : EpisodeProgressStore {
     private val file = AtomicFile(file)
 
-    override fun read(): Map<String, EpisodeProgress> {
-        val stream = try {
-            file.openRead()
-        } catch (_: IOException) {
-            return emptyMap()
-        }
-        return try {
-            DataInputStream(BufferedInputStream(stream)).use { input ->
-                if (input.readInt() != MAGIC) return emptyMap()
-                val version = input.readInt()
-                if (version != VERSION_1 && version != VERSION_2) return emptyMap()
-                val count = input.readInt()
-                if (count !in 0..MAX_ENTRIES) throw IOException("Invalid episode progress count $count")
-                buildMap {
-                    repeat(count) {
-                        val service = if (version >= VERSION_2) ServiceId(input.readUTF()) else ServiceId.Spotify
-                        val id = input.readUTF()
-                        val position = input.readLong().coerceAtLeast(0L)
-                        val duration = input.readLong().coerceAtLeast(0L)
-                        val updated = input.readLong()
-                        val completed = input.readBoolean()
-                        if (id.isNotEmpty()) {
-                            put(id, EpisodeProgress(id, position, duration, updated, completed, service))
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            emptyMap()
-        }
+    override fun read(): Map<String, EpisodeProgress> = EpisodeFileFrame.read(file, MAGIC, MAX_ENTRIES, "episode progress") { input, service, id ->
+        EpisodeProgress(
+            episodeId = id,
+            positionMs = input.readLong().coerceAtLeast(0L),
+            durationMs = input.readLong().coerceAtLeast(0L),
+            updatedAtMs = input.readLong(),
+            completed = input.readBoolean(),
+            service = service
+        )
     }
 
-    override fun write(entries: Map<String, EpisodeProgress>) {
-        val out = file.startWrite()
-        try {
-            val data = DataOutputStream(BufferedOutputStream(out))
-            data.writeInt(MAGIC)
-            data.writeInt(VERSION_2)
-            val values = entries.values.sortedByDescending { it.updatedAtMs }.take(MAX_ENTRIES)
-            data.writeInt(values.size)
-            values.forEach { entry ->
-                data.writeUTF(entry.service.value)
-                data.writeUTF(entry.episodeId)
-                data.writeLong(entry.positionMs)
-                data.writeLong(entry.durationMs)
-                data.writeLong(entry.updatedAtMs)
-                data.writeBoolean(entry.completed)
-            }
-            data.flush()
-            file.finishWrite(out)
-        } catch (e: Exception) {
-            file.failWrite(out)
-            throw e
+    override fun write(entries: Map<String, EpisodeProgress>) = EpisodeFileFrame.write(
+        file = file,
+        magic = MAGIC,
+        maxEntries = MAX_ENTRIES,
+        entries = entries,
+        id = EpisodeProgress::episodeId,
+        service = EpisodeProgress::service,
+        updatedAt = EpisodeProgress::updatedAtMs,
+        body = { data, entry ->
+            data.writeLong(entry.positionMs)
+            data.writeLong(entry.durationMs)
+            data.writeLong(entry.updatedAtMs)
+            data.writeBoolean(entry.completed)
         }
-    }
+    )
 
     private companion object {
         const val MAGIC = 0x534B5450 // "SKTP"
-        const val VERSION_1 = 1
-        const val VERSION_2 = 2
         const val MAX_ENTRIES = 20_000
     }
 }
