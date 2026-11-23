@@ -169,7 +169,8 @@ class SidetrackViewModel(
         queue = queue,
         effects = effects,
         clearArtworkCache = clearArtworkCache,
-        scope = viewModelScope
+        scope = viewModelScope,
+        tasks = tasks
     )
 
     private val driver = PlaybackDriver(

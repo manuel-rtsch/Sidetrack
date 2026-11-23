@@ -9,6 +9,7 @@ import io.github.manuelrtsch.sidetrack.data.clearAudioCache
 import io.github.manuelrtsch.sidetrack.data.setAudioQuality
 import io.github.manuelrtsch.sidetrack.data.setGapless
 import io.github.manuelrtsch.sidetrack.data.setNormalization
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,7 +30,8 @@ internal class SettingsController(
     private val queue: QueueRepository,
     private val effects: PlaybackEffects,
     private val clearArtworkCache: () -> Unit,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val tasks: TaskRegistry
 ) {
 
     private var clearedHistory: List<HistoryEntry> = emptyList()
@@ -85,12 +87,24 @@ internal class SettingsController(
     /**
      * Both halves touch the cache directory, so they run off the main thread. The row keeps its
      * old number until the refresh lands instead of blocking the frame on a tree walk.
+     *
+     * The clear is a write like any other: it runs through the registry, so a second press while
+     * one is in flight is refused, and a directory that cannot be cleared becomes a notice instead
+     * of an uncaught exception. The size is refreshed either way — a failed clear may still have
+     * removed some of it, and the row must not keep a number nobody can vouch for.
      */
     fun clearCache() {
-        scope.launch {
-            withContext(Dispatchers.IO) { clearArtworkCache() }
-            session?.clearAudioCache()
-            refreshCacheSize()
+        tasks.start(TaskKey.Action(TaskKey.Action.Kind.ClearCache)) {
+            try {
+                withContext(Dispatchers.IO) { clearArtworkCache() }
+                session?.clearAudioCache()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                store.update { it.say("Couldn't clear the cache") }
+            } finally {
+                refreshCacheSize()
+            }
         }
     }
 

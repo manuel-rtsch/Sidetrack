@@ -181,9 +181,12 @@ no-visual-change reviews.
 - [ ] **`runOptimistic`** — the flip → call → rollback + notice shape exists three times in
   `SavesController` and again in `PlaylistController.add`; one helper owns it. Notice wording stays
   the callers'.
-- [ ] **Clear cache gets a failure path** — `SettingsController.clearCache` currently launches
-  without a `catch`; route it through the registry so a throwing clear becomes a notice instead of
-  a crash, and refresh the size when it finishes.
+- [x] **Clear cache gets a failure path** — `SettingsController.clearCache` runs under
+  `Action(ClearCache)`: a throwing directory becomes "Couldn't clear the cache" in the bar instead
+  of a crash, a second press while it runs is refused, and the size is re-read in `finally` — a
+  failed clear may still have removed part of the cache. The Settings row shows "Clearing…" in
+  place of the size meanwhile, the same pending language Create and Add use. Covered by
+  `ClearCacheFailureTest`.
 - [ ] **`PlaybackUiState.transport`** — `Idle | Starting | Buffering | Playing | Paused | Failed`,
   derived from the same player events plus the in-flight `startRemote`, with `isPlaying` and
   `isBuffering` kept as read-only projections until readers migrate. `beginPlayback`/`startRemote`

@@ -25,6 +25,7 @@ internal fun NavGraphBuilder.settingsGraph(
         val account by vm.accountState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         val playback by vm.playbackState.collectAsStateWithLifecycle()
+        val writes by vm.writesState.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val appSession = remember(context) { AppSessions.get(context) }
         // The cache row is the only reader of the size, so the directory walk starts when this
@@ -36,6 +37,7 @@ internal fun NavGraphBuilder.settingsGraph(
             playback.recent.size,
             serviceName = appSession.serviceName,
             capabilities = vm.capabilities,
+            clearingCache = writes.isRunning(TaskKey.Action.Kind.ClearCache),
             onBack = { nav.popBackStack() },
             onAudioQuality = { nav.navigate(AUDIO_QUALITY) },
             onNormalization = vm::toggleNormalization,

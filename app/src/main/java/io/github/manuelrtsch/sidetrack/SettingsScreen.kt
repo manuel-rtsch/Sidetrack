@@ -31,6 +31,8 @@ fun SettingsScreen(
     recentCount: Int,
     serviceName: String = "",
     capabilities: ServiceCapabilities = ServiceCapabilities.All,
+    /** The clear is still running: the row says so and a second press does nothing. */
+    clearingCache: Boolean = false,
     onBack: () -> Unit,
     onAudioQuality: () -> Unit,
     onNormalization: () -> Unit,
@@ -166,9 +168,13 @@ fun SettingsScreen(
                 SidetrackItem(
                     "Clear cache",
                     modifier,
-                    secondary = Formatter.formatShortFileSize(context, account.cacheSizeBytes),
+                    secondary = if (clearingCache) {
+                        "Clearing…"
+                    } else {
+                        Formatter.formatShortFileSize(context, account.cacheSizeBytes)
+                    },
                     secondaryToEnd = true,
-                    onClick = onClearCache
+                    onClick = { if (!clearingCache) onClearCache() }
                 )
             }
             row("history") { modifier ->
