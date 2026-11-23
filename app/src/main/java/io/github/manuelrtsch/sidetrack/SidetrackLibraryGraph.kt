@@ -293,35 +293,22 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         }
     }
     composable(ARTIST, arguments = artistArgs) { entry ->
-        val vm = entry.sidetrackViewModel(nav)
-        val library by vm.libraryState.collectAsStateWithLifecycle()
-        val saved by vm.savedState.collectAsStateWithLifecycle()
-        val playback by vm.playbackState.collectAsStateWithLifecycle()
-        val chrome by vm.chromeState.collectAsStateWithLifecycle()
-        val artistKey = MediaKey.decode(entry.arguments?.getString("key").orEmpty())
-        val artistId = artistKey?.id.orEmpty()
-        LaunchedEffect(artistKey) { artistKey?.let { vm.openArtist(it.id) } }
-        val artist = artistKey?.let { vm.artist(it.id) }
+        val route = entry.sidetrackArtistRoute(nav)
+        val artist = route.artist
         if (artist == null) {
-            MissingCollectionScreen(
-                onBack = { nav.popBackStack() },
-                loading = artistId in library.pendingArtists,
-                loadingTitle = "Loading artist",
-                error = library.artistErrors[artistId],
-                errorTitle = "Couldn't load this artist",
-                missingTitle = "This artist isn't available",
-                onRetry = { vm.retryArtist(artistId) }
-            )
+            MissingArtistScreen(nav, route)
         } else {
+            val vm = route.vm
+            val library = route.library
             val albums = vm.albumsBy(artist)
             val tracks = vm.topTracks(artist)
             ArtistScreen(
                 artist,
                 albums,
                 tracks,
-                saved,
-                playback,
-                chrome,
+                route.saved,
+                route.playback,
+                route.chrome,
                 onBack = { nav.popBackStack() },
                 onPlay = { vm.playArtist(artist) },
                 onPlayPause = vm::togglePlayPause,

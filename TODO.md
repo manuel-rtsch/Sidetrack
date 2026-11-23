@@ -96,8 +96,11 @@ waiting to happen, duplicated test setup is mostly a patience tax.
   pair was not the quartet but the `Collection` mapping of a playlist, now shared as
   `playlistCollection` by the four catalogs that mapped it field for field (Spotify keeps its
   own: its playlist subtitle carries the track count). Budget lowered from 740 to 700.
-- [ ] **DI wiring** — 124 tokens at `SidetrackLibraryGraph.kt:297` ↔ `SidetrackPlaybackGraph.kt:147`,
-  and 84 more inside `SidetrackPlaybackGraph.kt` itself at `120/192`.
+- [x] **DI wiring** — `sidetrackArtistRoute` now decodes the `{key}` argument, opens the artist and
+  collects the four slices both artist routes read, and `MissingArtistScreen` holds the loading /
+  error / missing fallback they were both spelling out; `RadioCollectionScreen` holds the collection
+  body the song and artist stations share, which leaves each radio route with only its own play and
+  artwork actions. Budget lowered from 700 to 676.
 - [ ] **HTTP request scaffold** — 93 at `JellyfinAuth.kt:55` ↔ `PlexApi.kt:338`, and 81 at
   `PlexApi.kt:339` ↔ `SubsonicApi.kt:47` plus `JellyfinAuth.kt:56`.
 - [ ] **UI state slices** — 88 tokens at `SidetrackUiState.kt:43` ↔ `UiSlices.kt:41`.

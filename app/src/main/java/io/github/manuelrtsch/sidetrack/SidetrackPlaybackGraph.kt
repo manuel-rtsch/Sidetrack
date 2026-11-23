@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -109,61 +110,27 @@ internal fun NavGraphBuilder.playbackGraph(
                 onRetry = vm::retryRadio
             )
         } else {
-            CollectionScreen(
+            RadioCollectionScreen(
+                nav,
+                vm,
                 radio,
                 saved,
                 playback,
                 chrome,
-                onBack = { nav.popBackStack() },
                 onPlay = { vm.playRadio(0) },
-                onPlayPause = vm::togglePlayPause,
                 onItem = { vm.playRadio(it) },
-                onSave = { vm.toggleSaved(radio) },
-                onArtist = {},
-                onAddToQueue = { vm.queueCollection(radio) },
-                onAddItemToQueue = vm::addToQueue,
-                onPlayItem = vm::playFirst,
-                onSaveTrack = { vm.toggleSaved(it) },
-                onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
-                onNowPlaying = { nav.openNowPlaying(vm) },
-                onArtwork = { nav.openNowPlaying(vm) },
-                onLoadMore = {},
-                loadingMore = false,
-                onDismissNotice = vm::dismissNotice,
-                onUndoQueueReplace = vm::undoQueueReplace,
-                onDismissNowPlaying = vm::dismissNowPlayingNotice,
-                showSave = radio.saveable,
-                onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
-                    { track -> nav.openAddToPlaylist(track) }
-                } else {
-                    null
-                }
+                onArtwork = { nav.openNowPlaying(vm) }
             )
         }
     }
     composable(ARTIST_RADIO, arguments = artistArgs) { entry ->
-        val vm = entry.sidetrackViewModel(nav)
-        val library by vm.libraryState.collectAsStateWithLifecycle()
-        val radioState by vm.radioState.collectAsStateWithLifecycle()
-        val saved by vm.savedState.collectAsStateWithLifecycle()
-        val playback by vm.playbackState.collectAsStateWithLifecycle()
-        val chrome by vm.chromeState.collectAsStateWithLifecycle()
-        val artistKey = MediaKey.decode(entry.arguments?.getString("key").orEmpty())
-        val artistId = artistKey?.id.orEmpty()
-        LaunchedEffect(artistKey) { artistKey?.let { vm.openArtist(it.id) } }
-        val artist = artistKey?.let { vm.artist(it.id) }
+        val route = entry.sidetrackArtistRoute(nav)
+        val artist = route.artist
         if (artist == null) {
-            MissingCollectionScreen(
-                onBack = { nav.popBackStack() },
-                title = "Artist radio",
-                loading = artistId in library.pendingArtists,
-                loadingTitle = "Loading artist",
-                error = library.artistErrors[artistId],
-                errorTitle = "Couldn't load this artist",
-                missingTitle = "This artist isn't available",
-                onRetry = { vm.retryArtist(artistId) }
-            )
+            MissingArtistScreen(nav, route, title = "Artist radio")
         } else {
+            val vm = route.vm
+            val radioState by vm.radioState.collectAsStateWithLifecycle()
             LaunchedEffect(artist.id) { vm.ensureArtistRadio(artist) }
             // A station built for another artist is not this screen's station, even before the
             // request above has reset the state.
@@ -181,35 +148,16 @@ internal fun NavGraphBuilder.playbackGraph(
                     onRetry = { vm.retryArtistRadio(artist) }
                 )
             } else {
-                CollectionScreen(
+                RadioCollectionScreen(
+                    nav,
+                    vm,
                     radio,
-                    saved,
-                    playback,
-                    chrome,
-                    onBack = { nav.popBackStack() },
+                    route.saved,
+                    route.playback,
+                    route.chrome,
                     onPlay = { vm.playArtistRadio(0) },
-                    onPlayPause = vm::togglePlayPause,
                     onItem = { vm.playArtistRadio(it) },
-                    onSave = { vm.toggleSaved(radio) },
-                    onArtist = {},
-                    onAddToQueue = { vm.queueCollection(radio) },
-                    onAddItemToQueue = vm::addToQueue,
-                    onPlayItem = vm::playFirst,
-                    onSaveTrack = { vm.toggleSaved(it) },
-                    onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
-                    onNowPlaying = { nav.openNowPlaying(vm) },
-                    onArtwork = { nav.navigate(artworkRoute(artist.artRes, artist.artUrl, artist.name)) },
-                    onLoadMore = {},
-                    loadingMore = false,
-                    onDismissNotice = vm::dismissNotice,
-                    onUndoQueueReplace = vm::undoQueueReplace,
-                    onDismissNowPlaying = vm::dismissNowPlayingNotice,
-                    showSave = radio.saveable,
-                    onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
-                        { track -> nav.openAddToPlaylist(track) }
-                    } else {
-                        null
-                    }
+                    onArtwork = { nav.navigate(artworkRoute(artist.artRes, artist.artUrl, artist.name)) }
                 )
             }
         }
@@ -242,4 +190,55 @@ internal fun NavGraphBuilder.playbackGraph(
             onDismissNowPlaying = vm::dismissNowPlayingNotice
         )
     }
+}
+
+/**
+ * The body both radio routes show.
+ *
+ * A song station and an artist station are the same generated collection: they differ only in what
+ * Play and a row tap start, and in where Artwork goes. Everything else, including the Save and
+ * queue wiring, is the same collection screen.
+ */
+@Composable
+private fun RadioCollectionScreen(
+    nav: NavHostController,
+    vm: SidetrackViewModel,
+    radio: Collection,
+    saved: SavedUiState,
+    playback: PlaybackUiState,
+    chrome: ChromeUiState,
+    onPlay: () -> Unit,
+    onItem: (Int) -> Unit,
+    onArtwork: () -> Unit
+) {
+    CollectionScreen(
+        radio,
+        saved,
+        playback,
+        chrome,
+        onBack = { nav.popBackStack() },
+        onPlay = onPlay,
+        onPlayPause = vm::togglePlayPause,
+        onItem = onItem,
+        onSave = { vm.toggleSaved(radio) },
+        onArtist = {},
+        onAddToQueue = { vm.queueCollection(radio) },
+        onAddItemToQueue = vm::addToQueue,
+        onPlayItem = vm::playFirst,
+        onSaveTrack = { vm.toggleSaved(it) },
+        onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
+        onNowPlaying = { nav.openNowPlaying(vm) },
+        onArtwork = onArtwork,
+        onLoadMore = {},
+        loadingMore = false,
+        onDismissNotice = vm::dismissNotice,
+        onUndoQueueReplace = vm::undoQueueReplace,
+        onDismissNowPlaying = vm::dismissNowPlayingNotice,
+        showSave = radio.saveable,
+        onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
+            { track -> nav.openAddToPlaylist(track) }
+        } else {
+            null
+        }
+    )
 }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
@@ -140,4 +142,55 @@ internal fun NavBackStackEntry.sidetrackViewModel(nav: NavHostController): Sidet
         onDispose { parent.lifecycle.removeObserver(observer) }
     }
     return vm
+}
+
+/**
+ * What an artist route reads before it can show its screen.
+ *
+ * Artist and Artist radio take the same `{key}` argument, open the artist on entry and read the
+ * same library cache to decide between the artist and the loading, error or missing screen. What
+ * the two screens show afterwards differs, so this stops at the lookup.
+ */
+internal class ArtistRouteState(
+    val vm: SidetrackViewModel,
+    val artist: Artist?,
+    /** The artist id the route names, readable while the artist itself is still loading. */
+    val id: String,
+    val library: LibraryUiState,
+    val saved: SavedUiState,
+    val playback: PlaybackUiState,
+    val chrome: ChromeUiState
+)
+
+@Composable
+internal fun NavBackStackEntry.sidetrackArtistRoute(nav: NavHostController): ArtistRouteState {
+    val vm = sidetrackViewModel(nav)
+    val library by vm.libraryState.collectAsStateWithLifecycle()
+    val saved by vm.savedState.collectAsStateWithLifecycle()
+    val playback by vm.playbackState.collectAsStateWithLifecycle()
+    val chrome by vm.chromeState.collectAsStateWithLifecycle()
+    val key = MediaKey.decode(arguments?.getString("key").orEmpty())
+    val id = key?.id.orEmpty()
+    LaunchedEffect(key) { key?.let { vm.openArtist(it.id) } }
+    val artist = key?.let { vm.artist(it.id) }
+    return ArtistRouteState(vm, artist, id, library, saved, playback, chrome)
+}
+
+/** The fallback both artist routes show while the route has no artist to draw. */
+@Composable
+internal fun MissingArtistScreen(
+    nav: NavHostController,
+    route: ArtistRouteState,
+    title: String = "Sidetrack"
+) {
+    MissingCollectionScreen(
+        onBack = { nav.popBackStack() },
+        title = title,
+        loading = route.id in route.library.pendingArtists,
+        loadingTitle = "Loading artist",
+        error = route.library.artistErrors[route.id],
+        errorTitle = "Couldn't load this artist",
+        missingTitle = "This artist isn't available",
+        onRetry = { route.vm.retryArtist(route.id) }
+    )
 }
