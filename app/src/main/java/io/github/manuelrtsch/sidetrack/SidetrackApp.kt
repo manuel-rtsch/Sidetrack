@@ -1,6 +1,7 @@
 package io.github.manuelrtsch.sidetrack
 
 import android.app.Application
+import io.github.manuelrtsch.sidetrack.data.DebugLatency
 
 /**
  * Process entry point for diagnostics that must exist before the first Activity or service.
@@ -17,6 +18,14 @@ class SidetrackApp : Application() {
             this,
             always = BuildConfig.BUILD_TYPE == "debug" || BuildConfig.BUILD_TYPE == "dev"
         )
+        // Only the debug build honours `-PsidetrackLatencyMs`; `dev`, `profile`, `demo` and
+        // release are not `DEBUG`, so their network calls cannot be slowed by a stray flag.
+        if (BuildConfig.DEBUG) {
+            DebugLatency.millis = BuildConfig.NETWORK_DELAY_MS
+            if (DebugLatency.millis > 0) {
+                SidetrackDebug.log("network delay: ${DebugLatency.millis} ms before every provider call")
+            }
+        }
         StartupTrace.mark("application created")
     }
 }

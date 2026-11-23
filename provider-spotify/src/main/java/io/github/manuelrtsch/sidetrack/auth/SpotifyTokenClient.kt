@@ -1,10 +1,7 @@
 package io.github.manuelrtsch.sidetrack.auth
 
+import io.github.manuelrtsch.sidetrack.data.httpFetch
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** Swappable so token parsing and refresh logic can be tested without the network. */
@@ -53,40 +50,37 @@ class HttpSpotifyTokenClient(
         previousRefresh = refreshToken
     )
 
-    private suspend fun request(form: Map<String, String>, previousRefresh: String?): SpotifyCredentials = withContext(Dispatchers.IO) {
+    private suspend fun request(form: Map<String, String>, previousRefresh: String?): SpotifyCredentials {
         val body = form.entries.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" }
-        val connection = (URL(tokenUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
-            doOutput = true
-            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            setRequestProperty("Accept", "application/json")
+        val response = httpFetch(
+            tokenUrl,
+            method = "POST",
+            headers = mapOf(
+                "Content-Type" to "application/x-www-form-urlencoded",
+                "Accept" to "application/json"
+            ),
+            body = body,
+            timeoutMs = TIMEOUT_MS
+        )
+        val json = runCatching { JSONObject(response.body) }.getOrElse {
+            throw IOException("Spotify returned an unreadable token response (HTTP ${response.status})")
         }
-        try {
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            val json = runCatching { JSONObject(text) }.getOrElse {
-                throw IOException("Spotify returned an unreadable token response (HTTP $status)")
-            }
-            if (status !in 200..299) {
-                throw IOException(json.optString("error_description").ifEmpty { "Spotify token request failed (HTTP $status)" })
-            }
-            val access = json.optString("access_token")
-            if (access.isEmpty()) throw IOException("Spotify did not return an access token")
-            val expiresIn = json.optLong("expires_in", 0L)
-            SpotifyCredentials(
-                accessToken = access,
-                refreshToken = json.optString("refresh_token").takeIf { it.isNotEmpty() } ?: previousRefresh,
-                expiresAtMs = System.currentTimeMillis() + expiresIn.coerceAtLeast(0L) * 1_000L,
-                scope = json.optString("scope"),
-                tokenType = json.optString("token_type", "Bearer")
+        if (!response.isSuccess) {
+            throw IOException(
+                json.optString("error_description")
+                    .ifEmpty { "Spotify token request failed (HTTP ${response.status})" }
             )
-        } finally {
-            connection.disconnect()
         }
+        val access = json.optString("access_token")
+        if (access.isEmpty()) throw IOException("Spotify did not return an access token")
+        val expiresIn = json.optLong("expires_in", 0L)
+        return SpotifyCredentials(
+            accessToken = access,
+            refreshToken = json.optString("refresh_token").takeIf { it.isNotEmpty() } ?: previousRefresh,
+            expiresAtMs = System.currentTimeMillis() + expiresIn.coerceAtLeast(0L) * 1_000L,
+            scope = json.optString("scope"),
+            tokenType = json.optString("token_type", "Bearer")
+        )
     }
 
     private fun encode(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())

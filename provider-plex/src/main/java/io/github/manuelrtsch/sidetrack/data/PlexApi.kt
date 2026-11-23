@@ -4,11 +4,8 @@ import android.util.Log
 import io.github.manuelrtsch.sidetrack.auth.PlexCredentials
 import io.github.manuelrtsch.sidetrack.plex.BuildConfig
 import java.io.IOException
-import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -290,34 +287,22 @@ class HttpPlexTransport(
 
     override suspend fun send(method: String, url: String, body: String?): String? = request(method, url, body)
 
-    private suspend fun request(method: String, url: String, body: String?): String? = withContext(Dispatchers.IO) {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = timeoutMs
-            readTimeout = timeoutMs
-            headers.forEach { (name, value) -> setRequestProperty(name, value) }
-            if (body != null) {
-                doOutput = true
-                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            }
+    private suspend fun request(method: String, url: String, body: String?): String? {
+        val requestHeaders = if (body != null) {
+            headers + ("Content-Type" to "application/x-www-form-urlencoded")
+        } else {
+            headers
         }
-        try {
-            if (body != null) connection.outputStream.use { it.write(body.toByteArray()) }
-            val status = connection.responseCode
-            val text = (if (status in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) {
-                Log.w("SidetrackPlex", "HTTP $status ${url.substringBefore('?')}")
-                throw ServiceException(failureFor(status), "Plex returned HTTP $status")
-            }
-            text.takeIf { it.isNotBlank() }
-        } catch (e: ServiceException) {
-            throw e
+        val response = try {
+            httpFetch(url, method = method, headers = requestHeaders, body = body, timeoutMs = timeoutMs)
         } catch (e: IOException) {
             throw ServiceException(ServiceFailure.Network, "Couldn't reach the Plex server", e)
-        } finally {
-            connection.disconnect()
         }
+        if (!response.isSuccess) {
+            Log.w("SidetrackPlex", "HTTP ${response.status} ${url.substringBefore('?')}")
+            throw ServiceException(failureFor(response.status), "Plex returned HTTP ${response.status}")
+        }
+        return response.body.takeIf { it.isNotBlank() }
     }
 
     private fun failureFor(status: Int): ServiceFailure = when (status) {

@@ -18,11 +18,7 @@ import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.Track
 import io.github.manuelrtsch.sidetrack.mediaIdOrNull
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -416,40 +412,35 @@ class SpotifyWebApi(
 
     private suspend fun token(): String = accessToken() ?: fail(SpotifyFailure.AuthenticationExpired, "Sign in again")
 
-    private suspend fun get(url: String, token: String): JSONObject = withContext(Dispatchers.IO) {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("Accept", "application/json")
-        }
-        try {
-            val status = connection.responseCode
-            val text = (if (status in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            when {
-                status == 401 -> fail(SpotifyFailure.AuthenticationExpired, "Sign in again")
-
-                status == 429 -> {
-                    android.util.Log.w("SidetrackApi", "$url -> 429 retryAfter=${connection.getHeaderField("Retry-After")} ${text.take(300)}")
-                    fail(SpotifyFailure.RateLimited, "Spotify is rate-limiting requests")
-                }
-
-                status !in 200..299 -> {
-                    android.util.Log.w("SidetrackApi", "$url -> $status ${text.take(300)}")
-                    fail(SpotifyFailure.Network, "Spotify returned HTTP $status")
-                }
-
-                else -> runCatching { JSONObject(text) }
-                    .getOrElse { fail(SpotifyFailure.Unknown, "Spotify returned an unreadable response") }
-            }
-        } catch (e: SpotifyGatewayException) {
-            throw e
+    private suspend fun get(url: String, token: String): JSONObject {
+        val response = try {
+            httpFetch(
+                url,
+                headers = mapOf(
+                    "Authorization" to "Bearer $token",
+                    "Accept" to "application/json"
+                ),
+                timeoutMs = TIMEOUT_MS
+            )
         } catch (e: IOException) {
             throw SpotifyGatewayException(SpotifyFailure.Network, "Couldn't reach Spotify", e)
-        } finally {
-            connection.disconnect()
+        }
+        val text = response.body
+        return when {
+            response.status == 401 -> fail(SpotifyFailure.AuthenticationExpired, "Sign in again")
+
+            response.status == 429 -> {
+                android.util.Log.w("SidetrackApi", "$url -> 429 retryAfter=${response.header("Retry-After")} ${text.take(300)}")
+                fail(SpotifyFailure.RateLimited, "Spotify is rate-limiting requests")
+            }
+
+            !response.isSuccess -> {
+                android.util.Log.w("SidetrackApi", "$url -> ${response.status} ${text.take(300)}")
+                fail(SpotifyFailure.Network, "Spotify returned HTTP ${response.status}")
+            }
+
+            else -> runCatching { JSONObject(text) }
+                .getOrElse { fail(SpotifyFailure.Unknown, "Spotify returned an unreadable response") }
         }
     }
 

@@ -13,19 +13,16 @@ import io.github.manuelrtsch.sidetrack.data.RuntimeAuth
 import io.github.manuelrtsch.sidetrack.data.ServiceAccount
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
+import io.github.manuelrtsch.sidetrack.data.httpFetch
 import io.github.manuelrtsch.sidetrack.data.normalizePlexServerUrl
 import io.github.manuelrtsch.sidetrack.data.stringOrNull
 import io.github.manuelrtsch.sidetrack.plex.BuildConfig
 import io.github.manuelrtsch.sidetrack.storage.GuardedEncryptedStore
 import io.github.manuelrtsch.sidetrack.storage.JsonStore
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import java.util.UUID
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -366,37 +363,33 @@ class PlexAccountHttpClient(
         return PlexAccountInfo(username)
     }
 
-    private suspend fun request(method: String, url: String, token: String? = null): String = withContext(Dispatchers.IO) {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = timeoutMs
-            readTimeout = timeoutMs
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("X-Plex-Client-Identifier", clientIdentifier)
-            setRequestProperty("X-Plex-Product", "Sidetrack")
-            setRequestProperty("X-Plex-Version", BuildConfig.VERSION_NAME)
-            setRequestProperty("X-Plex-Platform", "Android")
-            setRequestProperty("X-Plex-Device", "Sidephone")
-            if (token != null) setRequestProperty("X-Plex-Token", token)
-            if (method == "POST") doOutput = true
+    private suspend fun request(method: String, url: String, token: String? = null): String {
+        val headers = buildMap {
+            put("Accept", "application/json")
+            put("X-Plex-Client-Identifier", clientIdentifier)
+            put("X-Plex-Product", "Sidetrack")
+            put("X-Plex-Version", BuildConfig.VERSION_NAME)
+            put("X-Plex-Platform", "Android")
+            put("X-Plex-Device", "Sidephone")
+            if (token != null) put("X-Plex-Token", token)
         }
-        try {
-            if (method == "POST") connection.outputStream.use { it.write(ByteArray(0)) }
-            val status = connection.responseCode
-            val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) {
-                Log.w("SidetrackPlex", "plex.tv HTTP $status ${url.substringBefore('?')}")
-                throw ServiceException(failureFor(status), "plex.tv returned HTTP $status")
-            }
-            body
-        } catch (e: ServiceException) {
-            throw e
+        val response = try {
+            // plex.tv wants a POST, and writes nothing in it: an empty body keeps it a POST.
+            httpFetch(
+                url,
+                method = method,
+                headers = headers,
+                body = if (method == "POST") "" else null,
+                timeoutMs = timeoutMs
+            )
         } catch (e: IOException) {
             throw ServiceException(ServiceFailure.Network, "Couldn't reach plex.tv", e)
-        } finally {
-            connection.disconnect()
         }
+        if (!response.isSuccess) {
+            Log.w("SidetrackPlex", "plex.tv HTTP ${response.status} ${url.substringBefore('?')}")
+            throw ServiceException(failureFor(response.status), "plex.tv returned HTTP ${response.status}")
+        }
+        return response.body
     }
 
     private fun failureFor(status: Int): ServiceFailure = when (status) {

@@ -76,6 +76,15 @@ android {
         buildConfigField("boolean", "DEMO_CONTENT", "false")
         buildConfigField("String", "DEMO_PACK", "\"none\"")
 
+        // `-PsidetrackLatencyMs=3000` makes every provider HTTP call wait that long, so loading
+        // states can be watched instead of flashed past. Only the debug build reads it (see
+        // SidetrackApp), and the default keeps a plain debug build honest.
+        buildConfigField(
+            "long",
+            "NETWORK_DELAY_MS",
+            providers.gradleProperty("sidetrackLatencyMs").getOrElse("0")
+        )
+
         // App identity the manifest and the OAuth landing page read. Overridden per build type when
         // a build has to sit next to the release app instead of replacing it.
         manifestPlaceholders["appLabel"] = "@string/app_name"
