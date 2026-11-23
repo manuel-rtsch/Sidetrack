@@ -18,6 +18,7 @@ import hrln.interactive.sidekit.design.components.SidekitText
 import hrln.interactive.sidekit.design.components.SidekitTile
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import io.github.manuelrtsch.sidetrack.ui.VinylSpinner
 
 @Composable
 fun RowScope.IconTile(
@@ -96,6 +97,30 @@ fun RowScope.SkipTile(
     }
 }
 
+/**
+ * The play slot while a source is still resolving: the record's arc instead of a pause button
+ * that promises audio. Pressing it still cancels the start through the ordinary play/pause path.
+ */
+@Composable
+fun StartingTile(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = SidekitTheme.colors
+    SidekitTile(
+        modifier = modifier,
+        color = TileTone.Play.colour(colors),
+        onClick = onClick,
+        onClickLabel = "Cancel starting playback"
+    ) {
+        VinylSpinner(
+            describeAs = "Starting playback",
+            diameter = SidekitTheme.spacing.tileIconSize,
+            color = colors.light
+        )
+    }
+}
+
 @Composable
 fun PlayTile(
     playing: Boolean,
@@ -123,7 +148,7 @@ fun PlayTile(
 fun ContextPlayTile(
     contextIds: Set<String>,
     currentId: String?,
-    isPlaying: Boolean,
+    transport: Transport,
     onPlay: () -> Unit,
     onPlayPause: () -> Unit,
     modifier: Modifier = Modifier,
@@ -140,19 +165,24 @@ fun ContextPlayTile(
             !pendingStart && currentId !in contextIds -> startedHere = false
         }
     }
-    PlayTile(
-        playing = controlsHere && isPlaying,
-        onClick = {
-            if (controlsHere) {
-                onPlayPause()
-            } else {
-                pendingStart = true
-                startedHere = true
-                onPlay()
-            }
-        },
-        modifier = modifier,
-        playLabel = playLabel,
-        pauseLabel = pauseLabel
-    )
+    val onClick = {
+        if (controlsHere) {
+            onPlayPause()
+        } else {
+            pendingStart = true
+            startedHere = true
+            onPlay()
+        }
+    }
+    if (controlsHere && transport == Transport.Starting) {
+        StartingTile(onClick, modifier)
+    } else {
+        PlayTile(
+            playing = controlsHere && transport.isPlaying,
+            onClick = onClick,
+            modifier = modifier,
+            playLabel = playLabel,
+            pauseLabel = pauseLabel
+        )
+    }
 }

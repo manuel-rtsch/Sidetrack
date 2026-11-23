@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 internal class PlaybackDriver(
     private val store: UiStateStore,
     private val clock: PlaybackClock,
+    private val transport: TransportState,
     private val effects: PlaybackEffects,
     private val notifier: Notifier,
     private val queue: QueueRepository,
@@ -39,6 +40,7 @@ internal class PlaybackDriver(
 
     private val events = PlaybackEvents(
         clock = clock,
+        transport = transport,
         session = session,
         queue = queue,
         effects = effects,
@@ -152,7 +154,7 @@ internal class PlaybackDriver(
         clock.clearSeek()
         effects.recordEpisodeProgress(force = true)
         clock.anchor(clock.value)
-        store.update { it.copy(isPlaying = play) }
+        if (play) transport.playing() else transport.paused()
         if (session == null || item.service == ServiceId.Local) return
         scope.launch {
             try {
@@ -163,7 +165,7 @@ internal class PlaybackDriver(
                     startRemote(item, resume, resuming = resume > 0L)
                 } else if (play) {
                     if (!session.resume()) {
-                        store.update { it.copy(isPlaying = false) }
+                        transport.paused()
                         return@launch
                     }
                 } else {
@@ -173,7 +175,8 @@ internal class PlaybackDriver(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update { it.copy(isPlaying = false).say(playbackNotice(e)) }
+                transport.failed(playbackNotice(e))
+                store.update { it.say(playbackNotice(e)) }
             }
         }
     }
@@ -287,7 +290,6 @@ internal class PlaybackDriver(
         if (endOfEpisode(current)) return
         if (snapshot.repeat == RepeatMode.Track) {
             clock.set(0L)
-            store.update { it.copy(isPlaying = true) }
             startRemote(current, 0L)
         } else {
             advance(auto = true, forceContextLoop = snapshot.repeat == RepeatMode.Context)
@@ -367,7 +369,7 @@ internal class PlaybackDriver(
             next?.let { startRemote(it, resume, gapless = auto && store.value.gapless, resuming = resume > 0L) }
         } else {
             clock.set(0L)
-            store.update { it.copy(isPlaying = false) }
+            transport.idle()
         }
     }
 
@@ -428,9 +430,7 @@ internal class PlaybackDriver(
      */
     fun releaseResumeHold(item: MediaItem, positionMs: Long) {
         clock.confirmStart(positionMs)
-        store.update { state ->
-            if (state.current?.id == item.id) state.copy(isPlaying = true) else state
-        }
+        if (store.value.current?.id == item.id) transport.playing()
     }
 
     fun playItem(item: MediaItem) = play(listOf(item), 0)
@@ -508,7 +508,7 @@ internal class PlaybackDriver(
                 history = restored.history,
                 shuffle = restored.shuffle,
                 repeat = restored.repeat,
-                isPlaying = playback.isActive,
+                transport = if (playback.isActive) Transport.Playing else Transport.Idle,
                 recent = effects.recentItems(excluding = current)
             )
         }
@@ -530,6 +530,12 @@ internal class PlaybackDriver(
         val session = session ?: return
         if (item.service == ServiceId.Local) return
         SidetrackDebug.log("viewModel.startRemote key=${item.key.encode()} positionMs=$positionMs gapless=$gapless resuming=$resuming")
+        // Nothing is audible until the play call or a player event says so. A start that does
+        // neither must not leave the now-playing UI claiming to play forever.
+        transport.starting {
+            clock.endStart()
+            store.update { it.copy(nowPlayingNotice = null).say(TransportState.START_FAILED_MESSAGE) }
+        }
         clock.beginStart(positionMs, resumeFor = item.id.takeIf { resuming })
         session.playback.setNowPlaying(item, positionMs)
         scope.launch {
@@ -542,9 +548,8 @@ internal class PlaybackDriver(
             } catch (e: Exception) {
                 SidetrackDebug.log("viewModel.startRemote failed", e)
                 clock.endStart()
-                store.update {
-                    it.copy(isPlaying = false, nowPlayingNotice = null).say(playbackNotice(e))
-                }
+                transport.failed(playbackNotice(e))
+                store.update { it.copy(nowPlayingNotice = null).say(playbackNotice(e)) }
             }
         }
     }

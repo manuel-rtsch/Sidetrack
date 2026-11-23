@@ -53,6 +53,7 @@ import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.design.theme.contentColorFor
 import io.github.manuelrtsch.sidetrack.playback.SleepTimerState
 import io.github.manuelrtsch.sidetrack.playback.tileText
+import io.github.manuelrtsch.sidetrack.ui.VinylSpinner
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.flow.StateFlow
@@ -60,7 +61,7 @@ import kotlinx.coroutines.flow.StateFlow
 @Composable
 fun NowPlayingTile(
     current: MediaItem?,
-    isPlaying: Boolean,
+    transport: Transport,
     sleepTimer: StateFlow<SleepTimerState>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -72,13 +73,27 @@ fun NowPlayingTile(
     // One overline slot, ranked: the sleep timer's outcome explains the pause, a frozen or live
     // timer replaces the playing label, and the icon beside the text carries playback state so the
     // text itself can stay inside the tile's one-line budget.
-    val paused = current != null && !isPlaying
+    val starting = transport == Transport.Starting
+    val paused = current != null && (transport == Transport.Paused || transport == Transport.Idle)
     val overlineIcon: SidekitIcon?
     val overlineLabel: String
     when {
         current == null -> {
             overlineIcon = null
             overlineLabel = "NOTHING PLAYING"
+        }
+
+        // The source is still resolving, so there is no pause to offer and nothing is playing
+        // yet: the record's arc says "working" where a play or pause icon would lie.
+        starting -> {
+            overlineIcon = null
+            overlineLabel = "STARTING"
+        }
+
+        // A start that ended without audio must not fall back to "PAUSED": nothing was paused.
+        transport is Transport.Failed -> {
+            overlineIcon = null
+            overlineLabel = "COULDN'T PLAY"
         }
 
         timer == SleepTimerState.Finished && timerLabel != null -> {
@@ -134,8 +149,16 @@ fun NowPlayingTile(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    overlineIcon?.let {
-                        SidekitIconImage(it, size = 24.dp, tint = colors.surfaceA6)
+                    if (starting) {
+                        VinylSpinner(
+                            describeAs = "Starting playback",
+                            diameter = 24.dp,
+                            color = colors.surfaceA6
+                        )
+                    } else {
+                        overlineIcon?.let {
+                            SidekitIconImage(it, size = 24.dp, tint = colors.surfaceA6)
+                        }
                     }
                     SidekitText(
                         overlineLabel,

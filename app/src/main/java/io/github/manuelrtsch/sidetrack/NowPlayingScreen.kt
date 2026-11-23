@@ -299,7 +299,7 @@ private fun SongNowPlayingBody(
             playbackPositionMs,
             track.durationMs,
             onSeek,
-            buffering = playback.isBuffering
+            buffering = playback.transport == Transport.Buffering
         )
         SongTransportRow(
             playback,
@@ -331,13 +331,17 @@ internal fun SongTransportRow(
             weight = 0.85f
         )
         IconTile(SidekitIcon.SkipPrevious, "Previous", onPrevious, weight = 0.85f)
-        IconTile(
-            if (playback.isPlaying) SidekitIcon.Pause else SidekitIcon.PlayArrow,
-            if (playback.isPlaying) "Pause" else "Play",
-            onPlayPause,
-            tone = TileTone.Play,
-            weight = 1.2f
-        )
+        if (playback.transport == Transport.Starting) {
+            StartingTile(onPlayPause, Modifier.weight(1.2f))
+        } else {
+            IconTile(
+                if (playback.isPlaying) SidekitIcon.Pause else SidekitIcon.PlayArrow,
+                if (playback.isPlaying) "Pause" else "Play",
+                onPlayPause,
+                tone = TileTone.Play,
+                weight = 1.2f
+            )
+        }
         IconTile(SidekitIcon.SkipNext, "Next", onNext, weight = 0.85f)
         RepeatTile(playback.repeat, onRepeat)
     }

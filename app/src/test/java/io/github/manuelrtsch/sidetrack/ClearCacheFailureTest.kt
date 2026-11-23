@@ -73,6 +73,7 @@ class ClearCacheFailureTest {
             episodes = EpisodeProgressRepository(),
             episodeMeta = EpisodeMetaRepository(),
             clock = clock,
+            transport = TransportState(store, scope),
             playback = { null },
             resumePoint = { null },
             scope = scope

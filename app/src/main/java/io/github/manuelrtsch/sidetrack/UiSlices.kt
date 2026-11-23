@@ -18,11 +18,14 @@ data class PlaybackUiState(
     val upcoming: List<MediaItem> = emptyList(),
     val history: List<MediaItem> = emptyList(),
     val recent: List<MediaItem> = emptyList(),
-    val isPlaying: Boolean = false,
-    val isBuffering: Boolean = false,
+    val transport: Transport = Transport.Idle,
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.Off
-)
+) {
+    /** Read-only projections until every reader takes [transport]. */
+    val isPlaying: Boolean get() = transport.isPlaying
+    val isBuffering: Boolean get() = transport == Transport.Buffering
+}
 
 /**
  * The library as the screen reads it. Every category the user has opened stays in [libraryPages],
@@ -185,7 +188,7 @@ internal fun RadioUiState.artistStation(artistId: String): StationScreenState {
 }
 
 val SidetrackUiState.playback: PlaybackUiState
-    get() = PlaybackUiState(current, upcoming, history, recent, isPlaying, isBuffering, shuffle, repeat)
+    get() = PlaybackUiState(current, upcoming, history, recent, transport, shuffle, repeat)
 
 private inline fun <reified K : TaskKey> Map<TaskKey, String>.byKey(): Map<K, String> = entries.mapNotNull { (key, message) -> (key as? K)?.let { it to message } }.toMap()
 

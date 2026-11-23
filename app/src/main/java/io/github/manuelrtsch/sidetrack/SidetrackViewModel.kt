@@ -150,6 +150,8 @@ class SidetrackViewModel(
         onEpisodeProgress = { effects.recordEpisodeProgress() }
     )
 
+    private val transport = TransportState(store, viewModelScope)
+
     private val effects = PlaybackEffects(
         store = store,
         queue = queue,
@@ -157,6 +159,7 @@ class SidetrackViewModel(
         episodes = episodeProgressRepository,
         episodeMeta = episodeMetaRepository,
         clock = clock,
+        transport = transport,
         playback = { session?.playback },
         resumePoint = { session?.resumePoint },
         scope = viewModelScope
@@ -176,6 +179,7 @@ class SidetrackViewModel(
     private val driver = PlaybackDriver(
         store = store,
         clock = clock,
+        transport = transport,
         effects = effects,
         notifier = notifier,
         queue = queue,
@@ -293,7 +297,7 @@ class SidetrackViewModel(
     )
 
     private val sessionWiring = session?.let {
-        SidetrackSessionWiring(viewModelScope, it, store, clock, driver, account, library) { text -> notice(text) }
+        SidetrackSessionWiring(viewModelScope, it, store, clock, transport, driver, account, library) { text -> notice(text) }
     }
 
     init {

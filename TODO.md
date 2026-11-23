@@ -190,14 +190,21 @@ no-visual-change reviews.
   failed clear may still have removed part of the cache. The Settings row shows "Clearing…" in
   place of the size meanwhile, the same pending language Create and Add use. Covered by
   `ClearCacheFailureTest`.
-- [ ] **`PlaybackUiState.transport`** — `Idle | Starting | Buffering | Playing | Paused | Failed`,
-  derived from the same player events plus the in-flight `startRemote`, with `isPlaying` and
-  `isBuffering` kept as read-only projections until readers migrate. `beginPlayback`/`startRemote`
-  set `Starting`; the first progress or playing event settles it; a 20 s watchdog turns a stuck
-  start into `Failed("Couldn't start playback")`.
-- [ ] **Read the phase everywhere** — `NowPlayingTile` stops showing play while `Starting` and
-  shows the arc instead; `Seek.kt` shows `Buffering…` from the same value; the notification does
-  not publish a playing state before audio exists. Delete the separate `isBuffering` reads.
+- [x] **`PlaybackUiState.transport`** — `Transport` is `Idle | Starting | Buffering | Playing |
+  Paused | Failed(message)`, stored once in `SidetrackUiState`; `isPlaying` and `isBuffering` are
+  read-only projections for screens that have not moved. `TransportState` writes the phase and owns
+  the only transition that is not a player event: a 20 s watchdog turns a start that never becomes
+  audio into `Failed("Couldn't start playback")`, releasing the clock's hold and saying so in the
+  bar. A `Playing` event, a buffering report or the first `Position` tick settles the start;
+  `applyQueue(playing = …)` states the queue write's intent without inventing a phase when it has
+  none. Covered by `TransportStateTest`.
+- [x] **Read the phase everywhere** — the home `NowPlayingTile` says "STARTING" beside the record's
+  arc instead of "NOW PLAYING", and "COULDN'T PLAY" for a failed start rather than falling back to
+  PAUSED; the song and episode transport rows and `ContextPlayTile` swap their play/pause tile for
+  `StartingTile` while a source resolves; `Seek` reads `transport == Buffering` for its label and
+  state. The notification needed no change: it publishes `playing` only through `updateState`,
+  which is fed by player events, and a start never calls it. The separate `isBuffering` reads are
+  gone.
 
 ### Semantics and tests
 

@@ -30,7 +30,7 @@ internal fun screenshotState(): SidetrackUiState {
                 LibraryPage(items = items, hasMore = items.size >= SEARCH_PAGE_SIZE)
             }
         ),
-        isPlaying = true,
+        transport = Transport.Playing,
         savedTrackIds = setOf(current.id),
         filter = LibraryFilter.Albums
     )

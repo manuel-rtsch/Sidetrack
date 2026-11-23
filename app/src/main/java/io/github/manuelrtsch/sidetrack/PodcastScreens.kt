@@ -145,7 +145,7 @@ fun ShowScreen(
                     ContextPlayTile(
                         playIds,
                         playback.current?.id,
-                        playback.isPlaying,
+                        playback.transport,
                         onPlay,
                         onPlayPause,
                         Modifier.weight(1f).focusRequester(playFocus),

@@ -15,6 +15,7 @@ import kotlin.math.abs
  */
 internal class PlaybackEvents(
     private val clock: PlaybackClock,
+    private val transport: TransportState,
     private val session: ServiceRuntime?,
     private val queue: QueueRepository,
     private val effects: PlaybackEffects,
@@ -63,7 +64,7 @@ internal class PlaybackEvents(
                     val current = clock.value
                     clock.anchor(current)
                     playback?.updateState(true, current)
-                    store.update { it.copy(isPlaying = true) }
+                    transport.playing()
                 }
             }
 
@@ -76,7 +77,7 @@ internal class PlaybackEvents(
                     val current = clock.value
                     clock.anchor(current)
                     playback?.updateState(false, current)
-                    store.update { it.copy(isPlaying = false) }
+                    transport.paused()
                     effects.recordEpisodeProgress(force = true)
                 }
             }
@@ -102,6 +103,9 @@ internal class PlaybackEvents(
                 // Position events carry no item identity. Ignore them while a newly started item
                 // is still being loaded, otherwise the previous item's clock can rewind the bar.
                 if (clock.awaitingStartConfirmation) return
+                // A position tick is audio making progress, so it settles a start whose Playing
+                // event never arrived (a gapless handoff reports the next item this way).
+                if (store.value.transport == Transport.Starting) transport.playing()
                 // The ticker owns the seek bar. Only adopt an event position when it is far
                 // enough away to be a real seek from another client, not the decoder's normal
                 // lead over the speaker.
@@ -164,7 +168,7 @@ internal class PlaybackEvents(
             is PlaybackEvent.Unavailable -> if (matchesCurrent(event.uri)) {
                 clock.endStart()
                 clock.clearSeek()
-                store.update { it.copy(isPlaying = false) }
+                transport.idle()
                 onUnavailable()
             }
 

@@ -23,6 +23,7 @@ internal class PlaybackEffects(
     private val episodes: EpisodeProgressRepository,
     private val episodeMeta: EpisodeMetaRepository,
     private val clock: PlaybackClock,
+    private val transport: TransportState,
     private val playback: () -> PlaybackController?,
     private val resumePoint: () -> ResumePoint?,
     private val scope: CoroutineScope
@@ -63,6 +64,9 @@ internal class PlaybackEffects(
             clock.anchor(positionMs)
             clock.set(positionMs)
         }
+        // The queue write states its intent; the transport decides how to spell it (playing,
+        // starting, or nothing at all when the write is not about playback).
+        transport.intent(playing)
         store.update {
             it.copy(
                 current = snapshot.current,
@@ -70,7 +74,6 @@ internal class PlaybackEffects(
                 history = snapshot.history,
                 shuffle = snapshot.shuffle,
                 repeat = snapshot.repeat,
-                isPlaying = playing ?: it.isPlaying,
                 recent = if (historyChanged) history.items() else it.recent
             )
         }
@@ -172,10 +175,8 @@ internal class PlaybackEffects(
             controller.requestSeek(0L)
         }
         clock.set(0L)
-        store.update {
-            val next = it.copy(isPlaying = false)
-            if (notice == null) next else next.say(notice)
-        }
+        transport.idle()
+        if (notice != null) store.update { it.say(notice) }
     }
 
     /** The offset this item should start at when it becomes current. */

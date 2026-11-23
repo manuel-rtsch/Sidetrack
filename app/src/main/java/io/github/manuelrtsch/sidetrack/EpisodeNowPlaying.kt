@@ -75,10 +75,10 @@ internal fun EpisodeNowPlayingBody(
             playbackPositionMs,
             episode.durationMs,
             onSeek,
-            buffering = playback.isBuffering
+            buffering = playback.transport == Transport.Buffering
         )
         EpisodeTransportRow(
-            playing = playback.isPlaying,
+            transport = playback.transport,
             onPlayPause = onPlayPause,
             onPrevious = onPrevious,
             onNext = onNext,
@@ -170,7 +170,7 @@ private fun EpisodeNotes(notes: String, onOpenEpisodeNotes: () -> Unit) {
  */
 @Composable
 private fun EpisodeTransportRow(
-    playing: Boolean,
+    transport: Transport,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -180,13 +180,17 @@ private fun EpisodeTransportRow(
     SidekitItemRow {
         SkipTile("−30", "Back 30 seconds", onSkipBack)
         IconTile(SidekitIcon.SkipPrevious, "Previous episode", onPrevious, weight = 0.85f)
-        IconTile(
-            if (playing) SidekitIcon.Pause else SidekitIcon.PlayArrow,
-            if (playing) "Pause" else "Play",
-            onPlayPause,
-            tone = TileTone.Play,
-            weight = 1.2f
-        )
+        if (transport == Transport.Starting) {
+            StartingTile(onPlayPause, Modifier.weight(1.2f))
+        } else {
+            IconTile(
+                if (transport.isPlaying) SidekitIcon.Pause else SidekitIcon.PlayArrow,
+                if (transport.isPlaying) "Pause" else "Play",
+                onPlayPause,
+                tone = TileTone.Play,
+                weight = 1.2f
+            )
+        }
         IconTile(SidekitIcon.SkipNext, "Next", onNext, weight = 0.85f)
         SkipTile("+30", "Forward 30 seconds", onSkipForward)
     }

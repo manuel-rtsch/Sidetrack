@@ -41,7 +41,7 @@ class ArtworkBackdropTest {
             CompositionLocalProvider(LocalInspectionMode provides true) {
                 SidekitTheme(spacing = SidekitSpacing.Compact) {
                     SidekitCanvas(chrome = chrome) {
-                        NowPlayingUnderTest(SidetrackUiState(current = track, isPlaying = true))
+                        NowPlayingUnderTest(SidetrackUiState(current = track, transport = Transport.Playing))
                     }
                 }
             }

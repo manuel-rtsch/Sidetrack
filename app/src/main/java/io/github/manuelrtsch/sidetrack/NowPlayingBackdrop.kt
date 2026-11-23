@@ -269,7 +269,7 @@ internal fun BackdroppedNowPlayingBody(
             playbackPositionMs,
             current.durationMs,
             onSeek,
-            buffering = playback.isBuffering
+            buffering = playback.transport == Transport.Buffering
         )
         Spacer(Modifier.height(6.dp))
         SongTransportRow(

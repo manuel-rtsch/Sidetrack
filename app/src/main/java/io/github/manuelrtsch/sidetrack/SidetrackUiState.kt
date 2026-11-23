@@ -35,8 +35,8 @@ data class SidetrackUiState(
     val artistErrors: Map<String, String> = emptyMap(),
     val artistAlbumHasMore: Map<String, Boolean> = emptyMap(),
     val artistTrackHasMore: Map<String, Boolean> = emptyMap(),
-    val isPlaying: Boolean = false,
-    val isBuffering: Boolean = false,
+    /** What the transport is doing; [isPlaying] and [isBuffering] are read-only projections. */
+    val transport: Transport = Transport.Idle,
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.Off,
     val savedTrackIds: Set<String> = emptySet(),
@@ -82,6 +82,10 @@ data class SidetrackUiState(
     val playlistChoicesHasMore: Boolean = false,
     val playlistChoicesError: String? = null
 ) {
+    /** Audio exists or is on its way; see [Transport]. Kept while screens move to [transport]. */
+    val isPlaying: Boolean get() = transport.isPlaying
+    val isBuffering: Boolean get() = transport == Transport.Buffering
+
     // The open category is a projection of [libraryPages]: the cache is the only copy of the rows,
     // so a page that arrives for a category the user has left is still worth keeping.
     val libraryItems: List<Any> get() = libraryPages[filter]?.items.orEmpty()

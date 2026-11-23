@@ -17,6 +17,7 @@ internal class SidetrackSessionWiring(
     private val session: ServiceRuntime,
     private val store: UiStateStore,
     private val clock: PlaybackClock,
+    private val transport: TransportState,
     private val driver: PlaybackDriver,
     private val account: AccountController,
     private val library: LibraryController,
@@ -37,7 +38,7 @@ internal class SidetrackSessionWiring(
         scope.launch {
             runtime.playback.buffering.collect { buffering ->
                 if (!buffering) clock.anchorCurrent()
-                store.update { state -> state.copy(isBuffering = buffering) }
+                transport.buffering(buffering)
             }
         }
         scope.launch {
@@ -62,7 +63,7 @@ internal class SidetrackSessionWiring(
             val item = store.value.current
             if (item != null && item.service != ServiceId.Local) {
                 val resume = clock.value
-                store.update { state -> state.copy(isPlaying = true) }
+                // startRemote owns the phase: it reports Starting until the player confirms.
                 driver.startRemote(item, resume, resuming = resume > 0L)
             }
         }

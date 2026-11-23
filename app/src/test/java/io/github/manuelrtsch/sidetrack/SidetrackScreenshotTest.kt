@@ -71,7 +71,7 @@ class SidetrackScreenshotTest {
 
     @Test fun homePaused() = shoot("sidetrack_home_paused") {
         SidetrackHomeScreen(
-            state.copy(isPlaying = false).playback,
+            state.copy(transport = Transport.Paused).playback,
             state.chrome,
             sleepTimer = MutableStateFlow(SleepTimerState.Off),
             onNowPlaying = {},
@@ -90,7 +90,7 @@ class SidetrackScreenshotTest {
 
     @Test fun homePausedWithSleepTimer() = shoot("sidetrack_home_paused_timer") {
         SidetrackHomeScreen(
-            state.copy(isPlaying = false).playback,
+            state.copy(transport = Transport.Paused).playback,
             state.chrome,
             sleepTimer = MutableStateFlow(SleepTimerState.Countdown(30, 1_800_000L, 23)),
             onNowPlaying = {},
@@ -109,7 +109,7 @@ class SidetrackScreenshotTest {
 
     @Test fun homeSleepTimerFinished() = shoot("sidetrack_home_sleep_timer_finished") {
         SidetrackHomeScreen(
-            state.copy(isPlaying = false).playback,
+            state.copy(transport = Transport.Paused).playback,
             state.chrome,
             sleepTimer = MutableStateFlow(SleepTimerState.Finished),
             onNowPlaying = {},
@@ -241,9 +241,9 @@ class SidetrackScreenshotTest {
     @Test fun nowPlayingEpisode() = shoot("sidetrack_now_playing_episode") {
         val episode = MockSpotifyDataSource.shows.first().episodes.last()
         NowPlayingScreen(
-            state.copy(current = episode, isPlaying = true).playback,
-            state.copy(current = episode, isPlaying = true).saved,
-            state.copy(current = episode, isPlaying = true).chrome,
+            state.copy(current = episode, transport = Transport.Playing).playback,
+            state.copy(current = episode, transport = Transport.Playing).saved,
+            state.copy(current = episode, transport = Transport.Playing).chrome,
             playbackPositionMs = MutableStateFlow(68_000L),
             sleepTimer = MutableStateFlow(SleepTimerState.Off),
             onBack = {},
