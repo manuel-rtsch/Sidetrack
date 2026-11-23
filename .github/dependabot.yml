@@ -1,0 +1,21 @@
+version: 2
+
+updates:
+  # Third-party actions are pinned to full-length commit SHAs so a moved tag cannot inject code
+  # into a privileged job. That only works with an updater: without one, every pin silently rots,
+  # and `dtolnay/rust-toolchain@stable` (a branch ref) would freeze the bridge's compiler forever.
+  #
+  # `directory: "/"` is what makes the github-actions ecosystem cover both the workflows under
+  # .github/workflows/ and the composite actions under .github/actions/.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      # One PR per week rather than eight; the updates are reviewed together against a CI run.
+      github-actions:
+        patterns:
+          - "*"
