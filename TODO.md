@@ -257,8 +257,9 @@ that migration made possible. Land the rest in this order, each shippable on its
 PMD CPD runs over the Kotlin and Rust sources at 80 tokens with `--ignore-identifiers
 --ignore-literals`, so every hit below is a structural clone rather than two functions that happen
 to share a shape. `./gradlew cpd` writes the full blocks to `build/reports/cpd/`; `cpdCheck` fails
-when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (676 today). Lower
-that number in the same commit that lands one of these, or the budget will not stop the next one.
+when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (74 today, from 824
+when the budget was introduced). Lower that number in the same commit that lands one of these, or
+the budget will not stop the next one.
 
 The list is ordered by what the duplication risks, not by its size: duplicated retry logic is a bug
 waiting to happen, duplicated test setup is mostly a patience tax.
