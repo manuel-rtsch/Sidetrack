@@ -227,7 +227,12 @@ fun Seek(
                 .semantics {
                     if (seekable) {
                         contentDescription = "Seek"
-                        stateDescription = "${formatDuration(shownPositionMs)} of ${formatDuration(durationMs)}"
+                        // A buffering bar says so in its state, not just in the label above it.
+                        stateDescription = if (buffering) {
+                            "Buffering"
+                        } else {
+                            "${formatDuration(shownPositionMs)} of ${formatDuration(durationMs)}"
+                        }
                         progressBarRangeInfo = ProgressBarRangeInfo(shownFraction, 0f..1f)
                         setProgress { target ->
                             seekTo(target)

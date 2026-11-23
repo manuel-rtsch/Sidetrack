@@ -2,7 +2,6 @@ package io.github.manuelrtsch.sidetrack
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -50,9 +49,9 @@ class SearchLoadingTest {
     @Test
     fun theFirstSearchShowsTheRecordNamedByTheQuery() {
         showLoading()
-        compose.onNodeWithText("Searching for \"night\"…").assertExists()
+        // One node carries the whole block, so the title is a description rather than text.
         compose.onNodeWithContentDescription("Searching for \"night\"…").assertExists()
-        compose.onNodeWithText("Searching").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Searching").assertDoesNotExist()
         compose.onNodeWithContentDescription("Tracks").assertDoesNotExist()
     }
 }

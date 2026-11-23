@@ -201,24 +201,33 @@ no-visual-change reviews.
 
 ### Semantics and tests
 
-- [ ] **Announce the block once** — the record carries `contentDescription = title` while the same
-  title is drawn as text (`StatusScreens.kt:104`, `:170`), so TalkBack can read it twice. Wrap the
-  block in `clearAndSetSemantics { contentDescription = title; stateDescription = hint }` and drop
-  the per-canvas description.
-- [ ] **Loading and errors are live regions** — `liveRegion = Polite` on the first-load and error
-  blocks, so a request that starts or fails after focus landed is announced. Do not set it on the
-  footer spinner; the list is already moving there.
-- [ ] **Buffering is exposed** — `stateDescription` on the seek row, not just the visible label.
-- [ ] **Tests** — extend `AccessibilitySemanticsTest` (one announcement per status block, buffering
-  state description); `PaginationFooterTest` (failed load-more retries without losing rows);
-  `ArtworkScreenTest` (retry action); a controller test for sign-in pending and for the second
-  Create/Add being refused while one is running. `LibraryPageCacheTest` and `SearchPageCacheTest`
-  must keep passing through the state move — they are the safety net for the collapse.
-- [ ] **Screenshots** — `SidetrackScreenshotTest:449` is the only `LoadingScreen` baseline; add one
-  for the sign-in pending state. The record does not move, so no other baseline changes.
-- [ ] **CPD** — re-run `./gradlew cpdCheck` after the ladders collapse; the `UiSlices` ↔
-  `SidetrackUiState` clone listed below should shrink with the field collapse, and the budget can
-  follow the measurement rather than lead it.
+- [x] **Announce the block once** — `StatusScreens.statusBlock` wraps the record, title and hint in
+  `clearAndSetSemantics { contentDescription = title; stateDescription = hint }`, and the per-canvas
+  descriptions are gone. TalkBack reads one node instead of the record's description followed by
+  the same title as text. The block's text is no longer in the semantics tree, so the tests that
+  read it by text now read the description and state (`SignInPendingTest`, `SearchLoadingTest`,
+  `ArtworkScreenTest`).
+- [x] **Loading and errors are live regions** — `LoadingScreen` is always polite, because a first
+  load appears after the screen already has focus; `StatusScreen` is polite only for a failure
+  (`LoadSurface` passes `announce = true` on its error branch). A settled empty page stays silent:
+  it was already on screen, so nothing changed. The footer spinner is untouched, as the list is
+  already moving there.
+- [x] **Buffering is exposed** — the seek bar's `stateDescription` is "Buffering" while it waits,
+  matching the visible label, instead of claiming a position nobody can vouch for. Covered by
+  `AccessibilitySemanticsTest`.
+- [ ] **Tests** — `AccessibilitySemanticsTest` now covers one announcement per status block, the
+  live-region split and the buffering state, and `PlaylistControllerTest` covers the refused second
+  Create/Add. Still missing: `ArtworkScreenTest` for the retry action (it needs a failing remote
+  fetch), a controller test for sign-in pending, and confirming `PaginationFooterTest` has a failed
+  load-more case distinct from `LoadMoreRetryTest`. `LibraryPageCacheTest` and `SearchPageCacheTest`
+  still pass through the state move — they are the safety net for the collapse.
+- [x] **Screenshots** — the sign-in pending baseline already exists from the sign-in commit
+  (`SidetrackScreenshotTest.signInPending`, `app/screenshots/sidetrack_sign_in_pending.png`). The
+  semantics move changes no pixels, so no baseline moved.
+- [x] **CPD** — re-ran after the collapse: 32 Kotlin groups and 1 Rust group, 668 lines of a 668
+  budget. The `UiSlices` ↔ `SidetrackUiState` clone the item expected to shrink is already gone (it
+  was cleaned with the field collapse), so this move adds nothing to lower; the next drop needs one
+  of the blocks in the duplication section, not a budget tweak.
 
 ### Decisions
 

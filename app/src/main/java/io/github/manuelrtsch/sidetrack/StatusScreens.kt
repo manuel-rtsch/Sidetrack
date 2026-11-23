@@ -31,8 +31,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -76,6 +79,20 @@ private fun VinylRecord(angle: Float, modifier: Modifier = Modifier) {
 }
 
 /**
+ * One node for a whole status block: the title is what it *is*, the hint is its state.
+ *
+ * The record, title and hint are drawn separately, so without this TalkBack would read the
+ * record's description and then the same title again as text. Clearing the descendants leaves one
+ * announcement. [live] marks the block polite: a load that starts or fails after focus landed must
+ * still be spoken, while a settled state that was already on screen did not change.
+ */
+private fun Modifier.statusBlock(title: String, hint: String?, live: Boolean): Modifier = clearAndSetSemantics {
+    contentDescription = title
+    if (hint != null) stateDescription = hint
+    if (live) liveRegion = LiveRegionMode.Polite
+}
+
+/**
  * A centred vinyl record for the first load of an artist or collection. The record turns while the
  * catalog request is in flight, so the screen reads as activity rather than a stalled empty state.
  */
@@ -97,16 +114,11 @@ fun LoadingScreen(
         label = "recordAngle"
     )
     Column(
-        modifier.fillMaxSize().padding(24.dp),
+        modifier.fillMaxSize().padding(24.dp).statusBlock(title, hint, live = true),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        VinylRecord(
-            angle,
-            Modifier
-                .size(132.dp)
-                .semantics { contentDescription = title }
-        )
+        VinylRecord(angle, Modifier.size(132.dp))
         Spacer(Modifier.height(20.dp))
         SidekitText(title, style = SidekitTheme.typography.bodySmall, color = colors.light)
         if (hint != null) {
@@ -138,7 +150,9 @@ fun StatusScreen(
     title: String,
     modifier: Modifier = Modifier,
     hint: String? = null,
-    artwork: Boolean = true
+    artwork: Boolean = true,
+    /** A state that just changed (a failure) is announced; a settled empty page is not. */
+    announce: Boolean = false
 ) {
     val colors = SidekitTheme.colors
     BoxWithConstraints(
@@ -162,17 +176,12 @@ fun StatusScreen(
             Modifier.verticalScroll(scrollState)
         }
         Column(
-            Modifier.fillMaxWidth().then(fit),
+            Modifier.fillMaxWidth().then(fit).statusBlock(title, hint, live = announce),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             if (record != null) {
-                VinylRecord(
-                    0f,
-                    Modifier
-                        .size(record)
-                        .semantics { contentDescription = title }
-                )
+                VinylRecord(0f, Modifier.size(record))
                 Spacer(Modifier.height(16.dp))
             }
             SidekitText(
@@ -240,7 +249,7 @@ internal fun LoadSurface(
             hint = if (slow) "Still loading…" else loadingHint
         )
 
-        error != null -> StatusScreen(errorTitle, modifier, hint = error)
+        error != null -> StatusScreen(errorTitle, modifier, hint = error, announce = true)
 
         emptyTitle != null -> StatusScreen(emptyTitle, modifier, hint = emptyHint)
     }

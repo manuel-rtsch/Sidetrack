@@ -1,5 +1,8 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -48,8 +51,10 @@ class SignInPendingTest {
     @Test
     fun aBrowserAttemptNamesTheServiceAndKeepsItsExit() {
         show(pending = true)
-        compose.onNodeWithText("Waiting for Spotify…").assertExists()
-        compose.onNodeWithText("Finish in the browser").assertExists()
+        // The status block is one semantics node; the hint is its state, not a second node.
+        compose.onNodeWithContentDescription("Waiting for Spotify…")
+            .assertExists()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Finish in the browser"))
         // Back is the only way out of a browser round-trip; the primary action stays live because
         // a second press supersedes an attempt the browser abandoned.
         compose.onNodeWithContentDescription("Back").assertExists()
@@ -60,14 +65,14 @@ class SignInPendingTest {
     @Test
     fun aDeviceAttemptNamesThePermission() {
         show(pending = true, deviceAuth = true)
-        compose.onNodeWithText("Waiting for access…").assertExists()
+        compose.onNodeWithContentDescription("Waiting for access…").assertExists()
         compose.onNodeWithContentDescription("Allow access").assertExists()
     }
 
     @Test
     fun aPasswordAttemptSaysItIsSigningIn() {
         show(pending = true, passwordAuth = true)
-        compose.onNodeWithText("Signing in…").assertExists()
+        compose.onNodeWithContentDescription("Signing in…").assertExists()
         compose.onAllNodesWithText("Server").assertCountEquals(0)
         compose.onAllNodesWithText("Password").assertCountEquals(0)
     }

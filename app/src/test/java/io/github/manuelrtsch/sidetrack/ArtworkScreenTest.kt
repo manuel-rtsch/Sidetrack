@@ -1,8 +1,10 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -31,8 +33,15 @@ class ArtworkScreenTest {
             }
         }
 
-        compose.onNodeWithText("No artwork available").assertExists()
-        compose.onNodeWithText("There is no cover art to show for this item.").assertExists()
+        // The block is one semantics node: the title is the description, the hint its state.
+        compose.onNodeWithContentDescription("No artwork available")
+            .assertExists()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "There is no cover art to show for this item."
+                )
+            )
     }
 
     @Test
@@ -48,8 +57,15 @@ class ArtworkScreenTest {
             }
         }
 
-        compose.onNodeWithText("No artwork available").assertExists()
-        compose.onNodeWithText("There is no cover art to show for this item.").assertExists()
+        // The block is one semantics node: the title is the description, the hint its state.
+        compose.onNodeWithContentDescription("No artwork available")
+            .assertExists()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "There is no cover art to show for this item."
+                )
+            )
     }
 
     @Test
@@ -67,6 +83,6 @@ class ArtworkScreenTest {
         }
 
         compose.onNodeWithContentDescription("Album artwork").assertExists()
-        compose.onNodeWithText("No artwork available").assertDoesNotExist()
+        compose.onNodeWithContentDescription("No artwork available").assertDoesNotExist()
     }
 }
