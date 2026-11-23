@@ -244,6 +244,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  duplication:
+    name: Copy/paste duplication
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/android-setup
+      # Fails only when the duplication footprint grows past sidetrack.cpd.maxDuplicateLines, so
+      # the backlog recorded in TODO.md does not block work while regressions still do.
+      - name: Check the duplication budget
+        run: ./gradlew cpdCheck --stacktrace
+      - name: Upload copy/paste reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpd-reports
+          path: build/reports/cpd/
+          retention-days: 7
+          if-no-files-found: ignore
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'

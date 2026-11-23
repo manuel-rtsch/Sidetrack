@@ -38,6 +38,9 @@ crash-logs/
 __pycache__/
 *.pyc
 
+# PMD, installed on demand by `./gradlew installPmd` (142 MB, never committed)
+/tools/pmd/
+
 # Local release notes
 /RELEASE-*.draft.md
 
