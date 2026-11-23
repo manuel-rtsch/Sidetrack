@@ -65,10 +65,20 @@ class SidetrackLocalSettingsTest {
         assertFalse(SidetrackLocalSettings(context).hasSeenOnboarding())
     }
 
-    @Test fun `finishing the welcome is remembered across instances`() {
+    @Test fun `finishing the setup is remembered across instances`() {
         SidetrackLocalSettings(context).markOnboardingSeen()
 
         assertTrue(SidetrackLocalSettings(context).hasSeenOnboarding())
+    }
+
+    @Test fun `the setup step is remembered and cleared on completion`() {
+        SidetrackLocalSettings(context).onboardingStep = 1
+
+        assertEquals(1, SidetrackLocalSettings(context).onboardingStep)
+
+        SidetrackLocalSettings(context).markOnboardingSeen()
+
+        assertEquals(0, SidetrackLocalSettings(context).onboardingStep)
     }
 
     @Test fun `a fresh install needs the welcome once`() {

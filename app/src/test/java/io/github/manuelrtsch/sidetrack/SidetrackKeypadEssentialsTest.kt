@@ -66,6 +66,14 @@ class SidetrackKeypadEssentialsTest {
     }
 
     @Test
+    fun theControllerReadsAsAGamepad() {
+        assertEquals("Gamepad", keypadModuleLabel(KeypadModule.GamePad))
+        KeypadModule.entries.filter { it != KeypadModule.GamePad }.forEach { module ->
+            assertEquals(module.label, keypadModuleLabel(module))
+        }
+    }
+
+    @Test
     fun cyclingVisitsEveryModuleAndWrapsAround() {
         var module = KeypadModule.T9
         val visited = buildList {

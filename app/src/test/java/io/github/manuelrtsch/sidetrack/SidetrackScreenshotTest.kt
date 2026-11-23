@@ -340,12 +340,45 @@ class SidetrackScreenshotTest {
     @Test fun onboarding() = shoot("sidetrack_welcome") {
         SidetrackOnboardingContent(
             module = KeypadModule.T9,
-            canOpenKeyboard = true,
-            onOpenKeyboard = {},
-            canManageKeypadAccess = true,
+            showKeypadBack = true,
             keypadBackEnabled = false,
+            onOpenKeyboard = {},
             onAbout = {},
-            onDone = {}
+            onDone = {},
+            onStepForward = {},
+            onSkip = {}
+        )
+    }
+
+    @Test fun keypadModule() = shoot("sidetrack_keypad_module") {
+        SidetrackKeypadModuleScreen(
+            module = KeypadModule.T9,
+            onBack = {},
+            onSelect = {}
+        )
+    }
+
+    @Test fun keypadGuide() = shoot("sidetrack_keypad_guide") {
+        SidetrackOnboardingContent(
+            module = KeypadModule.T9,
+            step = 1,
+            onAbout = {},
+            onDone = {},
+            onStepBack = {},
+            onStepForward = {}
+        )
+    }
+
+    @Test fun makeItYours() = shoot("sidetrack_make_it_yours") {
+        SidetrackOnboardingContent(
+            module = KeypadModule.T9,
+            step = 2,
+            canSetQuality = true,
+            onAppearance = {},
+            onAbout = {},
+            onDone = {},
+            onStepBack = {},
+            onSkip = {}
         )
     }
 
