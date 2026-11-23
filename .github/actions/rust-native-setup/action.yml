@@ -11,20 +11,26 @@ runs:
     # cargo-ndk cross-compiles with `--target <triple>`, and rustup installs only the host's std
     # by default, so the two Android triples buildSpotifyNative builds have to be requested here.
     # Without them the bridge fails with `can't find crate for core` before any Kotlin is packaged.
+    #
+    # This action derives the toolchain from its @rev, so pinning a full-length SHA erases that
+    # signal and `toolchain` has to be passed explicitly instead of via `@stable`. The SHA is a
+    # commit on `master` rather than on the action's `stable` branch because the action's README only
+    # guarantees that commits within master's history survive garbage collection.
     - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master @ 2026-11-14
       with:
+        toolchain: stable
         targets: aarch64-linux-android,x86_64-linux-android
 
     - name: Cache Cargo registry and target directory
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       with:
         workspaces: native/sidetrack-spotify
         # The vendored crates under native/vendor change rarely, so key on the lockfile alone.
         key: librespot
 
     - name: Install cargo-ndk
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2
       with:
         tool: cargo-ndk
 
