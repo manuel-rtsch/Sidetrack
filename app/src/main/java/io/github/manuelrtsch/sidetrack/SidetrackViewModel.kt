@@ -491,6 +491,16 @@ class SidetrackViewModel(
 
     fun loadMoreArtistTracks(artist: Artist) = library.loadMoreArtistTracks(artist)
 
+    fun artistSongs(artist: Artist): List<Track> = library.artistSongs(artist)
+
+    fun openArtistSongs(artist: Artist) = library.openArtistSongs(artist)
+
+    fun retryArtistSongs(artist: Artist) = library.retryArtistSongs(artist)
+
+    fun loadMoreArtistSongs(artist: Artist) = library.loadMoreArtistSongs(artist)
+
+    fun playArtistSongs(artist: Artist) = library.playArtistSongs(artist)
+
     fun ensureArtist(id: String) = library.ensureArtist(id)
 
     /** Opens an artist page on its first page, albums and tracks alike. */

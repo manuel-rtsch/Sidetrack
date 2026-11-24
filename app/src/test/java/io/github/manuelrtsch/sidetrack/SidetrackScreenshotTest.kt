@@ -189,9 +189,36 @@ class SidetrackScreenshotTest {
             onArtwork = {},
             onLoadMoreAlbums = {},
             onLoadMoreTracks = {},
+            onAllSongs = {},
             albumHasMore = true,
             trackHasMore = true,
             loadingMore = false,
+            onDismissNotice = {},
+            onDismissNowPlaying = {}
+        )
+    }
+
+    @Test fun artistSongs() = shoot("sidetrack_artist_songs") {
+        val artist = MockSpotifyDataSource.artists.first()
+        ArtistSongsScreen(
+            artist,
+            runBlocking { MockSpotifyDataSource.topTracks(artist).items },
+            state.saved,
+            state.playback,
+            state.chrome,
+            hasMore = true,
+            loadingMore = false,
+            moreFailed = false,
+            onBack = {},
+            onPlay = {},
+            onPlayPause = {},
+            onTrack = {},
+            onAddToQueue = {},
+            onSaveTrack = {},
+            onEnsureSavedTrack = {},
+            onLoadMore = {},
+            onNowPlaying = {},
+            onArtwork = {},
             onDismissNotice = {},
             onDismissNowPlaying = {}
         )

@@ -18,6 +18,10 @@ sealed interface TaskKey {
     data class Artist(val id: String) : TaskKey
     data class ArtistMore(val id: String) : TaskKey
 
+    /** The artist's "All songs" page, first page and then each Load more press. */
+    data class ArtistSongs(val id: String) : TaskKey
+    data class ArtistSongsMore(val id: String) : TaskKey
+
     /** A search request; the query is its identity, so a superseded term cannot claim the new one. */
     data class Search(val query: String) : TaskKey
     data class SearchMore(val scope: SearchScope) : TaskKey

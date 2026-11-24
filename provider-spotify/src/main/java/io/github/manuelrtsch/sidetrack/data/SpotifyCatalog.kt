@@ -50,6 +50,17 @@ interface SpotifyCatalog {
     ): Page<Track>
 
     /**
+     * The artist's whole catalogue, paged. [topTracks] is a fixed shortlist with no cursor on this
+     * service, so a transport that can walk albums answers here; one that cannot leaves the page
+     * empty and the artist page leaves "All songs" off.
+     */
+    suspend fun artistSongs(
+        artist: Artist,
+        offset: Int = 0,
+        limit: Int = CATALOG_PAGE_SIZE
+    ): Page<Track> = Page()
+
+    /**
      * Tracks for a station seeded by [trackId]. The native catalog uses librespot's first-party
      * radio endpoint; transports that cannot build a station return an empty list.
      */

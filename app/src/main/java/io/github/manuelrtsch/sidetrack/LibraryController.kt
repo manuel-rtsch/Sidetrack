@@ -36,7 +36,8 @@ internal class LibraryController(
     private fun isPage(key: TaskKey): Boolean = when (key) {
         is TaskKey.Library, is TaskKey.LibraryMore,
         is TaskKey.Collection, is TaskKey.CollectionMore,
-        is TaskKey.Artist, is TaskKey.ArtistMore -> true
+        is TaskKey.Artist, is TaskKey.ArtistMore,
+        is TaskKey.ArtistSongs, is TaskKey.ArtistSongsMore -> true
 
         else -> false
     }
@@ -56,6 +57,8 @@ internal class LibraryController(
     fun albumsBy(artist: Artist): List<Album> = store.value.artistAlbums[artist.id].orEmpty()
 
     fun topTracks(artist: Artist): List<Track> = store.value.artistTracks[artist.id].orEmpty()
+
+    fun artistSongs(artist: Artist): List<Track> = store.value.artistSongs[artist.id].orEmpty()
 
     fun ensureCollection(type: CollectionType, id: String) = ensureCollection(mediaKeys.media(type, id))
 
@@ -185,6 +188,81 @@ internal class LibraryController(
             } catch (e: Exception) {
                 val message = catalogNotice(e)
                 tasks.fail(TaskKey.ArtistMore(id), message)
+                store.update { it.say(message) }
+            }
+        }
+    }
+
+    /**
+     * Opens the artist's "All songs" page on its first page: a catalogue paged deeper and left
+     * comes back as the batch it opened with, like every other paged list here.
+     */
+    fun openArtistSongs(artist: Artist) {
+        val id = artist.id
+        store.update {
+            val songs = it.artistSongs[id] ?: return@update it
+            if (songs.size <= CATALOG_PAGE_SIZE) return@update it
+            it.copy(
+                artistSongs = it.artistSongs + (id to songs.take(CATALOG_PAGE_SIZE)),
+                artistSongHasMore = it.artistSongHasMore + (id to true)
+            )
+        }
+        ensureArtistSongs(artist)
+    }
+
+    fun ensureArtistSongs(artist: Artist) {
+        val id = artist.id
+        // Present means the page has answered, even with an empty list: retrying an empty catalogue
+        // would ask the same question on every visit.
+        if (id in store.value.artistSongs) return
+        tasks.start(TaskKey.ArtistSongs(id)) {
+            try {
+                val page = catalog.artistSongs(artist.key, 0, CATALOG_PAGE_SIZE)
+                store.update {
+                    it.copy(
+                        artistSongs = it.artistSongs + (id to page.items.distinctBy { track -> track.id }),
+                        artistSongHasMore = it.artistSongHasMore + (id to page.hasMore)
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = catalogNotice(e)
+                tasks.fail(TaskKey.ArtistSongs(id), message)
+                store.update { it.say(message) }
+            }
+        }
+    }
+
+    fun retryArtistSongs(artist: Artist) {
+        val id = artist.id
+        store.update {
+            it.copy(
+                artistSongs = it.artistSongs - id,
+                artistSongHasMore = it.artistSongHasMore - id
+            )
+        }
+        ensureArtistSongs(artist)
+    }
+
+    fun loadMoreArtistSongs(artist: Artist) {
+        val id = artist.id
+        val snapshot = store.value
+        if (snapshot.artistSongHasMore[id] != true) return
+        tasks.start(TaskKey.ArtistSongsMore(id)) {
+            try {
+                val page = catalog.artistSongs(artist.key, snapshot.artistSongs[id].orEmpty().size, CATALOG_PAGE_SIZE)
+                store.update {
+                    it.copy(
+                        artistSongs = it.artistSongs + (id to (it.artistSongs[id].orEmpty() + page.items).distinctBy { track -> track.id }),
+                        artistSongHasMore = it.artistSongHasMore + (id to page.hasMore)
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = catalogNotice(e)
+                tasks.fail(TaskKey.ArtistSongsMore(id), message)
                 store.update { it.say(message) }
             }
         }
@@ -334,6 +412,50 @@ internal class LibraryController(
                 store.update { it.say("Playing what's loaded — ${catalogNotice(e)}") }
             }
         }
+    }
+
+    /**
+     * Plays the artist's catalogue from the "All songs" page, extending the tail with the pages
+     * still behind Load more, so the queue matches the list the screen is showing.
+     */
+    fun playArtistSongs(artist: Artist) {
+        val id = artist.id
+        val page = artistSongs(artist)
+        if (page.isEmpty()) {
+            notify("No songs for this artist")
+            return
+        }
+        driver.play(page, 0)
+        if (store.value.artistSongHasMore[id] != true) return
+        tasks.start(TaskKey.ArtistSongsMore(id)) {
+            try {
+                driver.extendCollection(page, loadAllArtistSongs(artist))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SidetrackDebug.log("viewModel.playArtistSongs id=$id failed", e)
+                store.update { it.say("Playing what's loaded — ${catalogNotice(e)}") }
+            }
+        }
+    }
+
+    suspend fun loadAllArtistSongs(artist: Artist): List<Track> {
+        val id = artist.id
+        var songs = artistSongs(artist)
+        var more = store.value.artistSongHasMore[id] == true
+        while (more) {
+            val page = catalog.artistSongs(artist.key, songs.size, CATALOG_PAGE_SIZE)
+            songs = (songs + page.items).distinctBy { track -> track.id }
+            more = page.hasMore
+            val updated = songs
+            store.update {
+                it.copy(
+                    artistSongs = it.artistSongs + (id to updated),
+                    artistSongHasMore = it.artistSongHasMore + (id to more)
+                )
+            }
+        }
+        return songs
     }
 
     suspend fun loadAllArtistTracks(artist: Artist): List<Track> {

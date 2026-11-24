@@ -133,6 +133,11 @@ data class ServiceCapabilities(
     val supportsPodcasts: Boolean = false,
     val supportsRadio: Boolean = false,
     val supportsFollowArtist: Boolean = false,
+    /**
+     * The service can list an artist's whole catalogue, so the artist page can offer "All songs"
+     * beside the top-track shortlist. Services whose top list is already everything leave it off.
+     */
+    val supportsArtistSongs: Boolean = false,
     val supportsPlaylistEdit: Boolean = false,
     val supportsPlaylistCreate: Boolean = false,
     val supportsPlaylistRename: Boolean = false,
@@ -151,6 +156,7 @@ data class ServiceCapabilities(
             supportsPodcasts = true,
             supportsRadio = true,
             supportsFollowArtist = true,
+            supportsArtistSongs = true,
             supportsPlaylistEdit = true,
             supportsPlaylistRename = true,
             supportsPlaylistDelete = true,

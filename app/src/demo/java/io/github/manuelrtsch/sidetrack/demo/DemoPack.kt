@@ -152,6 +152,12 @@ abstract class PackedCatalog(private val library: DemoLibrary) :
         return Page.of(all.drop(offset).take(limit), offset, limit, all.size)
     }
 
+    /** The demo has the whole discography locally, so "All songs" lists it like any other page. */
+    override suspend fun artistSongs(artist: Artist, offset: Int, limit: Int): Page<Track> {
+        val all = library.albums.filter { it.id in artist.albumIds }.flatMap { it.tracks }.distinctBy { it.id }
+        return Page.of(all.drop(offset).take(limit), offset, limit, all.size)
+    }
+
     override suspend fun songRadio(trackId: String, limit: Int): List<Track> {
         val seed = albumTracks.firstOrNull { it.id == trackId }
         val sameArtist = albumTracks.filter { seed != null && it.artistId == seed.artistId }

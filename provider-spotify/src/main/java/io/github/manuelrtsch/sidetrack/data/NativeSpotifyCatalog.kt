@@ -36,6 +36,8 @@ class NativeSpotifyCatalog(
     private val ensureSession: suspend () -> Unit
 ) : SpotifyCatalog,
     SpotifyLibraryWriter {
+    private val songPager = ArtistSongPager(albums = ::albumsBy, collection = ::collection)
+
     override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> {
         val text = callText { native.catalogLibrary(filter.name, offset.toLong(), limit.toLong()) }
         // The native catalog answers with `{items, total}` so paging does not have to guess from
@@ -77,6 +79,9 @@ class NativeSpotifyCatalog(
         val array = parseArray(callText { native.catalogTopTracks(artist.id, offset.toLong(), limit.toLong()) })
         return Page.of(array.tracks(), offset, limit)
     }
+
+    /** librespot has no artist-catalogue call, so the albums stand in for it. */
+    override suspend fun artistSongs(artist: Artist, offset: Int, limit: Int): Page<Track> = songPager.page(artist, offset, limit)
 
     override suspend fun songRadio(trackId: String, limit: Int): List<Track> = songRadioStation(trackId, limit).tracks
 

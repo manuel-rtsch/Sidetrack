@@ -69,6 +69,11 @@ class SpotifyMediaCatalog(
         return catalog.topTracks(resolved, offset, limit)
     }
 
+    override suspend fun artistSongs(artist: MediaKey, offset: Int, limit: Int): Page<Track> {
+        val resolved = catalog.artist(artist.id) ?: return Page()
+        return catalog.artistSongs(resolved, offset, limit)
+    }
+
     override suspend fun search(
         query: String,
         scopes: Set<SearchScope>,

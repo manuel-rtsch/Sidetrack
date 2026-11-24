@@ -19,6 +19,7 @@ internal val HISTORY = "$ROOT/history"
 internal val LIBRARY = "$ROOT/library"
 internal val COLLECTION = "$ROOT/collection/{key}"
 internal val ARTIST = "$ROOT/artist/{key}"
+internal val ARTIST_SONGS = "$ROOT/artist-songs/{key}"
 internal val CREATE_PLAYLIST = "$ROOT/playlist/create"
 internal val ADD_TO_PLAYLIST = "$ROOT/playlist/add/{key}"
 internal val SEARCH = SIDE_PLAY_SEARCH
@@ -44,6 +45,7 @@ internal fun collectionRoute(key: MediaKey) = "$ROOT/collection/${Uri.encode(key
 internal fun artistRoute(key: MediaKey) = "$ROOT/artist/${Uri.encode(key.encode())}"
 internal fun addToPlaylistRoute(key: String) = "$ROOT/playlist/add/${Uri.encode(key)}"
 internal fun artistRadioRoute(key: MediaKey) = "$ROOT/artist-radio/${Uri.encode(key.encode())}"
+internal fun artistSongsRoute(key: MediaKey) = "$ROOT/artist-songs/${Uri.encode(key.encode())}"
 internal fun MediaKey.with(type: MediaType, id: String) = MediaKey(service, type, id)
 internal fun artworkRoute(artRes: Int, artUrl: String?, label: String, ratio: Float = 1f): String {
     val safeLabel = label.mediaTextOrNull() ?: "Artwork"
@@ -64,6 +66,7 @@ private val KEYPAD_BACK_ROUTES = setOf(
     CREATE_PLAYLIST,
     ADD_TO_PLAYLIST,
     ARTIST,
+    ARTIST_SONGS,
     SEARCH,
     SEARCH_RESULTS,
     SEARCH_SCOPES,

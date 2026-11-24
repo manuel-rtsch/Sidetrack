@@ -94,6 +94,11 @@ class ResilientSpotifyCatalog(
         { web.topTracks(artist, offset, limit) }
     )
 
+    override suspend fun artistSongs(artist: Artist, offset: Int, limit: Int): Page<Track> = read(
+        { native.artistSongs(artist, offset, limit) },
+        { web.artistSongs(artist, offset, limit) }
+    )
+
     override suspend fun songRadio(trackId: String, limit: Int): List<Track> = read(
         { native.songRadio(trackId, limit) },
         { web.songRadio(trackId, limit) }

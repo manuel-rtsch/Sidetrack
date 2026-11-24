@@ -46,6 +46,9 @@ data class SidetrackUiState(
     val artists: Map<String, Artist> = emptyMap(),
     val artistAlbums: Map<String, List<Album>> = emptyMap(),
     val artistTracks: Map<String, List<Track>> = emptyMap(),
+    /** The artist's whole catalogue, for the "All songs" page; empty until that page is opened. */
+    val artistSongs: Map<String, List<Track>> = emptyMap(),
+    val artistSongHasMore: Map<String, Boolean> = emptyMap(),
     val filter: LibraryFilter = LibraryFilter.LikedSongs,
     val searchScopes: Set<SearchScope> = SearchScope.entries.toSet(),
     /** Recent search terms, newest first; the landing screen offers them under "Search in". */

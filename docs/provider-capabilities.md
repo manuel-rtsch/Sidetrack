@@ -27,6 +27,7 @@ leads to an empty page.
 | Podcasts / shows | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Song radio | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Follow artist | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Artist "All songs" page | ✅ walked from albums | ❌ | ❌ | ❌ | ❌ |
 | Playlist item edits | ✅ per playlist | ✅ owned playlists | ✅ offered unconfirmed | ✅ writable playlists | ✅ Sidetrack-owned files |
 | Playlist creation | ❌ | ✅ | ✅ | ❌ | ✅ as `.m3u8` |
 | Playlist rename / delete | ✅ owner only | ✅ owner only | offered unconfirmed | ✅ non-smart | ✅ Sidetrack-owned files |
@@ -107,6 +108,9 @@ its original position. That is why remove confirms instead of offering Undo.
 
 - Library: liked/saved tracks, playlists, albums, artists, shows.
 - Search across all five scopes.
+- Artist page: top tracks are the service's fixed shortlist (no cursor on the endpoint), so the
+  artist's catalogue sits behind its own "All songs" page, paged 20 rows at a time by walking the
+  albums and dropping repeats. See `ArtistSongPager`.
 - Podcasts: show notes, episode numbers and dates, per-episode resume, ±30-second controls, no
   song-style shuffle or repeat.
 - Playback: play/pause/skip/seek/shuffle/repeat/volume, queue with reorder and history,

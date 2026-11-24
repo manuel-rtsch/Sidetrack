@@ -48,6 +48,8 @@ fun ArtistScreen(
     canFollow: Boolean = true,
     canRadio: Boolean = true,
     onAddToPlaylist: ((Track) -> Unit)? = null,
+    /** Opens the artist's "All songs" page; null leaves the link off, on services without one. */
+    onAllSongs: (() -> Unit)? = null,
     onUndoQueueReplace: () -> Unit = {}
 ) {
     val followed = artist.key.encode() in saved.followedArtistIds
@@ -85,9 +87,9 @@ fun ArtistScreen(
         val tracksFocus = rememberLoadMoreFocus()
         val albumsFocus = rememberLoadMoreFocus()
         // Tiles, then the "Top tracks" label, then the tracks. The album section follows the
-        // tracks and their Load more row, so its base moves with the track page.
+        // tracks, their Load more row and the "All songs" link, so its base moves with the track page.
         val tracksBase = 2
-        val albumsBase = tracksBase + tracks.size + (if (trackHasMore) 1 else 0) + 1
+        val albumsBase = tracksBase + tracks.size + (if (trackHasMore) 1 else 0) + (if (onAllSongs != null) 1 else 0) + 1
         LaunchedEffect(artist.id) {
             tracksFocus.reset()
             albumsFocus.reset()
@@ -162,6 +164,18 @@ fun ArtistScreen(
                         Modifier.listFade(listState, moreIndex),
                         focusState = tracksFocus,
                         failed = moreFailed
+                    )
+                }
+                rowIndex += 1
+            }
+            if (onAllSongs != null) {
+                val allSongsIndex = rowIndex
+                item(key = "allSongs") {
+                    SeeMoreRow(
+                        "All songs",
+                        loading = false,
+                        onClick = onAllSongs,
+                        modifier = Modifier.listFade(listState, allSongsIndex)
                     )
                 }
                 rowIndex += 1

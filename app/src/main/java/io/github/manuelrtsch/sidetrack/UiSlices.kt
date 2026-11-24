@@ -44,6 +44,9 @@ data class LibraryUiState(
     val artists: Map<String, Artist> = emptyMap(),
     val artistAlbums: Map<String, List<Album>> = emptyMap(),
     val artistTracks: Map<String, List<Track>> = emptyMap(),
+    /** The artist's whole catalogue, paged by the "All songs" screen. */
+    val artistSongs: Map<String, List<Track>> = emptyMap(),
+    val artistSongHasMore: Map<String, Boolean> = emptyMap(),
     val pendingCollections: Set<String> = emptySet(),
     val pendingArtists: Set<String> = emptySet(),
     val collectionErrors: Map<String, String> = emptyMap(),
@@ -52,10 +55,14 @@ data class LibraryUiState(
     val artistAlbumHasMore: Map<String, Boolean> = emptyMap(),
     val artistTrackHasMore: Map<String, Boolean> = emptyMap(),
     val artistMorePending: Set<String> = emptySet(),
+    val pendingArtistSongs: Set<String> = emptySet(),
+    val artistSongsMorePending: Set<String> = emptySet(),
     /** Failed "load more" requests: the page kept its rows, so the footer offers the retry. */
     val libraryMoreErrors: Map<LibraryFilter, String> = emptyMap(),
     val collectionMoreErrors: Map<String, String> = emptyMap(),
-    val artistMoreErrors: Map<String, String> = emptyMap()
+    val artistMoreErrors: Map<String, String> = emptyMap(),
+    val artistSongsErrors: Map<String, String> = emptyMap(),
+    val artistSongsMoreErrors: Map<String, String> = emptyMap()
 ) {
     val libraryItems: List<Any> get() = libraryPages[filter]?.items.orEmpty()
     val libraryHasMore: Boolean get() = libraryPages[filter]?.hasMore == true
@@ -206,6 +213,8 @@ val SidetrackUiState.library: LibraryUiState
         artists = artists,
         artistAlbums = artistAlbums,
         artistTracks = artistTracks,
+        artistSongs = artistSongs,
+        artistSongHasMore = artistSongHasMore,
         pendingCollections = runningTasks.filterIsInstance<TaskKey.Collection>().mapTo(mutableSetOf()) { it.key },
         pendingArtists = runningTasks.filterIsInstance<TaskKey.Artist>().mapTo(mutableSetOf()) { it.id },
         collectionErrors = collectionErrors,
@@ -214,9 +223,13 @@ val SidetrackUiState.library: LibraryUiState
         artistAlbumHasMore = artistAlbumHasMore,
         artistTrackHasMore = artistTrackHasMore,
         artistMorePending = runningTasks.filterIsInstance<TaskKey.ArtistMore>().mapTo(mutableSetOf()) { it.id },
+        pendingArtistSongs = runningTasks.filterIsInstance<TaskKey.ArtistSongs>().mapTo(mutableSetOf()) { it.id },
+        artistSongsMorePending = runningTasks.filterIsInstance<TaskKey.ArtistSongsMore>().mapTo(mutableSetOf()) { it.id },
         libraryMoreErrors = taskFailures.byKey<TaskKey.LibraryMore>().mapKeys { (task, _) -> task.filter },
         collectionMoreErrors = taskFailures.byKey<TaskKey.CollectionMore>().mapKeys { (task, _) -> task.key },
-        artistMoreErrors = taskFailures.byKey<TaskKey.ArtistMore>().mapKeys { (task, _) -> task.id }
+        artistMoreErrors = taskFailures.byKey<TaskKey.ArtistMore>().mapKeys { (task, _) -> task.id },
+        artistSongsErrors = taskFailures.byKey<TaskKey.ArtistSongs>().mapKeys { (task, _) -> task.id },
+        artistSongsMoreErrors = taskFailures.byKey<TaskKey.ArtistSongsMore>().mapKeys { (task, _) -> task.id }
     )
 
 val SidetrackUiState.search: SearchUiState

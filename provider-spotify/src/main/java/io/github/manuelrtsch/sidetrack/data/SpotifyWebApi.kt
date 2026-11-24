@@ -31,6 +31,8 @@ class SpotifyWebApi(
     private val apiBase: String = API,
     private val accessToken: suspend () -> String?
 ) {
+    private val songPager = ArtistSongPager(albums = ::albumsBy, collection = ::collection)
+
     suspend fun library(
         filter: LibraryFilter,
         offset: Int = 0,
@@ -115,6 +117,12 @@ class SpotifyWebApi(
         val tracks = json.optJSONArray("tracks").tracks().drop(offset).take(limit)
         return Page.of(tracks, offset, limit)
     }
+
+    /**
+     * top-tracks answers the same ten rows whatever `offset` says, so the catalogue comes from the
+     * artist's albums instead. See [ArtistSongPager] for how the pages line up.
+     */
+    suspend fun artistSongs(artist: Artist, offset: Int = 0, limit: Int = CATALOG_PAGE_SIZE): Page<Track> = songPager.page(artist, offset, limit)
 
     suspend fun songRadio(trackId: String, limit: Int = CATALOG_PAGE_SIZE): List<Track> {
         val json = get(

@@ -124,6 +124,15 @@ interface MediaCatalog {
     suspend fun artist(key: MediaKey): Artist?
     suspend fun albums(artist: MediaKey, offset: Int, limit: Int): Page<Album>
     suspend fun topTracks(artist: MediaKey, offset: Int, limit: Int): Page<Track>
+
+    /**
+     * One page of an artist's whole catalogue, ordered by album. The default is empty because most
+     * services have no separate listing: [topTracks] already returns every song they hold, and a
+     * second page repeating it would be one keypress to see the same rows. Only a service whose top
+     * list is a shortlist (see [ServiceCapabilities.supportsArtistSongs]) answers here.
+     */
+    suspend fun artistSongs(artist: MediaKey, offset: Int, limit: Int): Page<Track> = Page()
+
     suspend fun search(query: String, scopes: Set<SearchScope>, offset: Int, limit: Int): SearchResults
 
     /** Resolves the URL and request headers the playback engine needs for [item]. */

@@ -330,6 +330,11 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 },
                 onLoadMoreAlbums = { vm.loadMoreArtistAlbums(artist) },
                 onLoadMoreTracks = { vm.loadMoreArtistTracks(artist) },
+                onAllSongs = if (vm.capabilities.supportsArtistSongs) {
+                    { nav.navigate(artistSongsRoute(artist.key)) }
+                } else {
+                    null
+                },
                 albumHasMore = library.artistAlbumHasMore[artist.id] == true,
                 trackHasMore = library.artistTrackHasMore[artist.id] == true,
                 loadingMore = artist.id in library.artistMorePending,
@@ -343,6 +348,63 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                     null
                 }
             )
+        }
+    }
+    // The artist's whole catalogue. A service whose top list is already everything never sends
+    // anyone here, so the empty state is only reachable after a failed or empty catalogue load.
+    composable(ARTIST_SONGS, arguments = artistArgs) { entry ->
+        val route = entry.sidetrackArtistRoute(nav)
+        val artist = route.artist
+        if (artist == null) {
+            MissingArtistScreen(nav, route, title = "All songs")
+        } else {
+            val vm = route.vm
+            val library = route.library
+            val songs = vm.artistSongs(artist)
+            LaunchedEffect(artist.id) { vm.openArtistSongs(artist) }
+            if (songs.isEmpty()) {
+                MissingCollectionScreen(
+                    onBack = { nav.popBackStack() },
+                    title = "All songs",
+                    loading = artist.id in library.pendingArtistSongs,
+                    loadingTitle = "Loading songs",
+                    error = library.artistSongsErrors[artist.id],
+                    errorTitle = "Couldn't load this artist's songs",
+                    missingTitle = "No songs for this artist",
+                    onRetry = { vm.retryArtistSongs(artist) }
+                )
+            } else {
+                ArtistSongsScreen(
+                    artist,
+                    songs,
+                    route.saved,
+                    route.playback,
+                    route.chrome,
+                    hasMore = library.artistSongHasMore[artist.id] == true,
+                    loadingMore = artist.id in library.artistSongsMorePending,
+                    moreFailed = artist.id in library.artistSongsMoreErrors,
+                    onBack = { nav.popBackStack() },
+                    onPlay = { vm.playArtistSongs(artist) },
+                    onPlayPause = vm::togglePlayPause,
+                    onTrack = { track -> nav.openTrack(vm, track) { vm.play(songs, songs.indexOf(track)) } },
+                    onAddToQueue = vm::addToQueue,
+                    onSaveTrack = { vm.toggleSaved(it) },
+                    onEnsureSavedTrack = { vm.ensureTrackSaved(it.id) },
+                    onLoadMore = { vm.loadMoreArtistSongs(artist) },
+                    onNowPlaying = { nav.openNowPlaying(vm) },
+                    onArtwork = {
+                        nav.navigate(artworkRoute(artist.artRes, artist.artUrl, artist.name))
+                    },
+                    onDismissNotice = vm::dismissNotice,
+                    onUndoQueueReplace = vm::undoQueueReplace,
+                    onDismissNowPlaying = vm::dismissNowPlayingNotice,
+                    onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
+                        { track -> nav.openAddToPlaylist(track) }
+                    } else {
+                        null
+                    }
+                )
+            }
         }
     }
     composable(SEARCH) { entry ->
