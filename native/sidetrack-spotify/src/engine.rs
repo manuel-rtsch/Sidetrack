@@ -356,14 +356,30 @@ pub fn play() -> Result<(), String> {
     Ok(())
 }
 
+// Pause and stop are the two commands a UI can send before a connect has produced a player: a
+// volume-down during a slow handshake pauses whatever is on screen. They describe "be at rest",
+// which a session without a player already satisfies, so the absence of one is not an error.
+// Reporting PLAYER_NOT_CREATED here surfaced a recoverable race as a playback failure.
+
 pub fn pause() -> Result<(), String> {
     log::info!("engine.pause");
-    player()?.pause();
-    Ok(())
+    match player_if_attached() {
+        Some(player) => {
+            player.pause();
+            Ok(())
+        }
+        None => {
+            log::warn!("engine: pause while no player is attached; already at rest");
+            Ok(())
+        }
+    }
 }
 
 pub fn stop() -> Result<(), String> {
-    player()?.stop();
+    match player_if_attached() {
+        Some(player) => player.stop(),
+        None => log::warn!("engine: stop while no player is attached; already stopped"),
+    }
     Ok(())
 }
 
@@ -478,6 +494,11 @@ fn uri(value: &SpotifyUri) -> String {
         value.item_type(),
         value.to_id().unwrap_or_default()
     )
+}
+
+/// The player, when one is attached; `None` for the commands that treat its absence as "done".
+fn player_if_attached() -> Option<Arc<Player>> {
+    state().lock().ok().and_then(|guard| guard.player.clone())
 }
 
 fn player() -> Result<Arc<Player>, String> {
