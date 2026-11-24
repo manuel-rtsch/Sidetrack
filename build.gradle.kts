@@ -36,6 +36,17 @@ allprojects {
     }
 }
 
+// `-PsidetrackSkipLintVital=true` keeps the fatal-only lint pass out of the CI jobs whose only claim
+// is that a variant assembles. `lintVital` re-analyses sources the `android-lint` job already covers
+// with the full `lintDebug`/`lintDemo`, and it was the most expensive task on the critical path.
+// Nothing here disables lint: released builds never pass the flag, so `assembleRelease` still fails
+// on a fatal issue, and `lintDebug`/`lintDemo` still run on every push.
+if (providers.gradleProperty("sidetrackSkipLintVital").isPresent) {
+    allprojects {
+        tasks.matching { it.name.startsWith("lintVital") }.configureEach { enabled = false }
+    }
+}
+
 // One entry point for the coverage gate. `:app` is the merging module, so its rule is the
 // product-wide floor; the other four verify their own modules. Add `-PsidetrackScreenshots`
 // for the full suite, which has the higher floor.
