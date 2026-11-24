@@ -3,6 +3,8 @@ package io.github.manuelrtsch.sidetrack
 import io.github.manuelrtsch.sidetrack.LibraryEntry
 import io.github.manuelrtsch.sidetrack.R
 import io.github.manuelrtsch.sidetrack.data.SpotifyCatalog
+import io.github.manuelrtsch.sidetrack.fixtures.catalogLibraryPage
+import io.github.manuelrtsch.sidetrack.fixtures.catalogSearch
 
 /**
  * The screenshot suite's account. Everything here is local, fixed data shaped like the gateway
@@ -238,16 +240,17 @@ object MockSpotifyDataSource : SpotifyCatalog {
         return Page.of(all.drop(offset).take(limit), offset, limit, all.size)
     }
 
-    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> {
-        val all: List<LibraryEntry> = when (filter) {
-            LibraryFilter.LikedSongs -> liked
-            LibraryFilter.Playlists -> playlists
-            LibraryFilter.Albums -> albums
-            LibraryFilter.Artists -> artists
-            LibraryFilter.Shows -> shows
-        }
-        return Page.of(all.drop(offset).take(limit), offset, limit, all.size)
-    }
+    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> =
+        catalogLibraryPage(
+            filter = filter,
+            offset = offset,
+            limit = limit,
+            liked = liked,
+            playlists = playlists,
+            albums = albums,
+            artists = artists,
+            shows = shows
+        )
 
     override suspend fun search(
         query: String,
@@ -255,17 +258,16 @@ object MockSpotifyDataSource : SpotifyCatalog {
         offset: Int,
         limit: Int
     ): SearchResults {
-        val q = query.trim()
-        if (q.length < 2) return SearchResults()
-        fun match(vararg text: String) = text.any { it.contains(q, ignoreCase = true) }
-        val allTracks = albums.flatMap { it.tracks }
-        fun <T> page(items: List<T>): List<T> = items.drop(offset).take(limit)
-        return SearchResults(
-            tracks = if (SearchScope.Tracks in scopes) page(allTracks.filter { match(it.title, it.artist) }) else emptyList(),
-            artists = if (SearchScope.Artists in scopes) page(artists.filter { match(it.name) }) else emptyList(),
-            albums = if (SearchScope.Albums in scopes) page(albums.filter { match(it.title, it.artist) }) else emptyList(),
-            playlists = if (SearchScope.Playlists in scopes) page(playlists.filter { match(it.name, it.owner) }) else emptyList(),
-            shows = if (SearchScope.Shows in scopes) page(shows.filter { match(it.name, it.publisher) }) else emptyList()
+        return catalogSearch(
+            query = query,
+            scopes = scopes,
+            offset = offset,
+            limit = limit,
+            tracks = albums.flatMap { it.tracks },
+            artists = artists,
+            albums = albums,
+            playlists = playlists,
+            shows = shows
         )
     }
 }

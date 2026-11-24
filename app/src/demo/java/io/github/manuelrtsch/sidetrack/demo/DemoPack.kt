@@ -20,6 +20,8 @@ import io.github.manuelrtsch.sidetrack.data.HistoryRepository
 import io.github.manuelrtsch.sidetrack.data.QueueRepository
 import io.github.manuelrtsch.sidetrack.data.SpotifyCatalog
 import io.github.manuelrtsch.sidetrack.data.SpotifyLibraryWriter
+import io.github.manuelrtsch.sidetrack.fixtures.catalogLibraryPage
+import io.github.manuelrtsch.sidetrack.fixtures.catalogSearch
 
 /**
  * The records a demo pack serves: ten tracks per artist either way, six playlists, six shows, and
@@ -163,16 +165,17 @@ abstract class PackedCatalog(private val library: DemoLibrary) :
         return (own + rest).distinctBy { it.id }.take(limit)
     }
 
-    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> {
-        val all: List<LibraryEntry> = when (filter) {
-            LibraryFilter.LikedSongs -> library.liked
-            LibraryFilter.Playlists -> library.playlists
-            LibraryFilter.Albums -> library.albums
-            LibraryFilter.Artists -> library.artists
-            LibraryFilter.Shows -> library.shows
-        }
-        return Page.of(all.drop(offset).take(limit), offset, limit, all.size)
-    }
+    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> =
+        catalogLibraryPage(
+            filter = filter,
+            offset = offset,
+            limit = limit,
+            liked = library.liked,
+            playlists = library.playlists,
+            albums = library.albums,
+            artists = library.artists,
+            shows = library.shows
+        )
 
     override suspend fun search(
         query: String,
@@ -180,16 +183,16 @@ abstract class PackedCatalog(private val library: DemoLibrary) :
         offset: Int,
         limit: Int
     ): SearchResults {
-        val q = query.trim()
-        if (q.length < 2) return SearchResults()
-        fun match(vararg text: String) = text.any { it.contains(q, ignoreCase = true) }
-        fun <T> pageOf(items: List<T>): List<T> = items.drop(offset).take(limit)
-        return SearchResults(
-            tracks = if (SearchScope.Tracks in scopes) pageOf(albumTracks.filter { match(it.title, it.artist) }) else emptyList(),
-            artists = if (SearchScope.Artists in scopes) pageOf(library.artists.filter { match(it.name) }) else emptyList(),
-            albums = if (SearchScope.Albums in scopes) pageOf(library.albums.filter { match(it.title, it.artist) }) else emptyList(),
-            playlists = if (SearchScope.Playlists in scopes) pageOf(library.playlists.filter { match(it.name, it.owner) }) else emptyList(),
-            shows = if (SearchScope.Shows in scopes) pageOf(library.shows.filter { match(it.name, it.publisher) }) else emptyList()
+        return catalogSearch(
+            query = query,
+            scopes = scopes,
+            offset = offset,
+            limit = limit,
+            tracks = albumTracks,
+            artists = library.artists,
+            albums = library.albums,
+            playlists = library.playlists,
+            shows = library.shows
         )
     }
 }

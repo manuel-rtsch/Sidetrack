@@ -2,6 +2,7 @@ package io.github.manuelrtsch.sidetrack
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -148,17 +149,10 @@ internal fun NavGraphBuilder.settingsGraph(
         SidetrackAboutScreen(onBack = { nav.popBackStack() }, backLabel = backLabel)
     }
     composable(ONBOARDING) {
-        val context = LocalContext.current
-        val appSession = remember(context) { AppSessions.get(context) }
-        val signedIn by appSession.signedIn.collectAsStateWithLifecycle()
-        SidetrackOnboardingScreen(
+        onboardingPages(
+            nav = nav,
             hostBacked = hostBacked,
-            onAbout = { nav.navigate(ABOUT) },
-            onKeyboard = { nav.navigate(KEYBOARD) },
-            onAppearance = { nav.navigate(APPEARANCE) },
-            onAudioQuality = { nav.navigate(AUDIO_QUALITY) },
-            canSetQuality = signedIn &&
-                appSession.runtimeOrNull?.capabilities?.supportsQualitySelection == true,
+            onKeypadBackOverride = onKeypadBackOverride,
             onDone = {
                 nav.navigate(HOME) {
                     // Replace setup (and anything still below it, such as Sign in), so Back from
@@ -167,27 +161,18 @@ internal fun NavGraphBuilder.settingsGraph(
                     popUpTo(ROOT) { inclusive = false }
                     launchSingleTop = true
                 }
-            },
-            onKeypadBackOverride = onKeypadBackOverride
+            }
         )
     }
     composable(HELP) {
         // The same pages the first run shows, opened before a service is chosen: they teach the
         // keypad, so they are the most useful thing a first-run user can read here.
-        val context = LocalContext.current
-        val appSession = remember(context) { AppSessions.get(context) }
-        val signedIn by appSession.signedIn.collectAsStateWithLifecycle()
-        SidetrackOnboardingScreen(
+        onboardingPages(
+            nav = nav,
             hostBacked = hostBacked,
-            onAbout = { nav.navigate(ABOUT) },
-            onKeyboard = { nav.navigate(KEYBOARD) },
-            onAppearance = { nav.navigate(APPEARANCE) },
-            onAudioQuality = { nav.navigate(AUDIO_QUALITY) },
-            canSetQuality = signedIn &&
-                appSession.runtimeOrNull?.capabilities?.supportsQualitySelection == true,
+            onKeypadBackOverride = onKeypadBackOverride,
             onDone = { nav.popBackStack() },
-            onBack = { nav.popBackStack() },
-            onKeypadBackOverride = onKeypadBackOverride
+            onBack = { nav.popBackStack() }
         )
     }
     composable(SIGN_IN) { entry ->
@@ -237,6 +222,36 @@ internal fun NavGraphBuilder.settingsGraph(
             pending = account.authPending
         )
     }
+}
+
+/**
+ * The setup pages, reached two ways: as the first run (which replaces the back stack) and from
+ * Help (which goes back). Both need the signed-in state to know whether the quality page is
+ * reachable, and both must set the keypad back override, so they share one body.
+ */
+@Composable
+private fun onboardingPages(
+    nav: NavHostController,
+    hostBacked: Boolean,
+    onKeypadBackOverride: ((() -> Boolean)?) -> Unit,
+    onDone: () -> Unit,
+    onBack: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val appSession = remember(context) { AppSessions.get(context) }
+    val signedIn by appSession.signedIn.collectAsStateWithLifecycle()
+    SidetrackOnboardingScreen(
+        hostBacked = hostBacked,
+        onAbout = { nav.navigate(ABOUT) },
+        onKeyboard = { nav.navigate(KEYBOARD) },
+        onAppearance = { nav.navigate(APPEARANCE) },
+        onAudioQuality = { nav.navigate(AUDIO_QUALITY) },
+        canSetQuality = signedIn &&
+            appSession.runtimeOrNull?.capabilities?.supportsQualitySelection == true,
+        onDone = onDone,
+        onBack = onBack,
+        onKeypadBackOverride = onKeypadBackOverride
+    )
 }
 
 /** Back returns to the page that opened a settings screen, not always to Settings. */
