@@ -9,6 +9,7 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState as SessionState
 import android.os.SystemClock
 import io.github.manuelrtsch.sidetrack.MediaItem
+import io.github.manuelrtsch.sidetrack.SidetrackDebug
 
 /**
  * Owns the platform [MediaSession]: it is created on first use, its transport callbacks are routed
@@ -172,17 +173,35 @@ internal class PlaybackSessionBinder(
             )
             setCallback(
                 object : MediaSession.Callback() {
-                    override fun onPlay() = this@PlaybackSessionBinder.onPlay()
+                    override fun onPlay() {
+                        command("play")
+                        this@PlaybackSessionBinder.onPlay()
+                    }
 
-                    override fun onPause() = this@PlaybackSessionBinder.onPause()
+                    override fun onPause() {
+                        command("pause")
+                        this@PlaybackSessionBinder.onPause()
+                    }
 
-                    override fun onSkipToNext() = this@PlaybackSessionBinder.onNext()
+                    override fun onSkipToNext() {
+                        command("next")
+                        this@PlaybackSessionBinder.onNext()
+                    }
 
-                    override fun onSkipToPrevious() = this@PlaybackSessionBinder.onPrevious()
+                    override fun onSkipToPrevious() {
+                        command("previous")
+                        this@PlaybackSessionBinder.onPrevious()
+                    }
 
-                    override fun onSeekTo(pos: Long) = this@PlaybackSessionBinder.onSeekTo(pos)
+                    override fun onSeekTo(pos: Long) {
+                        command("seekTo $pos")
+                        this@PlaybackSessionBinder.onSeekTo(pos)
+                    }
 
-                    override fun onStop() = this@PlaybackSessionBinder.onStop()
+                    override fun onStop() {
+                        command("stop")
+                        this@PlaybackSessionBinder.onStop()
+                    }
                 }
             )
             isActive = true
@@ -190,6 +209,15 @@ internal class PlaybackSessionBinder(
         session = created
         return created
     }
+
+    /**
+     * Records that the platform asked for a transport command, saying nothing about who asked.
+     *
+     * A notification button, a Bluetooth media key and another app's controller all arrive here,
+     * and the rest of the playback log cannot tell any of them from a keypad press: a pause that
+     * names no origin is why a whole incident had to be reconstructed from `dumpsys audio`.
+     */
+    private fun command(name: String) = SidetrackDebug.log("session command: $name")
 
     private companion object {
         /** Minimum gap between metadata writes; the position is published separately. */

@@ -355,6 +355,11 @@ class PlaybackController(
                 }
                 return false
             }
+            // Nothing the player reports will be attributed to the command after this, so a
+            // command the player never honoured leaves no other trace: say so while we still can.
+            SidetrackDebug.log {
+                "command unconfirmed after ${now - lastCommandAt}ms: asked for $awaiting"
+            }
             awaitingState = null
         }
         val age = now - lastCommandAt

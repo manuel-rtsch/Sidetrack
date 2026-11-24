@@ -170,6 +170,7 @@ internal class PlaybackEffects(
         // polling an empty source until the stall watchdog fires and reloads the finished track;
         // left at its duration, the next play ends again immediately. Pause it and rewind.
         playback()?.let { controller ->
+            SidetrackDebug.log("stopAtQueueEnd: pausing at the end of the item")
             controller.updatePosition(0L)
             controller.pause()
             controller.requestSeek(0L)

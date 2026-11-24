@@ -150,6 +150,9 @@ internal class PlaybackDriver(
         val s = store.value
         val item = s.current ?: return
         val play = !s.isPlaying
+        // The keypad, an on-screen button and the notification action all land here, so this says
+        // which way the transport was asked to go without claiming which of the three asked.
+        SidetrackDebug.log("transport toggle: ${if (play) "play" else "pause"} from playing=${s.isPlaying}")
         // A paused seek has been delivered by now; let the next event realign the bar again.
         clock.clearSeek()
         effects.recordEpisodeProgress(force = true)
