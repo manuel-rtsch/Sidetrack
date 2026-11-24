@@ -257,7 +257,7 @@ that migration made possible. Land the rest in this order, each shippable on its
 PMD CPD runs over the Kotlin and Rust sources at 80 tokens with `--ignore-identifiers
 --ignore-literals`, so every hit below is a structural clone rather than two functions that happen
 to share a shape. `./gradlew cpd` writes the full blocks to `build/reports/cpd/`; `cpdCheck` fails
-when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (74 today, from 824
+when the total passes `sidetrack.cpd.maxDuplicateLines` in `gradle.properties` (96 today, from 824
 when the budget was introduced). Lower that number in the same commit that lands one of these, or
 the budget will not stop the next one.
 
@@ -309,6 +309,17 @@ waiting to happen, duplicated test setup is mostly a patience tax.
 
 ### Test and demo
 
+- [ ] **`ArtistScreen` ↔ `ArtistSongsScreen`** — 179 tokens in two blocks: the play/artwork strip
+  both pages open with, and the scaffold-and-bar preamble above it. The fix is one
+  `ArtistHeader` taking the trailing tile as a slot — Follow on the summary, nothing on the
+  catalogue — and one hoisted bar builder, since both screens name the same Back action and
+  differ only in whether the page offers the radio option. Left alone for the 0.4.4 cut: it is
+  merged, screenshot-verified composition, and a refactor of it would land without a reason
+  anyone could test.
+- [ ] **`SidetrackUiState` ↔ `UiSlices`** — 95 tokens: the eight artist-song fields the state and
+  its slice projection both declare. Same shape as the paging flags that went when the slices
+  stopped re-listing them; `artistSongs`, `artistSongHasMore` and the six around them should
+  project from wherever the catalogue lives instead of being restated.
 - [x] **`FictionalPack.kt` ↔ `RealPack.kt`** — the two packs are now data only. `DemoLibrary` holds
   what a pack serves and `PackedCatalog` holds everything the fixture does with it — the paging, the
   lookups, radio, search, the library filters, the in-memory saves and the history/queue seed — so a
