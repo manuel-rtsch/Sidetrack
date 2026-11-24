@@ -96,6 +96,10 @@ fun ArtistScreen(
         LoadMoreFocus(albumsFocus, listState, albums.size, loadingMore, firstItemListIndex = albumsBase)
         val trackKeys = remember(tracks) { mediaRowKeys(tracks) }
         val albumKeys = remember(albums) { mediaRowKeys(albums) }
+        // The artist's name is already the page title, so repeating it under every top track
+        // says nothing. The album is the useful second line; fall back on the artist for a track
+        // whose album has not been loaded yet.
+        val albumTitles = remember(albums) { albums.associate { it.id to it.title } }
         SidekitList(padding, state = listState) {
             var rowIndex = 0
             item(key = "tiles") {
@@ -140,6 +144,7 @@ fun ArtistScreen(
                     track,
                     rows,
                     Modifier.listFade(listState, tracksBase + index),
+                    secondary = albumTitles[track.albumId] ?: track.artist,
                     focusRequester = tracksFocus.requesterFor(index)
                 ) { onTrack(track) }
             }

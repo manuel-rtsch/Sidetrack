@@ -10,7 +10,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.theme.SidekitTheme
-import io.github.manuelrtsch.sidetrack.playback.formatDuration
+import io.github.manuelrtsch.sidetrack.playback.formatListDuration
 import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
@@ -245,7 +245,7 @@ fun HistoryRow(
             item,
             gutterRowModifier(key, selected, focus, rowFocus, focusRequester),
             secondary = secondary,
-            trailing = if (gutterVisible) null else formatDuration(item.durationMs),
+            trailing = if (gutterVisible) null else formatListDuration(item.durationMs),
             onClick = {
                 focus.touchDismissed(key)
                 onClick()

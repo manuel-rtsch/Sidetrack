@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,7 +85,18 @@ internal val ListItemContentInset = 10.dp
 private val CompactItemContentInset = 8.dp
 private val CompactContentGap = 10.dp
 private val CompactTextGap = 0.dp
-private val CompactTrackNumberWidth = 40.dp
+
+/**
+ * The gap between the text block and the duration. Smaller than [contentGap] because the duration
+ * is right-aligned and needs no matching inset; 8 dp still keeps the two from touching.
+ */
+private val TrailingGap = 8.dp
+
+/**
+ * Wide enough for two tiny digits (26 dp) with a little air either side. Three digits drop to
+ * [MediaRowMetrics.trackNumberDenseStyle] at 18 sp so 100+ still fits in the same column.
+ */
+private val TrackNumberWidth = 30.dp
 
 /**
  * The measured sizes of a media row. Both branches name every value, so a row reads one object
@@ -98,11 +110,22 @@ data class MediaRowMetrics(
     val artworkShape: RoundedCornerShape,
     val horizontalPadding: Dp,
     val contentGap: Dp,
+    val trailingGap: Dp,
     val textGap: Dp,
     val trackNumberWidth: Dp,
     val titleStyle: TextStyle,
     val secondaryStyle: TextStyle,
-    val trackNumberStyle: TextStyle
+    /**
+     * One step below [secondaryStyle]: the duration is a reference value, not part of the
+     * title/artist pair, and the smaller type buys the title a little width without moving it.
+     * Tabular figures keep the shortened values aligned down the list.
+     */
+    val trailingStyle: TextStyle,
+    val trackNumberStyle: TextStyle,
+    /** For a three-digit index, which would otherwise overflow the narrowed number column. */
+    val trackNumberDenseStyle: TextStyle,
+    val explicitBadgeSize: Dp,
+    val explicitBadgeStyle: TextStyle
 )
 
 /** The metrics for the rows currently on screen, following the compact-rows setting. */
@@ -120,15 +143,24 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
                 artworkShape = artworkShapeFor(CompactItemContentInset),
                 horizontalPadding = CompactItemContentInset,
                 contentGap = CompactContentGap,
+                trailingGap = TrailingGap,
                 textGap = CompactTextGap,
-                trackNumberWidth = CompactTrackNumberWidth,
+                trackNumberWidth = TrackNumberWidth,
                 // 32 -> 27 and 28 -> 24: the two-line block still reads as a title over a
                 // subtitle inside the shorter row without dropping to the tiny label size. The
                 // 31 leading and the zero gap are the same tightening the spacious row got, and
                 // keep the block at 60 so the 64 cover stays the taller child.
                 titleStyle = typography.bodySmall.copy(fontSize = 27.sp, lineHeight = 31.sp),
                 secondaryStyle = typography.small,
-                trackNumberStyle = typography.tiny
+                trailingStyle = typography.tiny.copy(fontFeatureSettings = "tnum"),
+                trackNumberStyle = typography.tiny,
+                trackNumberDenseStyle = typography.tiny.copy(fontSize = 18.sp, lineHeight = 22.sp),
+                explicitBadgeSize = 19.dp,
+                explicitBadgeStyle = typography.tiny.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
             )
         } else {
             MediaRowMetrics(
@@ -137,13 +169,22 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
                 artworkShape = artworkShapeFor(ListItemContentInset),
                 horizontalPadding = ListItemContentInset,
                 contentGap = 13.dp,
+                trailingGap = TrailingGap,
                 textGap = 1.dp,
-                trackNumberWidth = 44.dp,
+                trackNumberWidth = TrackNumberWidth,
                 // Colour, weight and size already separate the two lines, so their leading gives
                 // back the 3 dp each the shorter row needs: 37 + 1 + 32 = 70 against the 77 cover.
                 titleStyle = typography.bodySmall.copy(lineHeight = 37.sp),
                 secondaryStyle = typography.caption.copy(lineHeight = 32.sp),
-                trackNumberStyle = typography.small
+                trailingStyle = typography.small.copy(fontFeatureSettings = "tnum"),
+                trackNumberStyle = typography.tiny,
+                trackNumberDenseStyle = typography.tiny.copy(fontSize = 18.sp, lineHeight = 22.sp),
+                explicitBadgeSize = 22.dp,
+                explicitBadgeStyle = typography.tiny.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 17.sp,
+                    fontWeight = FontWeight.Medium
+                )
             )
         }
     }

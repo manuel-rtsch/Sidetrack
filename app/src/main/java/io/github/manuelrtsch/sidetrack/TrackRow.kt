@@ -11,7 +11,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
-import io.github.manuelrtsch.sidetrack.playback.formatDuration
+import io.github.manuelrtsch.sidetrack.playback.formatListDuration
 import io.github.manuelrtsch.sidetrack.ui.GutterRow
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
 import io.github.manuelrtsch.sidetrack.ui.RowActionSquare
@@ -100,6 +100,8 @@ fun TrackRow(
     /** The row's entry in a collection, when that index is not the display number. */
     entryIndex: Int? = null,
     showArt: Boolean = true,
+    /** False hides the duration on screens where it is not part of the decision, such as search. */
+    showDuration: Boolean = true,
     secondary: String = track.artist,
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit
@@ -116,7 +118,7 @@ fun TrackRow(
             showArt = showArt,
             secondary = secondary,
             // The square gets the right edge while it is visible.
-            trailing = if (gutterVisible) null else formatDuration(track.durationMs),
+            trailing = if (gutterVisible || !showDuration) null else formatListDuration(track.durationMs),
             onClick = {
                 rows.focus.touchDismissed(key)
                 onClick()
@@ -203,7 +205,7 @@ fun GutterMediaRow(
             index = index,
             showArt = showArt,
             secondary = secondary,
-            trailing = if (gutterVisible) null else formatDuration(item.durationMs),
+            trailing = if (gutterVisible) null else formatListDuration(item.durationMs),
             onClick = {
                 focus.touchDismissed(key)
                 onClick()

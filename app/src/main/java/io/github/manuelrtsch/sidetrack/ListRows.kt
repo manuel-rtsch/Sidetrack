@@ -1,28 +1,37 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.components.SidekitText
 import hrln.interactive.sidekit.design.components.SidekitTile
 import hrln.interactive.sidekit.design.theme.SidekitTheme
-import io.github.manuelrtsch.sidetrack.playback.formatDuration
+import io.github.manuelrtsch.sidetrack.playback.formatListDuration
 import io.github.manuelrtsch.sidetrack.ui.LinkArrow
 import io.github.manuelrtsch.sidetrack.ui.LocalSwipeActionRevealed
 
@@ -49,7 +58,7 @@ fun MediaRow(
     index: Int? = null,
     showArt: Boolean = true,
     secondary: String = item.creator,
-    trailing: String? = formatDuration(item.durationMs),
+    trailing: String? = formatListDuration(item.durationMs),
     trailingContent: (@Composable () -> Unit)? = null,
     /** Non-null turns the row into a checkbox with this checked state; [onClick] toggles it. */
     checked: Boolean? = null,
@@ -73,35 +82,100 @@ fun MediaRow(
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = metrics.horizontalPadding),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(metrics.contentGap)
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (showArt) {
-                Cover(item.artRes, Modifier.size(metrics.artworkSize), shape = metrics.artworkShape, artUrl = item.artUrl, requestSize = metrics.artworkSize)
+                Box(Modifier.size(metrics.artworkSize)) {
+                    Cover(
+                        item.artRes,
+                        Modifier.fillMaxSize(),
+                        shape = metrics.artworkShape,
+                        artUrl = item.artUrl,
+                        requestSize = metrics.artworkSize
+                    )
+                    // Over the artwork rather than beside the artist: the marker costs the text
+                    // block no width and reads as a sticker on the cover.
+                    if (item.explicit) {
+                        ExplicitBadge(
+                            metrics.explicitBadgeSize,
+                            metrics.explicitBadgeStyle,
+                            // Flush with the cover's lower/right edges: the chip fills the
+                            // rounded corner's cutout and reads as part of the artwork rather
+                            // than a sticker floating inside it.
+                            Modifier.align(Alignment.BottomEnd)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(metrics.contentGap))
             } else if (index != null) {
                 Box(Modifier.width(metrics.trackNumberWidth), contentAlignment = Alignment.Center) {
-                    SidekitText("${index + 1}", style = metrics.trackNumberStyle, color = colors.surfaceA6)
+                    val number = index + 1
+                    SidekitText(
+                        "$number",
+                        style = if (number >= 100) metrics.trackNumberDenseStyle else metrics.trackNumberStyle,
+                        color = colors.surfaceA6
+                    )
                 }
+                Spacer(Modifier.width(metrics.contentGap))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(metrics.textGap)) {
                 SidekitText(item.title, style = metrics.titleStyle, maxLines = 1)
-                SidekitText(
-                    secondary + if (item.explicit) " · E" else "",
-                    style = metrics.secondaryStyle,
-                    color = colors.surfaceA6,
-                    maxLines = 1
-                )
+                if (!showArt && item.explicit) {
+                    // Without a cover the badge needs a home; keep it before the artist so the
+                    // secondary line still starts with the marker instead of a stray "· E".
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ExplicitBadge(metrics.explicitBadgeSize, metrics.explicitBadgeStyle)
+                        SidekitText(
+                            secondary,
+                            Modifier.weight(1f),
+                            style = metrics.secondaryStyle,
+                            color = colors.surfaceA6,
+                            maxLines = 1
+                        )
+                    }
+                } else {
+                    SidekitText(
+                        secondary,
+                        style = metrics.secondaryStyle,
+                        color = colors.surfaceA6,
+                        maxLines = 1
+                    )
+                }
             }
             if (trailingContent != null) {
+                Spacer(Modifier.width(metrics.trailingGap))
                 trailingContent()
             } else if (trailing != null && !actionRevealed) {
+                Spacer(Modifier.width(metrics.trailingGap))
                 SidekitText(
                     trailing,
-                    style = metrics.secondaryStyle,
+                    style = metrics.trailingStyle,
                     color = colors.surfaceA6
                 )
             }
         }
+    }
+}
+
+/**
+ * The explicit-content marker: a small dark chip in the artwork's corner. It carries its own
+ * semantics so a screen reader still hears "Explicit" after the title and artist are merged.
+ */
+@Composable
+private fun ExplicitBadge(size: Dp, style: TextStyle, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.3f))
+            .background(SidekitTheme.colors.surfaceA1.copy(alpha = 0.82f))
+            .clearAndSetSemantics { contentDescription = "Explicit" },
+        contentAlignment = Alignment.Center
+    ) {
+        SidekitText("E", style = style, color = SidekitTheme.colors.light)
     }
 }
 

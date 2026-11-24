@@ -30,7 +30,7 @@ import hrln.interactive.sidekit.design.components.listFade
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import io.github.manuelrtsch.sidetrack.R
-import io.github.manuelrtsch.sidetrack.playback.formatDuration
+import io.github.manuelrtsch.sidetrack.playback.formatListDuration
 import io.github.manuelrtsch.sidetrack.ui.GUTTER_ANIM_MS
 import io.github.manuelrtsch.sidetrack.ui.GUTTER_SLIDE
 import io.github.manuelrtsch.sidetrack.ui.MeatballIcon
@@ -190,7 +190,7 @@ internal fun QueueUpcomingRow(
                         .rowFocusTarget(host.moreFocus, index),
                     secondary = item.creator,
                     // The side control gets the right edge while it is visible.
-                    trailing = if (gutter > 0.dp) null else formatDuration(item.durationMs),
+                    trailing = if (gutter > 0.dp) null else formatListDuration(item.durationMs),
                     // Enter has one meaning on every row: play it now. Reorder
                     // lives in Options, so the row body never turns into a menu.
                     onClick = { host.onJump(index) }

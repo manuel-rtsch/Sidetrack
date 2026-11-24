@@ -551,6 +551,9 @@ fun SearchResultsScreen(
                             rows,
                             modifier,
                             bodyModifier = holdSwitch,
+                            // Search is about finding a result; the duration is not part of that
+                            // decision and costs the title a large part of the row.
+                            showDuration = false,
                             focusRequester = focusRequester
                         ) { onTrack(item) }
 
