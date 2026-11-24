@@ -68,6 +68,32 @@ the screenshot tests carry a large share of UI coverage.
 The floor is the gate, not the target. Re-measure after a suite change and raise the floor; never
 lower one to absorb a regression.
 
+## Capturing playback logs from a device
+
+A playback bug reported from the phone needs `SidetrackDebug`'s rolling file, because logd keeps
+only minutes of this app's lines once the Spotify bridge starts writing PCM counters. The file is
+`logs/sidetrack.log` under the app's external files directory, capped at 1.5 MB with two backups:
+an hour or two of playback, so pull it before the next repro rather than after the next week.
+
+| Build | File log |
+|---|---|
+| `debug`, `dev` | on unconditionally — `installFileLog(always = true)` |
+| `release`, `profile`, `demo` | off until the log tag is set: `adb shell setprop log.tag.SidetrackDebug DEBUG` |
+
+`log.tag.*` is not a persisted property, so a release build stops logging after a reboot and the
+capture silently produces nothing. Set the tag again, or capture on `dev`.
+
+```bash
+adb -s <serial> shell setprop log.tag.SidetrackDebug DEBUG   # release/profile/demo only
+# … reproduce …
+adb -s <serial> pull /sdcard/Android/data/<pkg>/files/logs/
+```
+
+A transport command logs its origin (`session command:`, `noisy:`, `transport toggle:`) and a
+command the player never honoured logs `command unconfirmed after <n>ms`. A pause in the log without
+one of those lines came from somewhere the app was not told about: check `dumpsys audio` for the
+focus commands and `A2DP` device log, which survive longer than logcat here.
+
 ## Adding a test
 
 - Pure logic goes in `:core` — it is the cheapest place to run it.
