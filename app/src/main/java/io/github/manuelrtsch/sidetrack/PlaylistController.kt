@@ -300,9 +300,10 @@ internal class PlaylistController(
                         items = items,
                         totalItems = (current.totalItems - if (at != null) 1 else 0).coerceAtLeast(items.size)
                     )
+                    // No notice: the confirmation named the act and the row leaves the list in
+                    // front of the user. A failure is the only outcome that needs words.
                     state.copy(collections = state.collections + (cacheKey to next))
                         .withPlaylistTrackCount(collection.key, next.totalItems)
-                        .say("Removed ${item.title} from ${current.title}", NoticeKind.Success)
                 }
             } catch (e: CancellationException) {
                 throw e

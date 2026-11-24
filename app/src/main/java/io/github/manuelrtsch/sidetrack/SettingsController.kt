@@ -1,6 +1,5 @@
 package io.github.manuelrtsch.sidetrack
 
-import hrln.interactive.sidekit.design.action.NoticeKind
 import io.github.manuelrtsch.sidetrack.data.HistoryEntry
 import io.github.manuelrtsch.sidetrack.data.HistoryRepository
 import io.github.manuelrtsch.sidetrack.data.QueueRepository
@@ -99,9 +98,8 @@ internal class SettingsController(
             try {
                 withContext(Dispatchers.IO) { clearArtworkCache() }
                 session?.clearAudioCache()
-                // Nothing can bring the downloads back, so the clear is only ever announced: the
-                // question came before it, and the row's number is about to fall to zero.
-                store.update { it.say("Cache cleared", NoticeKind.Success) }
+                // Nothing follows: the question named the act, and the row's number falls to zero
+                // in front of the user. Only a failure has something new to say.
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
