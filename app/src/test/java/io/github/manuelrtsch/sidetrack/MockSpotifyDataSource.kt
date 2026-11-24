@@ -240,34 +240,31 @@ object MockSpotifyDataSource : SpotifyCatalog {
         return Page.of(all.drop(offset).take(limit), offset, limit, all.size)
     }
 
-    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> =
-        catalogLibraryPage(
-            filter = filter,
-            offset = offset,
-            limit = limit,
-            liked = liked,
-            playlists = playlists,
-            albums = albums,
-            artists = artists,
-            shows = shows
-        )
+    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> = catalogLibraryPage(
+        filter = filter,
+        offset = offset,
+        limit = limit,
+        liked = liked,
+        playlists = playlists,
+        albums = albums,
+        artists = artists,
+        shows = shows
+    )
 
     override suspend fun search(
         query: String,
         scopes: Set<SearchScope>,
         offset: Int,
         limit: Int
-    ): SearchResults {
-        return catalogSearch(
-            query = query,
-            scopes = scopes,
-            offset = offset,
-            limit = limit,
-            tracks = albums.flatMap { it.tracks },
-            artists = artists,
-            albums = albums,
-            playlists = playlists,
-            shows = shows
-        )
-    }
+    ): SearchResults = catalogSearch(
+        query = query,
+        scopes = scopes,
+        offset = offset,
+        limit = limit,
+        tracks = albums.flatMap { it.tracks },
+        artists = artists,
+        albums = albums,
+        playlists = playlists,
+        shows = shows
+    )
 }

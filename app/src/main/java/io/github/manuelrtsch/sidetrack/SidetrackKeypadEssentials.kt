@@ -71,8 +71,7 @@ internal fun keypadHabitForKey(module: KeypadModule, keyCode: Int): KeypadHabit?
  * The module's name as Sidetrack prints it. Sidekit calls the controller a "Game controller";
  * Sidetrack says "Gamepad", which fits the layout row and reads as one word next to the others.
  */
-internal fun keypadModuleLabel(module: KeypadModule): String =
-    if (module == KeypadModule.GamePad) "Gamepad" else module.label
+internal fun keypadModuleLabel(module: KeypadModule): String = if (module == KeypadModule.GamePad) "Gamepad" else module.label
 
 /** The module after [current] in the order the modules are printed, wrapping at the end. */
 internal fun nextKeypadModule(current: KeypadModule): KeypadModule {

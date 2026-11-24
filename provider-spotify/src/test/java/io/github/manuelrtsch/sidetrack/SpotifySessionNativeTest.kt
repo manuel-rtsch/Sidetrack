@@ -1,10 +1,10 @@
 package io.github.manuelrtsch.sidetrack
 
 import io.github.manuelrtsch.sidetrack.auth.SpotifyAuth
-import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentialStore
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentials
 import io.github.manuelrtsch.sidetrack.auth.SpotifyTokenClient
+import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.data.ServiceException
 import io.github.manuelrtsch.sidetrack.data.ServiceFailure
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure

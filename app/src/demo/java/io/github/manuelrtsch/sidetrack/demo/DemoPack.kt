@@ -165,36 +165,33 @@ abstract class PackedCatalog(private val library: DemoLibrary) :
         return (own + rest).distinctBy { it.id }.take(limit)
     }
 
-    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> =
-        catalogLibraryPage(
-            filter = filter,
-            offset = offset,
-            limit = limit,
-            liked = library.liked,
-            playlists = library.playlists,
-            albums = library.albums,
-            artists = library.artists,
-            shows = library.shows
-        )
+    override suspend fun library(filter: LibraryFilter, offset: Int, limit: Int): Page<LibraryEntry> = catalogLibraryPage(
+        filter = filter,
+        offset = offset,
+        limit = limit,
+        liked = library.liked,
+        playlists = library.playlists,
+        albums = library.albums,
+        artists = library.artists,
+        shows = library.shows
+    )
 
     override suspend fun search(
         query: String,
         scopes: Set<SearchScope>,
         offset: Int,
         limit: Int
-    ): SearchResults {
-        return catalogSearch(
-            query = query,
-            scopes = scopes,
-            offset = offset,
-            limit = limit,
-            tracks = albumTracks,
-            artists = library.artists,
-            albums = library.albums,
-            playlists = library.playlists,
-            shows = library.shows
-        )
-    }
+    ): SearchResults = catalogSearch(
+        query = query,
+        scopes = scopes,
+        offset = offset,
+        limit = limit,
+        tracks = albumTracks,
+        artists = library.artists,
+        albums = library.albums,
+        playlists = library.playlists,
+        shows = library.shows
+    )
 }
 
 /**

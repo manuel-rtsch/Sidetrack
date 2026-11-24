@@ -118,24 +118,23 @@ class NativeSpotifyGateway(
      *
      * [sessionLock] must be held.
      */
-    private fun sessionAcceptsToken(token: String): Boolean =
-        when (val reason = native.setAccessToken(token)) {
-            null -> {
-                sessionToken = token
-                true
-            }
-
-            SpotifyNative.TOKEN_CHANGED -> {
-                SidetrackDebug.log("session: token rotated; keeping the live session")
-                sessionToken = token
-                true
-            }
-
-            else -> {
-                SidetrackDebug.log("session: rejected token reason=$reason")
-                false
-            }
+    private fun sessionAcceptsToken(token: String): Boolean = when (val reason = native.setAccessToken(token)) {
+        null -> {
+            sessionToken = token
+            true
         }
+
+        SpotifyNative.TOKEN_CHANGED -> {
+            SidetrackDebug.log("session: token rotated; keeping the live session")
+            sessionToken = token
+            true
+        }
+
+        else -> {
+            SidetrackDebug.log("session: rejected token reason=$reason")
+            false
+        }
+    }
 
     override suspend fun disconnect() = onIo {
         synchronized(sessionLock) {
