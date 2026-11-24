@@ -353,11 +353,24 @@ class SpotifySession(
         _signedIn.value = false
     }
 
-    /** Bounded so a stalled access-point handshake cannot leave the play button stuck forever. */
+    /**
+     * Bounded so a stalled access-point handshake cannot leave the play button stuck forever.
+     *
+     * The wait is bounded, the work is not: [NativeSpotifyGateway.connectPass] owns the blocking
+     * native call, so the timeout cancels only this `await`. It used to wrap the whole call, which
+     * made `withTimeoutOrNull` wait for its own cancelled child to unwind — a 25 s timeout returned
+     * after 31 s, and the retry dialled the access point a second time instead of joining the first
+     * attempt. The pass finishes in the background either way, so the recovery that follows finds a
+     * connected session.
+     */
     private suspend fun connectForPlayback(forceReconnect: Boolean = false): Boolean {
-        val rebuilt = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { nativeGateway.ensureConnected(forceReconnect) }
+        val pass = nativeGateway.connectPass(forceReconnect)
+        val rebuilt = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { pass.await() }
         if (rebuilt == null) {
-            SidetrackDebug.log("connectForPlayback timed out after ${CONNECT_TIMEOUT_MS}ms")
+            SidetrackDebug.log(
+                "connectForPlayback timed out after ${CONNECT_TIMEOUT_MS}ms " +
+                    "(pass still running=${pass.isActive})"
+            )
             if (!isOnline) throw SpotifyGatewayException(SpotifyFailure.Network, "No internet connection")
             throw SpotifyGatewayException(SpotifyFailure.NotConnected, "Playback connection timed out")
         }

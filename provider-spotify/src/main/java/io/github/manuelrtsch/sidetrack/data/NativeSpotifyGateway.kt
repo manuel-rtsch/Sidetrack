@@ -3,7 +3,11 @@ package io.github.manuelrtsch.sidetrack.data
 import android.os.SystemClock
 import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 
 /**
@@ -49,6 +53,41 @@ class NativeSpotifyGateway(
      */
     private var connectFailures = 0
     private var connectAllowedAt = 0L
+
+    /**
+     * Owns the blocking connect work. A caller can stop waiting without cancelling the native call:
+     * [ensureConnected] blocks inside JNI, and a coroutine that gave up on it used to keep its
+     * `withTimeout` parent hostage until the native call returned, so the caller saw a "25 second"
+     * timeout after 31 seconds and the retry started a second, identical connect.
+     */
+    private val connectScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val passLock = Any()
+
+    @Volatile
+    private var connectPassRef: Deferred<Boolean>? = null
+
+    @Volatile
+    private var connectPassForced = false
+
+    /**
+     * Joins the connect pass that is already running, or starts one.
+     *
+     * The returned [Deferred] is owned by the gateway, not by the caller's coroutine, so cancelling
+     * the [Deferred.await] leaves the native call running and the next caller joins it instead of
+     * dialling a second session. Playback bounds its wait with this.
+     */
+    fun connectPass(forceReconnect: Boolean = false): Deferred<Boolean> = synchronized(passLock) {
+        val running = connectPassRef
+        // A forced reconnect means "the access point is dead": it must not be served by a pass that
+        // was started for a healthy-looking session, and vice versa.
+        if (running != null && running.isActive && forceReconnect == connectPassForced) return running
+        connectScope.async { ensureConnected(forceReconnect) }
+            .also {
+                connectPassRef = it
+                connectPassForced = forceReconnect
+            }
+    }
 
     override suspend fun connect(accessToken: String) = onIo {
         requireNative()

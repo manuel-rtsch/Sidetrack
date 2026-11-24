@@ -5,11 +5,15 @@ import io.github.manuelrtsch.sidetrack.data.NativeSpotifyGateway
 import io.github.manuelrtsch.sidetrack.data.PlaybackSettings
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure
 import io.github.manuelrtsch.sidetrack.data.SpotifyGatewayException
+import java.util.concurrent.CountDownLatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -356,6 +360,28 @@ class NativeSpotifyGatewayTest {
         assertTrue(native.playerCreated)
     }
 
+    @Test fun `a caller that stops waiting leaves the connect pass running`() {
+        // Regression: `withTimeoutOrNull` wrapped the whole `ensureConnected`, so it waited for its
+        // own cancelled child to unwind. A blocking JNI call cannot be cancelled, and a 25 s timeout
+        // returned after 31 s. The pass must outlive the wait and be joined by the next caller.
+        val gate = CountDownLatch(1)
+        val native = FakeNative().apply { connectGate = gate }
+        val gateway = NativeSpotifyGateway(native) { "token" }
+
+        runBlocking {
+            val pass = gateway.connectPass()
+
+            val waited = withTimeoutOrNull(200L) { pass.await() }
+
+            assertNull(waited)
+            assertTrue("the pass must survive the abandoned wait", pass.isActive)
+
+            gate.countDown()
+            assertTrue(pass.await())
+            assertEquals(1, native.connects)
+        }
+    }
+
     private class FakeNative(override val isAvailable: Boolean = true) : SilentSpotifyNative() {
         var token: String? = null
         var playerCreated = false
@@ -366,6 +392,9 @@ class NativeSpotifyGatewayTest {
 
         /** What the engine answers for a token update; null means accepted. */
         var tokenReason: String? = null
+
+        /** Blocks [connect] until it is released, to model an access point that never answers. */
+        var connectGate: CountDownLatch? = null
         var bitrateKbps: Int? = null
         var normalization = false
         var gapless = true
@@ -379,6 +408,7 @@ class NativeSpotifyGatewayTest {
         override fun initialize() = isAvailable
         override fun connect(accessToken: String): String? {
             connects++
+            connectGate?.await()
             token = accessToken
             // Model the engine: a new session cannot keep the player created for the old one.
             playerCreated = false
