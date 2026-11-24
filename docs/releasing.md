@@ -60,9 +60,12 @@ in the workflow rather than a release-triggered workflow because an event produc
 `APP_PACK_DISPATCH_TOKEN` is unset the step warns and exits, and the pack's weekly cron picks the
 release up instead. A release is never failed by the pack.
 
-The pack serves the **arm64-v8a** APK, not the universal one: a release carries both, an F-Droid
-index can hold only one file per `versionCode`, and the SP-01 is arm64. The universal APK stays
-here for emulators and other phones.
+Since 0.4.4 a release carries **one** APK, `Sidetrack-<version>-arm64-v8a.apk`, plus
+`SHA256SUMS.txt`. `scripts/release.sh` packages `-PsidetrackAbis=arm64-v8a`, which is every SP-01's
+ABI, halves the download, and matches what the app pack can index — an F-Droid index holds one file
+per `versionCode`, so a second asset was one the pack could never serve. The universal build is no
+longer published; an emulator or an x86_64 phone gets one from
+`./gradlew :app:assembleRelease -PsidetrackNative=true` without `-PsidetrackAbis`.
 
 ## Repository secrets
 
@@ -89,12 +92,11 @@ scripts/release.sh 0.4.2
 
 It requires `cargo`, `cargo-ndk`, the NDK and `ANDROID_HOME`, a clean tree, and `HEAD` to describe
 exactly as `v<version>` (`versionName` comes from `git describe`). The output lands in
-`build/release/` with `SHA256SUMS.txt`, and each APK has already been through
+`build/release/` with `SHA256SUMS.txt`, and the APK has already been through
 `scripts/verify-apk.sh`. Publishing by hand is then:
 
 ```sh
 gh release create v0.4.2 \
-  build/release/Sidetrack-0.4.2.apk \
   build/release/Sidetrack-0.4.2-arm64-v8a.apk \
   build/release/SHA256SUMS.txt \
   --notes-file docs/releases/0.4.2.md

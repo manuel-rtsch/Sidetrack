@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# Builds the two published APKs for a release, verifies them, and writes SHA256SUMS.txt.
+# Builds the published APK for a release, verifies it, and writes SHA256SUMS.txt.
+#
+# It packages arm64-v8a only. That is the ABI of every SP-01, the app pack's index can hold one
+# file per versionCode anyway, and dropping x86_64 halves the download. An emulator build is a
+# local `./gradlew :app:assembleRelease -PsidetrackNative=true` without -PsidetrackAbis; it is not
+# a release artefact.
 #
 # This is the single path a release takes: the release workflow calls it, and running it by hand
 # produces byte-identical inputs for the checks the workflow would run. Native playback is
@@ -53,22 +58,16 @@ run_gradle() {
   ./gradlew :app:assembleRelease -PsidetrackNative=true "$@" --stacktrace
 }
 
-# --- universal: a phone or an emulator -------------------------------------------------------
-run_gradle
-universal="$out/Sidetrack-$version.apk"
-cp "$apk_dir/app-release.apk" "$universal"
-scripts/verify-apk.sh "$universal" "$version" arm64-v8a,x86_64
-
-# --- phone only: about half the download -----------------------------------------------------
+# --- the one published asset: arm64-v8a only --------------------------------------------------
 run_gradle -PsidetrackAbis=arm64-v8a
 phone="$out/Sidetrack-$version-arm64-v8a.apk"
 cp "$apk_dir/app-release.apk" "$phone"
 scripts/verify-apk.sh "$phone" "$version" arm64-v8a
 
-(cd "$out" && sha256sum Sidetrack-"$version".apk Sidetrack-"$version"-arm64-v8a.apk > SHA256SUMS.txt)
+(cd "$out" && sha256sum Sidetrack-"$version"-arm64-v8a.apk > SHA256SUMS.txt)
 
 printf '\nrelease: artefacts in %s\n' "$out"
 ls -l "$out"
 cat "$out/SHA256SUMS.txt"
-printf '\nNext, if publishing by hand: gh release create v%s %s %s %s --notes-file docs/releases/%s.md\n' \
-  "$version" "$universal" "$phone" "$out/SHA256SUMS.txt" "$version"
+printf '\nNext, if publishing by hand: gh release create v%s %s %s --notes-file docs/releases/%s.md\n' \
+  "$version" "$phone" "$out/SHA256SUMS.txt" "$version"

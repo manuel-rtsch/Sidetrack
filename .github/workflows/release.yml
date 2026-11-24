@@ -1,8 +1,8 @@
 name: Release
 
-# Cutting a release means pushing a tag. Everything after that — the native bridge, both signed
-# APKs, the checksum file, the notes and the GitHub release — is this workflow, so a release
-# cannot be produced by hand with a stale or native-less build.
+# Cutting a release means pushing a tag. Everything after that — the native bridge, the signed
+# arm64-v8a APK, the checksum file, the notes and the GitHub release — is this workflow, so a
+# release cannot be produced by hand with a stale or native-less build.
 #
 # Requires repository secrets:
 #   SIDETRACK_KEYSTORE_BASE64   the release .jks, base64-encoded
@@ -94,8 +94,8 @@ jobs:
           keyPassword=$KEY_PASSWORD
           EOF
 
-      # Builds the universal and the arm64-only APK, asserts the ABI set, the package, the
-      # version and the release certificate of each, and writes SHA256SUMS.txt.
+      # Builds the arm64-v8a APK — the only published asset since 0.4.4 — asserts its ABI set,
+      # package, version and release certificate, and writes SHA256SUMS.txt.
       - name: Build and verify the artefacts
         shell: bash
         run: scripts/release.sh "${{ steps.version.outputs.version }}"
@@ -107,7 +107,6 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           out=build/release
           assets=(
-            "$out/Sidetrack-$version.apk"
             "$out/Sidetrack-$version-arm64-v8a.apk"
             "$out/SHA256SUMS.txt"
           )
