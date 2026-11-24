@@ -325,12 +325,12 @@ class SidetrackViewModel(
     }
 
     /**
-     * Dismisses whatever transient message owns the bar. The queue-replaced offer is one of them,
-     * so dismissing the bar also withdraws it instead of leaving an Undo nothing can reach.
+     * Closes whichever prompt owns the bar: the notice if there is one, otherwise the queue-replaced
+     * offer. A notice hides an offer without consuming it, so dismissing the notice leaves it
+     * running.
      */
     fun dismissNotice() {
-        notifier.dismiss()
-        driver.discardQueueReplaceOffer()
+        if (!notifier.dismiss()) driver.discardQueueReplaceOffer()
     }
 
     /** Shows a transient bar message; [kind] decides how long it stays. */
@@ -341,6 +341,9 @@ class SidetrackViewModel(
 
     /** Puts back the queue the last collection tap replaced, and resumes what was playing. */
     fun undoQueueReplace() = driver.undoQueueReplaced()
+
+    /** Withdraws the queue-replaced offer without restoring anything: Back and the close square. */
+    fun dismissQueueReplace() = driver.discardQueueReplaceOffer()
 
     /**
      * Creates a playlist named [name], optionally seeded with [seed], on the active service and

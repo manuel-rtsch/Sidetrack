@@ -21,7 +21,6 @@ import androidx.compose.ui.input.key.type
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.LocalChrome
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
@@ -143,15 +142,6 @@ fun episodeNotesRowAction(title: String, onClick: () -> Unit) = RowAction(
     onClick = onClick
 )
 
-/** The question a destructive row action asks before it writes. Cancel is the only grey action. */
-fun cancelRowAction(onClick: () -> Unit = {}) = RowAction(
-    key = "cancelRemove",
-    label = "Cancel",
-    icon = SidekitIcon.Close,
-    tone = ActionTone.Muted,
-    onClick = onClick
-)
-
 fun confirmRemoveFromPlaylistRowAction(title: String, onClick: () -> Unit) = RowAction(
     key = "confirmRemove",
     label = "Remove",
@@ -161,18 +151,23 @@ fun confirmRemoveFromPlaylistRowAction(title: String, onClick: () -> Unit) = Row
     onClick = onClick
 )
 
-/** A destructive row action that can still be taken back from the bar: [what] names it. */
-data class RowActionUndo(
-    val what: String,
+/** A destructive edit the bar is still offering to take back: [label] says what comes back. */
+data class PendingRestore(
+    val label: String,
+    val description: String,
     val onClick: () -> Unit
 )
 
-/** The row whose actions are currently shown in the contextual bar. */
+/**
+ * The row whose actions are currently shown in the contextual bar. [confirm] marks the bar as a
+ * question rather than a menu, so Back cancels it instead of leaving the screen.
+ */
 data class RowActionSelection(
     val key: Any,
     val title: String,
     val actions: List<RowAction>,
-    val focusRequester: FocusRequester? = null
+    val focusRequester: FocusRequester? = null,
+    val confirm: Boolean = false
 )
 
 /**
@@ -191,8 +186,8 @@ class RowActionBarState {
     /** Lets the screen's Options bar close before this one opens; they never share the bar. */
     internal var beforeShow: (() -> Unit)? = null
 
-    /** The last destructive row action, while its Undo is still offered. */
-    var undo: RowActionUndo? by mutableStateOf(null)
+    /** The last destructive edit, while its restore is still offered. */
+    var restore: PendingRestore? by mutableStateOf(null)
         private set
 
     internal fun takePendingFocus(): FocusRequester? {
@@ -203,20 +198,20 @@ class RowActionBarState {
 
     fun show(selection: RowActionSelection) {
         beforeShow?.invoke()
-        undo = null
+        restore = null
         // A new selection owns the bar: a close that immediately reopened it (the removal
         // confirmation) must not restore focus to the row a frame later.
         pendingFocus = null
         this.selection = selection
     }
 
-    fun showUndo(undo: RowActionUndo) {
+    fun showRestore(restore: PendingRestore) {
         selection = null
-        this.undo = undo
+        this.restore = restore
     }
 
-    fun clearUndo() {
-        undo = null
+    fun clearRestore() {
+        restore = null
     }
 
     fun close(restoreFocus: Boolean = true) {
@@ -245,13 +240,19 @@ fun rememberRowActionBarState(): RowActionBarState {
             if (chrome?.focusActionBar() == true) return@LaunchedEffect
         }
     }
-    // One Undo window for every row action: five seconds of visible time, paused while the screen is
+    // One restore window for every row action: five seconds of visible time, paused while the screen is
     // in the background and committed when it goes away.
-    val undoWindow = rememberUndoWindow { state.clearUndo() }
-    UndoWindowLifecycle(undoWindow) { state.clearUndo() }
-    LaunchedEffect(state.undo) {
-        if (state.undo == null) undoWindow.cancel() else undoWindow.start()
+    val restoreWindow = rememberUndoWindow { state.clearRestore() }
+    UndoWindowLifecycle(restoreWindow) { state.clearRestore() }
+    LaunchedEffect(state.restore) {
+        if (state.restore == null) restoreWindow.cancel() else restoreWindow.start()
     }
+    PromptBack(state.restore != null) {
+        restoreWindow.cancel()
+        state.clearRestore()
+    }
+    // A question takes the Back key; an ordinary selection is a menu, and Back still leaves.
+    PromptBack(state.selection?.confirm == true) { state.close() }
     // The bar must leave composition before the row can take focus back: requesting it in the click's
     // own frame leaves the focus owner on the disappearing bar.
     LaunchedEffect(state.pendingFocus) {
@@ -271,13 +272,12 @@ fun rowActionBarActions(
     state: RowActionBarState,
     normal: List<SideAction>
 ): List<SideAction> {
-    state.undo?.let { pending ->
-        val undo = undoAction("rowUndo", pending.what) {
-            state.clearUndo()
+    state.restore?.let { pending ->
+        val restore = restoreAction("restoreTrack", pending.label, pending.description) {
+            state.clearRestore()
             pending.onClick()
         }
-        val continueWith = normal.firstOrNull()
-        return if (continueWith != null) undoBar(continueWith, undo) else listOf(undo)
+        return restoreBar(restore, "dismissRestore") { state.clearRestore() }
     }
     val selection = state.selection ?: return normal
     // Three actions are icon-only; one or two keep their label so the bar stays readable.

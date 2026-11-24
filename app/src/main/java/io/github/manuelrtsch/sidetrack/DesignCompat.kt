@@ -4,7 +4,7 @@ import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 
-/* Undo's bar shape and factory come from Sidekit; its wording lives in UndoActions.kt. */
+/* Undo's window and bar primitives come from Sidekit; this app's prompts live in PromptBars.kt. */
 
 fun SideAction.Companion.delete(key: String, label: String, onClick: () -> Unit) = SideAction(key, label, SidekitIcon.DeleteForever, tone = ActionTone.Destructive, onClick = onClick)
 

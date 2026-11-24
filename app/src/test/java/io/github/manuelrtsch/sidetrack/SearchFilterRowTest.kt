@@ -202,7 +202,7 @@ class SearchFilterRowTest {
     }
 
     @Test
-    fun clearingTheHistoryOffersUndoWithoutOpeningTheKeyboard() {
+    fun clearingTheHistoryOffersRestoreWithoutOpeningTheKeyboard() {
         var search by mutableStateOf(SearchUiState(searchHistory = listOf("night", "aurora")))
         var cleared = 0
         var restored: List<String>? = null
@@ -236,9 +236,10 @@ class SearchFilterRowTest {
         compose.onNodeWithContentDescription("Clear search history").performClick()
         compose.waitForIdle()
         assertEquals(1, cleared)
-        // Clearing must leave focus on the bar: focusing the field would raise the keyboard over Undo.
+        // Clearing must leave focus on the bar: focusing the field would raise the keyboard over
+        // the restore offer.
         compose.onNode(hasSetTextAction()).assertIsNotFocused()
-        compose.onNodeWithText("Undo").performClick()
+        compose.onNodeWithText("Restore search history").performClick()
         assertEquals(listOf("night", "aurora"), restored)
     }
 

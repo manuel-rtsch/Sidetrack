@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.ActionMotion
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.components.SidekitCompactItem
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
@@ -159,12 +158,18 @@ fun SearchScreen(
         null
     }
     val undo = clearedHistory?.let { previous ->
-        undoAction("undoClearHistory", "clear search history") {
+        restoreAction("restoreSearchHistory", "Restore search history", "Restore your search history") {
             undoWindow.cancel()
             clearedHistory = null
             onRestoreHistory(previous)
         }
     }
+    // Refusing the offer ends its window; the clear it offered to take back stays.
+    val dismissUndo = {
+        undoWindow.cancel()
+        clearedHistory = null
+    }
+    PromptBack(clearedHistory != null, onDismiss = dismissUndo)
     val clear = if (typed.isNotEmpty() && !keyboardVisible && !notice) {
         SideAction.square(
             "clear",
@@ -183,7 +188,7 @@ fun SearchScreen(
     val actions = when {
         keyboardVisible -> emptyList()
 
-        undo != null -> undoBar(back, undo)
+        undo != null -> restoreBar(undo, "dismissUndo", dismissUndo)
 
         else -> sidetrackActions(
             chrome,

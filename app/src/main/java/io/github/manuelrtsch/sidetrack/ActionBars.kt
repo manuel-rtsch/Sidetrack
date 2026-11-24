@@ -2,24 +2,17 @@ package io.github.manuelrtsch.sidetrack
 
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.undoBar
-import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 
 /**
- * The bar while a replaced queue can still be taken back: what happened, then Undo. The label is
- * grey and dismisses the offer, so the only live entry is the Undo square.
+ * The bar while a replaced queue can still be taken back. It is the offer's usual shape: the
+ * inverse leads and a close square accepts the change, because the replaced queue is nowhere on
+ * screen to name itself.
  */
-fun queueReplacedActions(onDismiss: () -> Unit, onUndo: () -> Unit): List<SideAction> = undoBar(
-    continueWith = SideAction(
-        key = "queueReplaced",
-        label = "Queue replaced",
-        icon = SidekitIcon.QueueMusic,
-        tone = ActionTone.Muted,
-        contentDescription = "Queue replaced. Dismiss",
-        onClick = onDismiss
-    ),
-    undo = undoAction("undoQueueReplace", "queue replacement", onUndo)
+fun queueReplacedActions(onDismiss: () -> Unit, onUndo: () -> Unit): List<SideAction> = restoreBar(
+    restore = restoreAction("restoreQueue", "Restore queue", "Restore the queue this tap replaced", onUndo),
+    dismissKey = "dismissQueueReplace",
+    onDismiss = onDismiss
 )
 
 /**
@@ -37,7 +30,7 @@ fun sidetrackActions(
     showNowPlayingNotice: Boolean = true
 ): List<SideAction> = when {
     chrome.notice != null ->
-        withNotice(chrome.notice, onDismissNotice, actions, chrome.noticeKind)
+        noticeBar(chrome.notice, onDismissNotice, actions, chrome.noticeKind)
 
     chrome.queueReplaced -> queueReplacedActions(onDismissNotice, onUndoQueueReplace)
 

@@ -140,8 +140,8 @@ fun TrackRow(
                                     key = key,
                                     title = "Remove ${track.title}?",
                                     focusRequester = rowFocus,
+                                    confirm = true,
                                     actions = rowActions(
-                                        cancelRowAction(),
                                         confirmRemoveFromPlaylistRowAction(track.title) {
                                             removeFromPlaylist(track, entryIndex)
                                         }

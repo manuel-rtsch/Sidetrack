@@ -22,7 +22,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.components.SidekitCard
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
@@ -119,7 +118,7 @@ fun SignInScreen(
             SideAction.forward("signIn", primaryLabel, primary)
         )
     }
-    val actions = withNotice(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
+    val actions = noticeBar(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
     SidekitScaffold(
         title = "Sign in",
         actions = actions

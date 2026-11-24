@@ -260,9 +260,10 @@ fun HistoryRow(
                 removeFromHistoryRowAction(item.title) {
                     val undo = onRemove(item)
                     if (undo != null) {
-                        bar.showUndo(
-                            RowActionUndo(
-                                what = "remove ${item.title} from history",
+                        bar.showRestore(
+                            PendingRestore(
+                                label = "Restore ${item.title}",
+                                description = "Restore ${item.title} to history",
                                 onClick = undo
                             )
                         )

@@ -53,33 +53,53 @@ carry `Play` (`playRowAction`), which plays the row now and puts the previous it
 of the tail: the queue resumes where it was once the picked track ends. Its label stays one word
 because the square drops it; the content description says "Play <title> now".
 
-**Undo is for destructive edits only.** Removing, clearing or deleting something the user can see
+**Every prompt is one bar: a decision on the left, a close square on the right.** There are three
+kinds, told apart by tone, all built in `PromptBars.kt`:
+
+- **Restore** — the edit is applied and can be taken back. Grey, `SidekitIcon.Undo`, rising in place
+  (`ActionMotion.Up`), labelled with the inverse: "Restore queue", "Restore X", "Restore upcoming",
+  "Restore history", "Restore search history". Never the bare word "Undo": Undo is the mechanism,
+  the button says the act. One verb everywhere — what comes back is always *restored*, so the
+  button only has to name its object. Where the object is not the point the wording says so: the
+  deferred playlist delete reads "Restore Road Trip" and its description adds that the deletion is
+  cancelled.
+- **Confirm** — the edit can never be taken back, so it is asked *before*: `Sign out?`. Red
+  (`ActionTone.Destructive`), the action keeps its own glyph, and the question mark is where "are
+  you sure" lives now that Cancel has lost its word.
+- **Notice** — nothing to decide, only to read: `Added track to Road Trip`, or a failure. Grey
+  wherever the kind is neutral, and the message is the slot.
+
+The close square **never changes the world**. In a restore the edit stays; in a confirm nothing has
+happened yet; in a notice it only goes away. That is why one glyph accepts in one bar and cancels in
+the next: it always means "take this bar away". The cursor lands on it in all three, so Enter is
+always the press that changes nothing, and Left is the one step to the decision — no walking the
+list again. The Back key does the same and stays on the page; it never performs the prompt and never
+leaves the screen. Labels stay English on purpose: every string in this app is, and taking Sidekit's
+localised default would make one button change language under a screen that is not translated.
+
+**Restore is for destructive edits only.** Removing, clearing or deleting something the user can see
 is offered back; creation is not. Adding a track to a playlist reports "Added track to X" as a
-notice and offers no Undo, because the way back would itself be a destructive action wearing a
-safety label. One factory writes every offer: `undoAction(key, what)` in `UndoActions.kt`. It is
-grey with `SidekitIcon.Undo`, rises in place (`ActionMotion.Up`), is labelled `Undo`, and its
-content description is `Undo <what>`, where `<what>` is the verb phrase of the edit — "clear
-upcoming", "delete Road Trip", "remove X from history" — never just "Undo".
+notice, because the way back would itself be a destructive action wearing a safety label.
 
-The shape is Sidekit's `undoBar`: the continuation keeps the left slot and Undo is added to the
-right, never substituted for the exit. The bar shows one offer at a time. The window is five
-*visible* seconds (`UndoWindow`, paused while the screen is away); the queue-replaced offer is the
-one exception at eight, because it outlives the screen that raised it.
+The bar shows one prompt at a time. A restore window is five *visible* seconds (`UndoWindow`, paused
+while the screen is away); the queue-replaced offer is the one exception at eight, because it
+outlives the screen that raised it. A confirmation is not a bar occupant but a mode: it outranks a
+notice and pauses a live restore window rather than letting it burn behind the question.
 
-Two semantics exist and stay named as such: most edits are applied immediately and Undo replays
-the inverse; the playlist delete is deferred, so Undo cancels a write that has not happened yet.
-Removing from a playlist confirms instead of offering Undo, because no provider can put an item
-back into its original slot (`provider-capabilities.md`).
+Two restore semantics exist and stay named as such: most edits are applied immediately and the
+restore replays the inverse; the playlist delete is deferred, so "Restore <title>" cancels a write
+that has not happened yet, and the close square commits it. Removing from a playlist cannot be
+restored by any provider, so it is a confirmation, not an offer (`provider-capabilities.md`).
 
 **A replaced queue is offered back.** The collection tap is the one gesture that can throw away a
 queue the user lined up, so `PlaybackDriver.play` keeps the outgoing queue for
-`QUEUE_REPLACED_UNDO_MS` and the bar shows `Queue replaced | Undo` (`queueReplacedActions`). Undo
-puts the snapshot back and resumes the item that was playing at the offset it left off; the album
-track stays in the history it earned. The offer outranks the now-playing confirmation, because it
-expires and the confirmation is decoration, and a notice still outranks it both. It is withdrawn
-by any other play, by dismissing the bar, or when its timer runs out, so a stale snapshot can
-never undo a newer choice. A tap whose queue had nothing upcoming has lost nothing and leaves the
-bar alone.
+`QUEUE_REPLACED_UNDO_MS` and the bar shows `Restore queue | ✕` (`queueReplacedActions`). It is the
+offer's usual shape, and the label does what the scene cannot: the replaced queue is nowhere on
+screen, so the button names it. Undo puts the snapshot back and resumes the item that was playing
+at the offset it left off; the album track stays in the history it earned. The offer outranks the
+now-playing confirmation, because it expires and the confirmation is decoration, and a notice still
+outranks it both. It is withdrawn by any other play, by the close square, by Back, or when its
+timer runs out, so a stale snapshot can never undo a newer choice. A tap whose queue had nothing upcoming has lost nothing and leaves the bar alone.
 
 ## Known gaps
 

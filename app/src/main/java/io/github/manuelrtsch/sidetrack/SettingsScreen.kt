@@ -15,8 +15,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.platform.LocalContext
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.undoBar
-import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.listFade
@@ -59,9 +57,9 @@ fun SettingsScreen(
     val context = LocalContext.current
     val back = remember { sidetrackBack("Back", onBack).first() }
     val baseActions = remember(back) { listOf(back, SideAction.forward("about", "About", onClick = onAbout)) }
-    val normal = withNotice(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
+    val normal = noticeBar(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
     val undo = if (historyCleared) {
-        undoAction("undoClearHistory", "clear history") {
+        restoreAction("restoreHistory", "Restore history", "Restore your play history") {
             undoWindow.cancel()
             historyCleared = false
             onUndoClearHistory()
@@ -69,16 +67,25 @@ fun SettingsScreen(
     } else {
         null
     }
+    // Refusing the offer ends its window; the clear it offered to take back stays.
+    val dismissUndo = {
+        undoWindow.cancel()
+        historyCleared = false
+    }
+    PromptBack(historyCleared, onDismiss = dismissUndo)
+    // A question takes the Back key: Back answers "no" and stays in Settings.
+    PromptBack(confirmation == SettingsConfirmation.SignOut) { confirmation = null }
     val actions = when {
-        confirmation == SettingsConfirmation.SignOut -> listOf(
-            SideAction.cancel("cancelSignOut", "Cancel") { confirmation = null },
-            SideAction.delete("confirmSignOut", "Sign out", onClick = {
+        confirmation == SettingsConfirmation.SignOut -> confirmBar(
+            confirm = confirmAction("confirmSignOut", "Sign out?", "Sign out of your account") {
                 confirmation = null
                 onSignOut()
-            })
+            },
+            cancelKey = "cancelSignOut",
+            onCancel = { confirmation = null }
         )
 
-        undo != null -> undoBar(back, undo)
+        undo != null -> restoreBar(undo, "dismissUndo", dismissUndo)
 
         else -> normal
     }

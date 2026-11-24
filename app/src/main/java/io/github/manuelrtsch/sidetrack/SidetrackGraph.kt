@@ -136,6 +136,11 @@ internal fun NavBackStackEntry.sidetrackViewModel(nav: NavHostController): Sidet
         parent.lifecycle.addObserver(observer)
         onDispose { parent.lifecycle.removeObserver(observer) }
     }
+    // The queue-replaced offer follows the tap, not the screen, so Back refuses it instead of
+    // leaving — on whichever screen happens to be showing. A screen's own mode is composed deeper
+    // and still takes the key first.
+    val chrome by vm.chromeState.collectAsStateWithLifecycle()
+    PromptBack(chrome.queueReplaced, onDismiss = vm::dismissQueueReplace)
     return vm
 }
 

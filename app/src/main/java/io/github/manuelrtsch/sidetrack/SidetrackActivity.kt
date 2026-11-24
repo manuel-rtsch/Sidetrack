@@ -33,8 +33,15 @@ class SidetrackActivity : SidekitActivity() {
 
     private var navController: NavHostController? = null
     private var keypadBackOverride: (() -> Boolean)? = null
+
+    // The queue-replaced offer follows the user across screens, so its Back belongs to no single
+    // screen. Handlers are stacked and removed by the composable that added them: a screen clearing
+    // its own override can never take the offer's handler with it.
+    private val promptBackHandlers = mutableListOf<() -> Boolean>()
     private val systemBack: () -> Boolean = {
-        keypadBackOverride?.invoke() ?: (navController?.keypadBack() == true)
+        keypadBackOverride?.invoke() == true ||
+            promptBackHandlers.lastOrNull()?.invoke() == true ||
+            (navController?.keypadBack() == true)
     }
 
     /**
@@ -60,6 +67,12 @@ class SidetrackActivity : SidekitActivity() {
      */
     fun setKeypadBackOverride(handler: (() -> Boolean)?) {
         keypadBackOverride = handler
+    }
+
+    /** Installs Back for the app-level Undo offer; the returned function removes it again. */
+    fun pushPromptBack(handler: () -> Boolean): () -> Unit {
+        promptBackHandlers += handler
+        return { promptBackHandlers -= handler }
     }
 
     override fun onSidekitHome() {
@@ -179,7 +192,10 @@ class SidetrackActivity : SidekitActivity() {
         // the setting recomposes the graph rather than each list re-reading the preference.
         val compactRows = rememberCompactRows()
         StartupTrace.once("graph dependencies ready")
-        CompositionLocalProvider(LocalCompactRows provides compactRows) {
+        CompositionLocalProvider(
+            LocalCompactRows provides compactRows,
+            LocalPromptBack provides ::pushPromptBack
+        ) {
             NavHost(navController = nav, startDestination = SIDE_PLAY_ROOT) {
                 sidetrackGraph(
                     nav,

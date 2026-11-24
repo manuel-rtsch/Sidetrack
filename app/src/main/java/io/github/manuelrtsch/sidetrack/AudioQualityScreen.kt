@@ -11,7 +11,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.semantics.Role
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.listFade
@@ -30,7 +29,7 @@ fun AudioQualityScreen(
     val baseActions = remember(backLabel, onBack) {
         listOf(SideAction.back("back", backLabel, onBack))
     }
-    val actions = withNotice(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
+    val actions = noticeBar(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
     SidekitScaffold(
         title = "Audio quality",
         actions = actions

@@ -28,7 +28,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.components.SidekitItemRow
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
@@ -148,14 +147,25 @@ fun CollectionScreen(
         )
     )
     val undoDelete = if (pendingDelete) {
-        undoAction("undoDeletePlaylist", "delete ${collection.title}") {
+        restoreAction("restorePlaylist", "Restore ${collection.title}", "Keep ${collection.title} and cancel the deletion") {
             deleteWindow.cancel()
             pendingDelete = false
         }
     } else {
         null
     }
-    val actions = if (pendingDelete) undoBar(back, undoDelete) else normalActions
+    // Refusing the offer accepts the deletion, which has been waiting for exactly this: it commits
+    // now instead of when the page goes away.
+    val dismissDelete = {
+        deleteWindow.cancel()
+        if (pendingDelete && !deleting) {
+            pendingDelete = false
+            deleting = true
+            onDeleteInBackground?.invoke()
+        }
+    }
+    PromptBack(pendingDelete, onDismiss = dismissDelete)
+    val actions = undoDelete?.let { restoreBar(it, "dismissDelete", dismissDelete) } ?: normalActions
     // The header keeps the three primary actions: play, artwork and save. The artist lives in the
     // metadata line below it, so collections keep the same play / image / save-or-follow layout
     // without a third Options entry.
@@ -165,7 +175,7 @@ fun CollectionScreen(
     // truncate. They are only offered when the service and the playlist's own permissions allow
     // them, so a read-only playlist keeps a clean menu instead of two entries that can only fail.
     val options = if (pendingDelete) {
-        // The Undo bar owns the screen until its window ends; a second delete or a rename now
+        // The offer bar owns the screen until its window ends; a second delete or a rename now
         // would replace the very action the user is being offered.
         emptyList()
     } else {

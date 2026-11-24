@@ -10,8 +10,8 @@ import org.junit.Test
 
 /**
  * A collection tap replaces the queue, so the bar offers it back for a few seconds. These tests pin
- * that offer (`ActionBars.kt`, `docs/menus.md`): it is two entries, what happened and Undo, and it
- * only takes the bar when nothing more urgent is asking for it.
+ * that offer (`ActionBars.kt`, `docs/menus.md`): the named inverse leads, a close square accepts the
+ * change, and it only takes the bar when nothing more urgent is asking for it.
  */
 class QueueReplacedBarTest {
 
@@ -44,18 +44,20 @@ class QueueReplacedBarTest {
     )
 
     @Test
-    fun theOfferIsWhatHappenedThenUndo() {
+    fun theOfferNamesWhatComesBackThenACloseSquare() {
         val actions = bar(ChromeUiState(queueReplaced = true))
 
-        assertEquals(listOf("queueReplaced", "undoQueueReplace"), actions.map { it.key })
-        assertEquals("Queue replaced", actions.first().label)
-        assertEquals("Undo", actions.last().label)
-        // The label only says what happened; the single live entry is the Undo.
+        assertEquals(listOf("restoreQueue", "dismissQueueReplace"), actions.map { it.key })
+        assertEquals("Restore queue", actions.first().label)
+        assertEquals("Restore the queue this tap replaced", actions.first().contentDescription)
+        assertEquals("Dismiss", actions.last().contentDescription)
+        // Both entries are grey: neither promises to advance, one takes back and one accepts.
         assertEquals(ActionTone.Muted, actions.first().tone)
+        assertEquals(ActionTone.Muted, actions.last().tone)
     }
 
     @Test
-    fun undoRunsTheOfferAndTheLabelWithdrawsIt() {
+    fun restoreBringsTheQueueBackAndDismissWithdraws() {
         var undone = 0
         var dismissed = 0
         val actions = sidetrackActions(
@@ -67,8 +69,8 @@ class QueueReplacedBarTest {
             onUndoQueueReplace = { undone++ }
         )
 
-        actions.last().onClick()
         actions.first().onClick()
+        actions.last().onClick()
 
         assertEquals(1, undone)
         assertEquals(1, dismissed)
@@ -78,7 +80,7 @@ class QueueReplacedBarTest {
     fun aNoticeOutranksTheOffer() {
         val actions = bar(ChromeUiState(notice = "Couldn't reach the service", queueReplaced = true))
 
-        assertTrue("A failure is news the user has to read", actions.none { it.key == "undoQueueReplace" })
+        assertTrue("A failure is news the user has to read", actions.none { it.key == "restoreQueue" })
     }
 
     @Test
@@ -87,12 +89,12 @@ class QueueReplacedBarTest {
         // a deadline that takes something away.
         val actions = bar(ChromeUiState(queueReplaced = true, nowPlayingNotice = track("A")))
 
-        assertEquals(listOf("queueReplaced", "undoQueueReplace"), actions.map { it.key })
+        assertEquals(listOf("restoreQueue", "dismissQueueReplace"), actions.map { it.key })
     }
 
     @Test
     fun noOfferMeansTheNormalBar() {
         assertEquals(normal, bar(ChromeUiState()))
-        assertNull(bar(ChromeUiState()).firstOrNull { it.key == "queueReplaced" })
+        assertNull(bar(ChromeUiState()).firstOrNull { it.key == "restoreQueue" })
     }
 }

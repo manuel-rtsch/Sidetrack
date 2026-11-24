@@ -18,9 +18,9 @@ internal fun QueueSectionHeader(count: Int, shuffled: Boolean, modifier: Modifie
     SectionLabel(label, modifier.fillMaxWidth())
 }
 
-/** What the bar's Undo will put back. */
-internal sealed interface QueueUndo {
-    class Cleared(val items: List<MediaItem>) : QueueUndo
+/** The edit the bar is still offering to take back. */
+internal sealed interface QueueEdit {
+    class Cleared(val items: List<MediaItem>) : QueueEdit
 
-    class Removed(val index: Int, val item: MediaItem) : QueueUndo
+    class Removed(val index: Int, val item: MediaItem) : QueueEdit
 }

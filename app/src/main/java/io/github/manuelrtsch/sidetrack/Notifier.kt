@@ -13,5 +13,13 @@ internal class Notifier(private val store: UiStateStore) {
 
     fun say(text: String, kind: NoticeKind = NoticeKind.Other) = store.update { it.copy(notice = text, noticeKind = kind) }
 
-    fun dismiss() = store.update { it.copy(notice = null) }
+    /** Clears the message and answers whether there was one to clear. */
+    fun dismiss(): Boolean {
+        var had = false
+        store.update {
+            had = it.notice != null
+            it.copy(notice = null)
+        }
+        return had
+    }
 }

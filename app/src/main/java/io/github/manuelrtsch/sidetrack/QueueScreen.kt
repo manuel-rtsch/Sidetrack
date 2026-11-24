@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
-import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.listFade
@@ -62,10 +61,10 @@ fun QueueScreen(
     onKeypadBackOverride: ((() -> Boolean)?) -> Unit = {},
     onUndoQueueReplace: () -> Unit = {}
 ) {
-    var pendingUndo by remember { mutableStateOf<QueueUndo?>(null) }
+    var pendingEdit by remember { mutableStateOf<QueueEdit?>(null) }
     // Removing from the queue offers the same five visible seconds as every other Undo in the app.
-    val undoWindow = rememberUndoWindow { pendingUndo = null }
-    UndoWindowLifecycle(undoWindow) { pendingUndo = null }
+    val undoWindow = rememberUndoWindow { pendingEdit = null }
+    UndoWindowLifecycle(undoWindow) { pendingEdit = null }
     var reorderMode by remember { mutableStateOf(false) }
     // The current item and tail size when the lift started. If either changes, the lift no longer
     // describes its row, so the mode abandons instead of moving a stranger.
@@ -170,7 +169,7 @@ fun QueueScreen(
     val removeFromQueue: (Int, MediaItem) -> Unit = { index, item ->
         val removed = onRemove(index)
         if (removed >= 0) {
-            pendingUndo = QueueUndo.Removed(removed, item)
+            pendingEdit = QueueEdit.Removed(removed, item)
             undoWindow.start()
             focusedKey = null
             clearFocusPending = true
@@ -178,7 +177,7 @@ fun QueueScreen(
     }
     val clearUpcoming: () -> Unit = {
         rowActions.close()
-        pendingUndo = QueueUndo.Cleared(onClearUpcoming())
+        pendingEdit = QueueEdit.Cleared(onClearUpcoming())
         undoWindow.start()
         focusedKey = null
         clearFocusPending = true
@@ -272,21 +271,31 @@ fun QueueScreen(
         onUndoQueueReplace,
         showNowPlayingNotice = false
     )
-    val undo = when (val pending = pendingUndo) {
-        is QueueUndo.Cleared -> undoAction("undoClear", "clear upcoming") {
+    val undo = when (val pending = pendingEdit) {
+        is QueueEdit.Cleared -> restoreAction("restoreUpcoming", "Restore upcoming", "Restore the upcoming tracks") {
             undoWindow.cancel()
             onRestoreUpcoming(pending.items)
-            pendingUndo = null
+            pendingEdit = null
         }
 
-        is QueueUndo.Removed -> undoAction("undoRemove", "remove ${pending.item.title}") {
+        is QueueEdit.Removed -> restoreAction(
+            "addBackToQueue",
+            "Restore ${pending.item.title}",
+            "Restore ${pending.item.title} to the queue"
+        ) {
             undoWindow.cancel()
             onRestoreRemoved(pending.index, pending.item)
-            pendingUndo = null
+            pendingEdit = null
         }
 
         null -> null
     }
+    // Refusing the offer ends its window; the edit it offered to take back stays.
+    val dismissUndo = {
+        undoWindow.cancel()
+        pendingEdit = null
+    }
+    PromptBack(pendingEdit != null, onDismiss = dismissUndo)
     val actions = when {
         reorderMode -> listOf(
             SideAction.cancel("cancelReorder", "Cancel", onClick = cancelReorder),
@@ -300,7 +309,7 @@ fun QueueScreen(
 
         rowActions.selection != null -> rowActionBarActions(rowActions, normal)
 
-        undo != null -> undoBar(back, undo)
+        undo != null -> restoreBar(undo, "dismissUndo", dismissUndo)
 
         else -> normal
     }

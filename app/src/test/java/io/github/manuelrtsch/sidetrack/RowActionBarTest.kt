@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.ChromeState
@@ -80,22 +81,24 @@ class RowActionBarTest {
     }
 
     @Test
-    fun undoIsOfferedInTheBar() {
+    fun theRestoreOfferNamesWhatComesBack() {
         val chrome = ChromeState()
         lateinit var state: RowActionBarState
         showHost(chrome) { state = it }
 
         compose.runOnIdle {
-            state.showUndo(
-                RowActionUndo(
-                    what = "remove Row from Liked Songs",
+            state.showRestore(
+                PendingRestore(
+                    label = "Restore Night Signals",
+                    description = "Restore Night Signals to Liked Songs",
                     onClick = {}
                 )
             )
         }
         compose.waitForIdle()
 
-        compose.onNodeWithContentDescription("Undo remove Row from Liked Songs").assertExists()
+        compose.onNodeWithContentDescription("Restore Night Signals to Liked Songs").assertExists()
+        compose.onNodeWithText("Restore Night Signals").assertExists()
     }
 
     @Test
@@ -143,18 +146,43 @@ class RowActionBarTest {
     }
 
     @Test
-    fun aRowActionIsLiveByDefaultAndOnlyCancelIsGrey() {
+    fun aRowActionIsLiveByDefaultAndTheConfirmationIsRed() {
         val menu = rowActions(
             removeFromPlaylistRowAction("A") {},
-            addToPlaylistRowAction("A") {},
-            cancelRowAction()
+            addToPlaylistRowAction("A") {}
         )
 
-        assertEquals(ActionTone.Primary, addToPlaylistRowAction("A") {}.tone)
-        assertEquals(ActionTone.Muted, menu.first { it.key == "cancelRemove" }.tone)
-        assertEquals("Cancel", menu.first { it.key == "cancelRemove" }.label)
-        // Cancel is not destructive, so removing from the playlist stays last.
-        assertEquals("removeFromPlaylist", menu.last().key)
+        assertEquals(ActionTone.Primary, menu.first { it.key == "addToPlaylist" }.tone)
+        assertEquals(ActionTone.Destructive, confirmRemoveFromPlaylistRowAction("A") {}.tone)
+        // The question is not a menu: the unsafe entry is the only one, and the bar's own close
+        // square is the way out of it.
+        val question = rowActions(confirmRemoveFromPlaylistRowAction("A") {})
+        assertEquals(listOf("confirmRemove"), question.map { it.key })
+    }
+
+    @Test
+    fun aConfirmationOffersTheActionAndTheCloseSquareOnly() {
+        // Removing from a playlist cannot be taken back at its old position, so the bar asks; the
+        // close square is the "no" and no second Cancel button is needed.
+        val chrome = ChromeState()
+        lateinit var state: RowActionBarState
+        showHost(chrome) { state = it }
+
+        compose.runOnIdle {
+            state.show(
+                RowActionSelection(
+                    key = "row",
+                    title = "Remove Night Signals?",
+                    confirm = true,
+                    actions = listOf(confirmRemoveFromPlaylistRowAction("Night Signals") {})
+                )
+            )
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("Remove Night Signals from this playlist").assertExists()
+        compose.onNodeWithContentDescription("Close actions for Remove Night Signals?").assertExists()
+        compose.onNodeWithContentDescription("Cancel").assertDoesNotExist()
     }
 
     @Test

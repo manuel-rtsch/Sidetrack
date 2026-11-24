@@ -60,20 +60,20 @@ class SearchUndoWindowTest {
     fun anUndoOfferSurvivesAKeyboardExcursion() {
         show()
         compose.onNodeWithContentDescription("Clear search history").performClick()
-        compose.onNodeWithText("Undo").assertExists()
+        compose.onNodeWithText("Restore search history").assertExists()
 
         // The keyboard takes the bar away and stays up well past the five seconds.
         keyboard = true
         compose.waitForIdle()
-        compose.onNodeWithText("Undo").assertDoesNotExist()
+        compose.onNodeWithText("Restore search history").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(10_000)
         compose.waitForIdle()
 
         // Coming back finds the offer still pending, and it still restores what was cleared.
         keyboard = false
         compose.waitForIdle()
-        compose.onNodeWithText("Undo").assertExists()
-        compose.onNodeWithText("Undo").performClick()
+        compose.onNodeWithText("Restore search history").assertExists()
+        compose.onNodeWithText("Restore search history").performClick()
         compose.waitForIdle()
 
         assertEquals(history, restored)
@@ -83,11 +83,11 @@ class SearchUndoWindowTest {
     fun anOfferTheBarShowsStillExpires() {
         show()
         compose.onNodeWithContentDescription("Clear search history").performClick()
-        compose.onNodeWithText("Undo").assertExists()
+        compose.onNodeWithText("Restore search history").assertExists()
 
         compose.mainClock.advanceTimeBy(10_000)
         compose.waitForIdle()
 
-        compose.onNodeWithText("Undo").assertDoesNotExist()
+        compose.onNodeWithText("Restore search history").assertDoesNotExist()
     }
 }
