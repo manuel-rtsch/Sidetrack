@@ -90,6 +90,13 @@ fun CollectionScreen(
     var draft by rememberSaveable(collection.id) { mutableStateOf(collection.title) }
     var pendingDelete by remember(collection.id) { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    // The name this page had before its last rename, while the restore is still offered.
+    var previousTitle by remember(collection.id) { mutableStateOf<String?>(null) }
+    val renameWindow = rememberUndoWindow { previousTitle = null }
+    UndoWindowLifecycle(renameWindow) { previousTitle = null }
+    LaunchedEffect(previousTitle) {
+        if (previousTitle == null) renameWindow.cancel() else renameWindow.start()
+    }
     val commitRename: () -> Unit = {
         val target = onRename
         val trimmed = draft.trim()
@@ -97,7 +104,11 @@ fun CollectionScreen(
             renaming = false
         } else {
             scope.launch {
-                if (target(trimmed)) renaming = false
+                val before = collection.title
+                if (target(trimmed)) {
+                    previousTitle = before
+                    renaming = false
+                }
             }
         }
     }
@@ -165,7 +176,25 @@ fun CollectionScreen(
         }
     }
     PromptBack(pendingDelete, onDismiss = dismissDelete)
-    val actions = undoDelete?.let { restoreBar(it, "dismissDelete", dismissDelete) } ?: normalActions
+    // A rename destroys the name it replaced, and retyping that name on a keypad is expensive, so
+    // the page offers it back. The label is constant so a long name cannot truncate the one slot.
+    val restoreName = previousTitle?.let { old ->
+        restoreAction("restoreName", "Restore old name", "Rename this playlist back to $old") {
+            renameWindow.cancel()
+            previousTitle = null
+            onRename?.let { target -> scope.launch { target(old) } }
+        }
+    }
+    val dismissRename = {
+        renameWindow.cancel()
+        previousTitle = null
+    }
+    PromptBack(restoreName != null, onDismiss = dismissRename)
+    val actions = when {
+        undoDelete != null -> restoreBar(undoDelete, "dismissDelete", dismissDelete)
+        restoreName != null -> restoreBar(restoreName, "dismissRename", dismissRename)
+        else -> normalActions
+    }
     // The header keeps the three primary actions: play, artwork and save. The artist lives in the
     // metadata line below it, so collections keep the same play / image / save-or-follow layout
     // without a third Options entry.

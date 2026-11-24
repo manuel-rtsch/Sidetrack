@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
+import hrln.interactive.sidekit.design.action.NoticeKind
 import io.github.manuelrtsch.sidetrack.data.MediaCatalog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -197,7 +198,7 @@ internal class SearchController(
         val current = store.value.searchHistory
         val next = removedSearchHistory(current, query)
         if (next == current) return
-        store.update { it.copy(searchHistory = next) }
+        store.update { it.copy(searchHistory = next).say("Removed “$query”", NoticeKind.Success) }
         saveSearchHistory(next)
     }
 

@@ -58,16 +58,16 @@ kinds, told apart by tone, all built in `PromptBars.kt`:
 
 - **Restore** — the edit is applied and can be taken back. Grey, `SidekitIcon.Undo`, rising in place
   (`ActionMotion.Up`), labelled with the inverse: "Restore queue", "Restore X", "Restore upcoming",
-  "Restore history", "Restore search history". Never the bare word "Undo": Undo is the mechanism,
-  the button says the act. One verb everywhere — what comes back is always *restored*, so the
-  button only has to name its object. Where the object is not the point the wording says so: the
+  "Restore history", "Restore search history", "Restore old name". Never the bare word "Undo": Undo
+  is the mechanism, the button says the act. One verb everywhere — what comes back is always
+  *restored*, so the button only has to name its object. Where the object is not the point the wording says so: the
   deferred playlist delete reads "Restore Road Trip" and its description adds that the deletion is
   cancelled.
-- **Confirm** — the edit can never be taken back, so it is asked *before*: `Sign out?`. Red
-  (`ActionTone.Destructive`), the action keeps its own glyph, and the question mark is where "are
-  you sure" lives now that Cancel has lost its word.
-- **Notice** — nothing to decide, only to read: `Added track to Road Trip`, or a failure. Grey
-  wherever the kind is neutral, and the message is the slot.
+- **Confirm** — the edit can never be taken back, so it is asked *before*: `Clear cache?`,
+  `Sign out?`. Red (`ActionTone.Destructive`), the action keeps its own glyph, and the question
+  mark is where "are you sure" lives now that Cancel has lost its word.
+- **Notice** — nothing to decide, only to read: `Added track to Road Trip`, `Removed "night"`, or a
+  failure. Grey wherever the kind is neutral, and the message is the slot.
 
 The close square **never changes the world**. In a restore the edit stays; in a confirm nothing has
 happened yet; in a notice it only goes away. That is why one glyph accepts in one bar and cancels in
@@ -90,6 +90,12 @@ Two restore semantics exist and stay named as such: most edits are applied immed
 restore replays the inverse; the playlist delete is deferred, so "Restore <title>" cancels a write
 that has not happened yet, and the close square commits it. Removing from a playlist cannot be
 restored by any provider, so it is a confirmation, not an offer (`provider-capabilities.md`).
+
+Two edits deliberately raise nothing. A **queue reorder** ends with Done, so the mode's own commit
+is the confirmation: an offer after it would ask the user to doubt a decision they just made twice.
+**Removing one search term** is a notice, not an offer: the term is one keystroke to type again, and
+the bar has already said it went. A **rename** does get an offer — "Restore old name" — because the
+expensive part is retyping the name, not remembering it.
 
 **A replaced queue is offered back.** The collection tap is the one gesture that can throw away a
 queue the user lined up, so `PlaybackDriver.play` keeps the outgoing queue for

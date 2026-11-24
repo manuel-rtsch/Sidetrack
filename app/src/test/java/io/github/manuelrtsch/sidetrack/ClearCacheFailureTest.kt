@@ -1,6 +1,7 @@
 package io.github.manuelrtsch.sidetrack
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import hrln.interactive.sidekit.design.action.NoticeKind
 import io.github.manuelrtsch.sidetrack.data.EpisodeMetaRepository
 import io.github.manuelrtsch.sidetrack.data.EpisodeProgressRepository
 import io.github.manuelrtsch.sidetrack.data.HistoryRepository
@@ -9,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -17,7 +17,8 @@ import org.junit.runner.RunWith
  * Clearing the cache is a write, so it fails like one.
  *
  * The clear used to launch without a `catch`: a directory the process may not touch took the app
- * down instead of telling the user. It now runs through the record and lands in the bar.
+ * down instead of telling the user. It now runs through the record and lands in the bar. Nothing
+ * can bring the downloads back, so the success is announced after the confirmation that asked.
  */
 @RunWith(AndroidJUnit4::class)
 class ClearCacheFailureTest {
@@ -40,7 +41,7 @@ class ClearCacheFailureTest {
     }
 
     @Test
-    fun `a clear that works says nothing and refreshes the size`() = runTest {
+    fun `a clear that works announces it and refreshes the size`() = runTest {
         val store = UiStateStore(SidetrackUiState(signedIn = true, cacheSizeBytes = 7L))
         var cleared = 0
         val controller = controller(store, this, clearArtworkCache = { cleared++ })
@@ -49,7 +50,8 @@ class ClearCacheFailureTest {
         store.state.first { it.runningTasks.isEmpty() && it.cacheSizeBytes == 0L }
 
         assertEquals(1, cleared)
-        assertNull(store.value.notice)
+        assertEquals("Cache cleared", store.value.notice)
+        assertEquals(NoticeKind.Success, store.value.noticeKind)
         assertEquals(0L, store.value.cacheSizeBytes)
     }
 

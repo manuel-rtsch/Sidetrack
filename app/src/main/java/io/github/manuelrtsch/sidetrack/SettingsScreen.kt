@@ -21,7 +21,7 @@ import hrln.interactive.sidekit.design.components.listFade
 import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
 
-private enum class SettingsConfirmation { SignOut }
+private enum class SettingsConfirmation { SignOut, ClearCache }
 
 @Composable
 fun SettingsScreen(
@@ -74,8 +74,17 @@ fun SettingsScreen(
     }
     PromptBack(historyCleared, onDismiss = dismissUndo)
     // A question takes the Back key: Back answers "no" and stays in Settings.
-    PromptBack(confirmation == SettingsConfirmation.SignOut) { confirmation = null }
+    PromptBack(confirmation != null) { confirmation = null }
     val actions = when {
+        confirmation == SettingsConfirmation.ClearCache -> confirmBar(
+            confirm = confirmAction("confirmClearCache", "Clear cache?", "Clear the cache? Nothing can be brought back") {
+                confirmation = null
+                onClearCache()
+            },
+            cancelKey = "cancelClearCache",
+            onCancel = { confirmation = null }
+        )
+
         confirmation == SettingsConfirmation.SignOut -> confirmBar(
             confirm = confirmAction("confirmSignOut", "Sign out?", "Sign out of your account") {
                 confirmation = null
@@ -183,7 +192,7 @@ fun SettingsScreen(
                         Formatter.formatShortFileSize(context, account.cacheSizeBytes)
                     },
                     secondaryToEnd = true,
-                    onClick = { if (!clearingCache) onClearCache() }
+                    onClick = { if (!clearingCache) confirmation = SettingsConfirmation.ClearCache }
                 )
             }
             row("history") { modifier ->
