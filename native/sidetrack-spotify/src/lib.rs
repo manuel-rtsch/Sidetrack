@@ -119,11 +119,18 @@ pub extern "system" fn Java_io_github_manuelrtsch_sidetrack_bridge_NativeBridge_
     mut env: JNIEnv,
     _this: JObject,
     token: JString,
-) -> jni::sys::jboolean {
+) -> jstring {
+    // A boolean flattened three different answers into one: the token was stored, the session is
+    // dead, or only the OAuth token rotated while the session stayed healthy. The Kotlin side
+    // rebuilt on every rejection, which tore down a live player mid-track, so the reason crosses
+    // the bridge the same way it does for `nativeConnect`: null means accepted.
     let Some(token) = string(&mut env, &token) else {
-        return JNI_FALSE;
+        return new_string(&mut env, "TOKEN_UNAVAILABLE");
     };
-    bool_result(engine::set_access_token(&token))
+    match engine::set_access_token(&token) {
+        Ok(()) => std::ptr::null_mut(),
+        Err(error) => new_string(&mut env, &error),
+    }
 }
 
 #[no_mangle]

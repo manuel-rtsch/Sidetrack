@@ -29,7 +29,12 @@ object NativeBridge : SpotifyNative {
             .getOrElse { "bridge failure: ${it.javaClass.simpleName}: ${it.message.orEmpty()}" }
     }
 
-    override fun setAccessToken(accessToken: String): Boolean = isAvailable && runCatching { nativeSetAccessToken(accessToken) }.getOrDefault(false)
+    override fun setAccessToken(accessToken: String): String? = when {
+        !isAvailable -> "native library unavailable"
+
+        else -> runCatching { nativeSetAccessToken(accessToken) }
+            .getOrElse { "bridge failure: ${it.javaClass.simpleName}: ${it.message.orEmpty()}" }
+    }
 
     override fun disconnect() {
         if (isAvailable) runCatching { nativeDisconnect() }
@@ -110,7 +115,7 @@ object NativeBridge : SpotifyNative {
     private external fun nativeSetTmpDir(path: String)
     private external fun nativeSetCacheDir(path: String, sizeLimitBytes: Long)
     private external fun nativeConnect(accessToken: String): String?
-    private external fun nativeSetAccessToken(accessToken: String): Boolean
+    private external fun nativeSetAccessToken(accessToken: String): String?
     private external fun nativeDisconnect()
     private external fun nativeHasPlayer(): Boolean
     private external fun nativeCreatePlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean): Boolean

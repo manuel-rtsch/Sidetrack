@@ -216,8 +216,12 @@ pub fn set_access_token(access_token: &str) -> Result<(), String> {
     // Do not write the OAuth token into the live session. After `connect`, librespot stores the
     // reusable stored credential returned by the access point in `auth_data`; login5 needs that
     // blob to mint audio tokens. The OAuth token is not a stored credential, so overwriting it
-    // makes every audio load fail with INVALID_CREDENTIALS. A refreshed token therefore has to
-    // rebuild the session instead: report the change and let the Kotlin side reconnect.
+    // makes every audio load fail with INVALID_CREDENTIALS.
+    //
+    // A rotated token is therefore a separate answer, not a failure: the session above is still
+    // authenticated, `access_token` now names the token catalog calls must send, and only playback
+    // needs the stored credential. The Kotlin side keeps the session on this reason and rebuilds
+    // only on SESSION_INVALID; rebuilding here used to drop the player between two gapless tracks.
     if changed {
         return Err("SESSION_TOKEN_CHANGED".to_string());
     }

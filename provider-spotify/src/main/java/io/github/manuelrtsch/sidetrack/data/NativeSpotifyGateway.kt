@@ -57,9 +57,9 @@ class NativeSpotifyGateway(
             // player without touching the flag. Re-checking under the lock also means a second
             // caller finds the session the first one built instead of rebuilding it.
             if (connected && native.hasPlayer()) return@onIo
-            // An invalid session, or one opened with a different OAuth token, must be rebuilt before
-            // a player is attached: otherwise it loads through a dead access point and every load fails.
-            if (sessionConnected && !native.setAccessToken(accessToken)) {
+            // A dead session must be rebuilt before a player is attached: otherwise it loads through
+            // a dead access point and every load fails. A rotated token is not a dead session.
+            if (sessionConnected && !sessionAcceptsToken(accessToken)) {
                 sessionConnected = false
                 sessionToken = null
             }
@@ -67,6 +67,36 @@ class NativeSpotifyGateway(
             createPlayerLocked()
         }
     }
+
+    /**
+     * Refreshes the token the live session serves and says whether the session is still usable.
+     *
+     * A rejection is only a reason to rebuild when the session itself is gone. librespot binds the
+     * player to the access-point credential it got at `connect`, which login5 needs and which a new
+     * OAuth token cannot replace; the token in [SpotifyNative.setAccessToken] only feeds catalog
+     * reads, and the native side has already stored the new one when it reports the change. Rebuilding
+     * on that answer threw away a healthy player between two gapless tracks.
+     *
+     * [sessionLock] must be held.
+     */
+    private fun sessionAcceptsToken(token: String): Boolean =
+        when (val reason = native.setAccessToken(token)) {
+            null -> {
+                sessionToken = token
+                true
+            }
+
+            SpotifyNative.TOKEN_CHANGED -> {
+                SidetrackDebug.log("session: token rotated; keeping the live session")
+                sessionToken = token
+                true
+            }
+
+            else -> {
+                SidetrackDebug.log("session: rejected token reason=$reason")
+                false
+            }
+        }
 
     override suspend fun disconnect() = onIo {
         synchronized(sessionLock) {
@@ -188,14 +218,11 @@ class NativeSpotifyGateway(
             connect(token)
             return true
         }
-        val tokenAccepted = withContext(Dispatchers.IO) {
-            synchronized(sessionLock) { native.setAccessToken(token) }
+        val accepted = withContext(Dispatchers.IO) {
+            synchronized(sessionLock) { sessionAcceptsToken(token) }
         }
-        SidetrackDebug.log("ensureConnected: setAccessToken accepted=$tokenAccepted")
-        if (tokenAccepted) {
-            sessionToken = token
-            return false
-        }
+        SidetrackDebug.log("ensureConnected: session accepted token=$accepted")
+        if (accepted) return false
         SidetrackDebug.log("ensureConnected: session rejected token, rebuilding")
         connected = false
         sessionConnected = false
@@ -218,17 +245,9 @@ class NativeSpotifyGateway(
                 connectSessionLocked(token)
                 return@synchronized
             }
-            // The first call stores the new token, so a second one only reports a dead session, not a
-            // token change: a catalog read must not tear down a live player, but an invalid session
-            // still has to be rebuilt.
-            if (native.setAccessToken(token)) {
-                sessionToken = token
-                return@synchronized
-            }
-            if (native.setAccessToken(token)) {
-                sessionToken = token
-                return@synchronized
-            }
+            // A rotated token is not a dead session, so a catalog read keeps what is playing; only
+            // a session librespot gave up on is rebuilt, and that never happens under a player.
+            if (sessionAcceptsToken(token)) return@synchronized
             refuseToDropPlayer("the session is invalid")
             sessionConnected = false
             sessionToken = null

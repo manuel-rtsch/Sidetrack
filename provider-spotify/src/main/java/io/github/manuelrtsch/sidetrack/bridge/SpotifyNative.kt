@@ -18,7 +18,16 @@ interface SpotifyNative {
      * describe it — a bare boolean left a device-specific failure undiagnosable.
      */
     fun connect(accessToken: String): String?
-    fun setAccessToken(accessToken: String): Boolean
+
+    /**
+     * Stores [accessToken] for the calls that read it and reports how the session took it.
+     *
+     * Null means accepted. [TOKEN_CHANGED] means the session is alive but was opened with another
+     * OAuth token: the new one is stored and only a rebuilt session may hold a new access-point
+     * credential, so callers keep the session instead of treating it as a failure. A dead session
+     * answers [SESSION_INVALID] or [SESSION_NOT_CONNECTED] and does need rebuilding.
+     */
+    fun setAccessToken(accessToken: String): String?
     fun disconnect()
 
     /**
@@ -63,4 +72,15 @@ interface SpotifyNative {
 
     /** Renames a playlist. Returns `"ok"`, or `{"error": "..."}` on refusal. */
     fun playlistRename(id: String, name: String): String? = null
+
+    companion object {
+        /** The token rotated; the session behind it is still authenticated and playable. */
+        const val TOKEN_CHANGED = "SESSION_TOKEN_CHANGED"
+
+        /** librespot closed the access point or the keep-alive timed out. */
+        const val SESSION_INVALID = "SESSION_INVALID"
+
+        /** No session has been connected yet. */
+        const val SESSION_NOT_CONNECTED = "SESSION_NOT_CONNECTED"
+    }
 }

@@ -1,6 +1,7 @@
 package io.github.manuelrtsch.sidetrack
 
 import io.github.manuelrtsch.sidetrack.auth.SpotifyAuth
+import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentialStore
 import io.github.manuelrtsch.sidetrack.auth.SpotifyCredentials
 import io.github.manuelrtsch.sidetrack.auth.SpotifyTokenClient
@@ -82,6 +83,21 @@ class SpotifySessionNativeTest {
         native.calls.clear()
 
         session.play(track("b").key, "spotify:track:b")
+
+        assertEquals(listOf("setAccessToken:access", "load:spotify:track:b@0:true"), gatewayCalls())
+        session.playback.stop()
+    }
+
+    @Test fun `a gapless handover with a rotated token keeps the player`() = runBlocking {
+        // Device regression: the handover refreshed the OAuth token, the gateway rebuilt the session
+        // on SESSION_TOKEN_CHANGED, and rebuilding dropped the player - a three second gap that
+        // underran the AudioTrack between two tracks that should have been continuous.
+        val session = session()
+        session.play(track("a").key, "spotify:track:a")
+        native.calls.clear()
+        native.tokenRotated = true
+
+        session.play(track("b").key, "spotify:track:b", gapless = true)
 
         assertEquals(listOf("setAccessToken:access", "load:spotify:track:b@0:true"), gatewayCalls())
         session.playback.stop()
@@ -361,6 +377,9 @@ class SpotifySessionNativeTest {
         var loadSucceeds = true
         var preloadFails = false
         var sessionValid = true
+
+        /** A refreshed OAuth token: the session is healthy, only the token it serves rotated. */
+        var tokenRotated = false
         var connectFails = false
         var catalogArtistJson: String? = null
 
@@ -376,9 +395,13 @@ class SpotifySessionNativeTest {
             return null
         }
 
-        override fun setAccessToken(accessToken: String): Boolean {
+        override fun setAccessToken(accessToken: String): String? {
             calls += "setAccessToken:$accessToken"
-            return sessionValid
+            return when {
+                !sessionValid -> SpotifyNative.SESSION_INVALID
+                tokenRotated -> SpotifyNative.TOKEN_CHANGED
+                else -> null
+            }
         }
 
         override fun disconnect() {

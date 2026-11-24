@@ -1,5 +1,6 @@
 package io.github.manuelrtsch.sidetrack
 
+import io.github.manuelrtsch.sidetrack.bridge.SpotifyNative
 import io.github.manuelrtsch.sidetrack.data.NativeSpotifyGateway
 import io.github.manuelrtsch.sidetrack.data.PlaybackSettings
 import io.github.manuelrtsch.sidetrack.data.SpotifyFailure
@@ -243,7 +244,7 @@ class NativeSpotifyGatewayTest {
     }
 
     @Test fun `dead native session reconnects even when the token has not changed`() = runTest {
-        val native = FakeNative().apply { setTokenOk = false }
+        val native = FakeNative().apply { tokenReason = SpotifyNative.SESSION_INVALID }
         val gateway = NativeSpotifyGateway(native) { "same" }
         gateway.connect("same")
 
@@ -254,7 +255,7 @@ class NativeSpotifyGatewayTest {
     }
 
     @Test fun `dead native session reconnects from scratch`() = runTest {
-        val native = FakeNative().apply { setTokenOk = false }
+        val native = FakeNative().apply { tokenReason = SpotifyNative.SESSION_INVALID }
         var token = "first"
         val gateway = NativeSpotifyGateway(native) { token }
         gateway.connect(token)
@@ -274,7 +275,7 @@ class NativeSpotifyGatewayTest {
         // The session went invalid while the app sat idle. Rebuilding it from a catalog read used
         // to drop the player and leave playback reporting a playing track with no audio; the read
         // now fails instead and leaves the rebuild to the playback path.
-        native.setTokenOk = false
+        native.tokenReason = SpotifyNative.SESSION_INVALID
 
         val failure = runCatching { gateway.ensureSession() }.exceptionOrNull()
 
@@ -323,6 +324,38 @@ class NativeSpotifyGatewayTest {
         assertTrue(native.playerCreated)
     }
 
+    @Test fun `a rotated token keeps the live session and its player`() = runTest {
+        // Regression from the device log: a gapless handover refreshed the OAuth token, the engine
+        // answered SESSION_TOKEN_CHANGED, and the gateway rebuilt the session. A rebuild always drops
+        // the player, so the handover became a three-second gap and an AudioTrack underrun. The
+        // session was healthy the whole time — only the token catalog reads send had rotated.
+        val native = FakeNative().apply { tokenReason = SpotifyNative.TOKEN_CHANGED }
+        var token = "first"
+        val gateway = NativeSpotifyGateway(native) { token }
+        gateway.connect(token)
+        token = "second"
+
+        assertEquals(false, gateway.ensureConnected())
+
+        assertEquals("second", native.token)
+        assertEquals(1, native.connects)
+        assertTrue(native.playerCreated)
+    }
+
+    @Test fun `a rotated token does not tear the session down from a catalog read`() = runTest {
+        val native = FakeNative().apply { tokenReason = SpotifyNative.TOKEN_CHANGED }
+        var token = "first"
+        val gateway = NativeSpotifyGateway(native) { token }
+        gateway.connect(token)
+        token = "second"
+
+        gateway.ensureSession()
+
+        assertEquals("second", native.token)
+        assertEquals(1, native.connects)
+        assertTrue(native.playerCreated)
+    }
+
     private class FakeNative(override val isAvailable: Boolean = true) : SilentSpotifyNative() {
         var token: String? = null
         var playerCreated = false
@@ -330,7 +363,9 @@ class NativeSpotifyGatewayTest {
         var preloaded: String? = null
         var loadOk = true
         var connectOk = true
-        var setTokenOk = true
+
+        /** What the engine answers for a token update; null means accepted. */
+        var tokenReason: String? = null
         var bitrateKbps: Int? = null
         var normalization = false
         var gapless = true
@@ -349,9 +384,10 @@ class NativeSpotifyGatewayTest {
             playerCreated = false
             return if (connectOk && isAvailable) null else "SESSION_CONNECT_FAILED: test"
         }
-        override fun setAccessToken(accessToken: String): Boolean {
-            if (setTokenOk) token = accessToken
-            return setTokenOk && isAvailable
+        override fun setAccessToken(accessToken: String): String? {
+            // The engine stores the token before it answers, whatever the answer is.
+            token = accessToken
+            return tokenReason
         }
         override fun hasPlayer() = playerCreated
         override fun createPlayer(bitrateKbps: Int, normalization: Boolean, gapless: Boolean): Boolean {

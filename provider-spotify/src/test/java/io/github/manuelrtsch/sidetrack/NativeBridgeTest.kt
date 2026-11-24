@@ -25,7 +25,7 @@ class NativeBridgeTest {
         assertFalse(NativeBridge.isAvailable)
         assertFalse(NativeBridge.initialize())
         assertEquals("native library unavailable", NativeBridge.connect("token"))
-        assertFalse(NativeBridge.setAccessToken("token"))
+        assertEquals("native library unavailable", NativeBridge.setAccessToken("token"))
         assertFalse(NativeBridge.hasPlayer())
         assertFalse(NativeBridge.createPlayer(160, false, true))
         assertFalse(NativeBridge.recreatePlayer(160, false, true))
@@ -61,7 +61,7 @@ class NativeBridgeTest {
         // to "false"/"null" instead of letting it escape into the service or the UI.
         assertFalse(NativeBridge.initialize())
         assertTrue(NativeBridge.connect("token")!!.startsWith("bridge failure: "))
-        assertFalse(NativeBridge.setAccessToken("token"))
+        assertTrue(NativeBridge.setAccessToken("token")!!.startsWith("bridge failure: "))
         assertFalse(NativeBridge.hasPlayer())
         assertFalse(NativeBridge.createPlayer(160, false, true))
         assertFalse(NativeBridge.recreatePlayer(160, false, true))
