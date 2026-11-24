@@ -151,11 +151,19 @@ fun confirmRemoveFromPlaylistRowAction(title: String, onClick: () -> Unit) = Row
     onClick = onClick
 )
 
-/** A destructive edit the bar is still offering to take back: [label] says what comes back. */
+/**
+ * A destructive edit the bar is still offering to take back: [label] says what comes back.
+ *
+ * [returnKey] is the row the offer is about — it comes back if the offer is taken — and
+ * [neighbourKey] the row that took its place, which is where the cursor goes once the offer is
+ * refused or its window runs out.
+ */
 data class PendingRestore(
     val label: String,
     val description: String,
-    val onClick: () -> Unit
+    val onClick: () -> Unit,
+    val returnKey: Any? = null,
+    val neighbourKey: Any? = null
 )
 
 /**
@@ -167,8 +175,47 @@ data class RowActionSelection(
     val title: String,
     val actions: List<RowAction>,
     val focusRequester: FocusRequester? = null,
-    val confirm: Boolean = false
+    val confirm: Boolean = false,
+    /** The row that takes this one's place, for when the confirmed action removes it for good. */
+    val neighbourKey: Any? = null
 )
+
+/**
+ * Row requesters by the row's list key, filled by the rows themselves. The bar closes before the
+ * page does, so returning the cursor needs a target even when the bar never held one: the row that
+ * was removed cannot take focus, but the row that took its place can.
+ */
+@Stable
+class RowFocusRegistry {
+    private val requesters = mutableMapOf<Any, FocusRequester>()
+
+    fun register(key: Any, requester: FocusRequester) {
+        requesters[key] = requester
+    }
+
+    fun unregister(key: Any, requester: FocusRequester) {
+        if (requesters[key] === requester) requesters.remove(key)
+    }
+
+    /** Focuses the row with [key]. False when that row is no longer on screen. */
+    fun request(key: Any?): Boolean {
+        if (key == null) return false
+        val requester = requesters[key] ?: return false
+        return runCatching { requester.requestFocus() }.getOrDefault(false)
+    }
+}
+
+/** Registers this row's requester under its list key, for as long as the row is composed. */
+@Composable
+fun RegisterRowFocus(rows: RowFocusRegistry, key: Any, requester: FocusRequester) {
+    DisposableEffect(rows, key, requester) {
+        rows.register(key, requester)
+        onDispose { rows.unregister(key, requester) }
+    }
+}
+
+/** Where the cursor goes once a prompt or a menu closes: the row, then the one that replaced it. */
+internal data class ReturnFocus(val requester: FocusRequester?, val key: Any?, val neighbour: Any?)
 
 /**
  * Screen-level state for the contextual row action bar: a row publishes a selection when its single
@@ -180,7 +227,10 @@ class RowActionBarState {
     var selection: RowActionSelection? by mutableStateOf(null)
         private set
 
-    internal var pendingFocus: FocusRequester? by mutableStateOf(null)
+    /** Every row's requester, by list key, so a closed prompt can put the cursor back on a row. */
+    val rows = RowFocusRegistry()
+
+    internal var pendingReturn: ReturnFocus? by mutableStateOf(null)
         private set
 
     /** Lets the screen's Options bar close before this one opens; they never share the bar. */
@@ -190,18 +240,12 @@ class RowActionBarState {
     var restore: PendingRestore? by mutableStateOf(null)
         private set
 
-    internal fun takePendingFocus(): FocusRequester? {
-        val target = pendingFocus
-        pendingFocus = null
-        return target
-    }
-
     fun show(selection: RowActionSelection) {
         beforeShow?.invoke()
         restore = null
         // A new selection owns the bar: a close that immediately reopened it (the removal
         // confirmation) must not restore focus to the row a frame later.
-        pendingFocus = null
+        pendingReturn = null
         this.selection = selection
     }
 
@@ -211,13 +255,29 @@ class RowActionBarState {
     }
 
     fun clearRestore() {
+        val pending = restore
         restore = null
+        pendingReturn = pending?.let { ReturnFocus(null, it.returnKey, it.neighbourKey) }
     }
 
     fun close(restoreFocus: Boolean = true) {
-        val target = selection?.focusRequester
+        val closing = selection
         selection = null
-        if (restoreFocus) pendingFocus = target
+        if (restoreFocus) {
+            pendingReturn = closing?.let { ReturnFocus(it.focusRequester, it.key, it.neighbourKey) }
+        }
+    }
+
+    /**
+     * Puts the cursor on the row a closed bar was about: the row itself (a restore brought it back),
+     * else the row that took its place. True when the bar had somewhere in mind, whether or not that
+     * row could still take focus — the page's own memory is only a fallback for bars about nothing.
+     */
+    fun returnFocus(): Boolean {
+        val pending = pendingReturn ?: return true
+        pendingReturn = null
+        pending.requester?.let { requester -> if (runCatching { requester.requestFocus() }.getOrDefault(false)) return true }
+        return rows.request(pending.key) || rows.request(pending.neighbour) || true
     }
 }
 
@@ -235,9 +295,12 @@ fun rememberRowActionBarState(): RowActionBarState {
         if (state.selection == null) return@LaunchedEffect
         // Asking for focus before the frame that morphs the bar leaves it on the row, so wait for the
         // new buttons to exist and retry if the host has not registered its first slot yet.
+        // A question lands on its close square, a menu on its first action: the same rule the
+        // prompt bars follow.
+        val key = if (state.selection?.confirm == true) PROMPT_CLOSE_KEY else null
         repeat(3) {
             withFrameNanos { }
-            if (chrome?.focusActionBar() == true) return@LaunchedEffect
+            if (chrome?.focusActionBar(key) == true) return@LaunchedEffect
         }
     }
     // One restore window for every row action: five seconds of visible time, paused while the screen is
@@ -247,18 +310,26 @@ fun rememberRowActionBarState(): RowActionBarState {
     LaunchedEffect(state.restore) {
         if (state.restore == null) restoreWindow.cancel() else restoreWindow.start()
     }
-    PromptBack(state.restore != null) {
-        restoreWindow.cancel()
-        state.clearRestore()
-    }
+    PromptBack(
+        live = state.restore != null,
+        onDismiss = {
+            restoreWindow.cancel()
+            state.clearRestore()
+        },
+        returnTo = state::returnFocus
+    )
     // A question takes the Back key; an ordinary selection is a menu, and Back still leaves.
-    PromptBack(state.selection?.confirm == true) { state.close() }
-    // The bar must leave composition before the row can take focus back: requesting it in the click's
+    PromptBack(
+        live = state.selection?.confirm == true,
+        onDismiss = { state.close() },
+        returnTo = state::returnFocus
+    )
+    // The bar must leave composition before a row can take focus back: requesting it in the click's
     // own frame leaves the focus owner on the disappearing bar.
-    LaunchedEffect(state.pendingFocus) {
-        if (state.pendingFocus == null) return@LaunchedEffect
+    LaunchedEffect(state.pendingReturn) {
+        if (state.pendingReturn == null) return@LaunchedEffect
         withFrameNanos { }
-        state.takePendingFocus()?.let { runCatching { it.requestFocus() } }
+        state.returnFocus()
     }
     return state
 }
@@ -277,7 +348,7 @@ fun rowActionBarActions(
             state.clearRestore()
             pending.onClick()
         }
-        return restoreBar(restore, "dismissRestore") { state.clearRestore() }
+        return restoreBar(restore) { state.clearRestore() }
     }
     val selection = state.selection ?: return normal
     // Three actions are icon-only; one or two keep their label so the bar stays readable.
@@ -315,7 +386,7 @@ fun rowActionBarActions(
         }
     }
     val close = SideAction.square(
-        key = "rowActionClose",
+        key = PROMPT_CLOSE_KEY,
         icon = SidekitIcon.Close,
         contentDescription = "Close actions for ${selection.title}",
         tone = ActionTone.Muted,

@@ -44,7 +44,12 @@ class TrackRows(
     /** Offered where the account may append to some playlist; null hides the row action. */
     val onAddToPlaylist: ((Track) -> Unit)? = null,
     /** Offered on a playlist page; the index is the entry the user acted on. */
-    val onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null
+    val onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null,
+    /**
+     * The row that takes a removed entry's place, by entry index. The bar needs it to put the
+     * cursor somewhere sensible when a removal is confirmed and the row itself is gone.
+     */
+    val neighbourKey: ((Int) -> Any?)? = null
 ) {
     fun saved(track: Track): Boolean = track.key.encode() in savedIds
 }
@@ -58,7 +63,8 @@ fun rememberTrackRows(
     onAddToQueue: (Track) -> Unit,
     onPlayFirst: ((Track) -> Unit)? = null,
     onAddToPlaylist: ((Track) -> Unit)? = null,
-    onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null
+    onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null,
+    neighbourKey: ((Int) -> Any?)? = null
 ): TrackRows {
     val focus = remember { TrackRowFocusState() }
     val bar = rememberRowActionBarState()
@@ -72,7 +78,8 @@ fun rememberTrackRows(
         onAddToQueue,
         onPlayFirst,
         onAddToPlaylist,
-        onRemoveFromPlaylist
+        onRemoveFromPlaylist,
+        neighbourKey
     )
 }
 
@@ -99,6 +106,7 @@ fun TrackRow(
 ) {
     val selected = rows.bar.selection?.key == key
     val rowFocus = remember { FocusRequester() }
+    RegisterRowFocus(rows.bar.rows, key, rowFocus)
     CloseRowActionsWhenDisposed(selected, rows.bar)
     GutterRow(key, rows.focus, squares = 1, modifier = modifier, content = { gutterVisible ->
         MediaRow(
@@ -141,6 +149,7 @@ fun TrackRow(
                                     title = "Remove ${track.title}?",
                                     focusRequester = rowFocus,
                                     confirm = true,
+                                    neighbourKey = rows.neighbourKey?.invoke(entryIndex),
                                     actions = rowActions(
                                         confirmRemoveFromPlaylistRowAction(track.title) {
                                             removeFromPlaylist(track, entryIndex)

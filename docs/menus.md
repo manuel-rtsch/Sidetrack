@@ -56,18 +56,33 @@ because the square drops it; the content description says "Play <title> now".
 **Every prompt is one bar: a decision on the left, a close square on the right.** There are three
 kinds, told apart by tone, all built in `PromptBars.kt`:
 
-- **Restore** — the edit is applied and can be taken back. Grey, `SidekitIcon.Undo`, rising in place
-  (`ActionMotion.Up`), labelled with the inverse: "Restore queue", "Restore X", "Restore upcoming",
+- **Restore** — the edit is applied and can be taken back. The theme accent
+  (`ActionTone.Primary`), `SidekitIcon.Undo`, rising in place (`ActionMotion.Up`), labelled with
+  the inverse: "Restore queue", "Restore track", "Restore playlist", "Restore upcoming",
   "Restore history", "Restore search history", "Restore old name". Never the bare word "Undo": Undo
   is the mechanism, the button says the act. One verb everywhere — what comes back is always
-  *restored*, so the button only has to name its object. Where the object is not the point the wording says so: the
-  deferred playlist delete reads "Restore Road Trip" and its description adds that the deletion is
-  cancelled.
+  *restored*, so the button only has to name its object.
+  The label names the **kind of thing**, never the item: a track title long enough to fill the slot
+  would either truncate mid-word or push the close square off, and the user already knows which row
+  they just acted on. The content description carries the name ("Restore Night Signals to history"),
+  because it is spoken to someone who is not looking at the list. The deferred playlist delete's
+  description adds that the deletion is cancelled.
 - **Confirm** — the edit can never be taken back, so it is asked *before*: `Clear cache?`,
   `Sign out?`. Red (`ActionTone.Destructive`), the action keeps its own glyph, and the question
   mark is where "are you sure" lives now that Cancel has lost its word.
 - **Notice** — nothing to decide, only to read: `Added track to Road Trip`, `Removed "night"`, or a
-  failure. Grey wherever the kind is neutral, and the message is the slot.
+  failure. Never after a confirmation (see below). Grey wherever the kind is neutral, and the message is the slot.
+
+Tone follows what the press does, never how loud the bar is: accent for the restore, red for the
+confirmation that cannot be taken back, grey for notices and for the close square. Grey is not a
+choice, so the bar never shows two buttons of equal weight — restoring must look unlike closing.
+
+**The cursor comes back with the bar.** A prompt remembers the element the user was on before it
+took the cursor, and returns there when it closes, whichever way it ended: refusing a restore, a
+window running out, or answering a question. When the edit removed that row for good, the row that
+took its place gets the cursor, so the keypad is never left on a bar that is gone. This is
+`PromptBack`'s second job, and the reason `RowActionBarState` keeps a registry of row requesters by
+list key (`RowFocusRegistry`).
 
 The close square **never changes the world**. In a restore the edit stays; in a confirm nothing has
 happened yet; in a notice it only goes away. That is why one glyph accepts in one bar and cancels in
@@ -76,6 +91,11 @@ always the press that changes nothing, and Left is the one step to the decision 
 list again. The Back key does the same and stays on the page; it never performs the prompt and never
 leaves the screen. Labels stay English on purpose: every string in this app is, and taking Sidekit's
 localised default would make one button change language under a screen that is not translated.
+
+**A confirmation answers itself.** The question already named the act and the list or the number
+changes in front of the user, so nothing follows a confirmed red press: no `Cache cleared`, no
+`Removed X from Y`. A second receipt for one act reads as doubt. Only the *failure* case still
+speaks, because that is the one outcome the question could not promise.
 
 **Restore is for destructive edits only.** Removing, clearing or deleting something the user can see
 is offered back; creation is not. Adding a track to a playlist reports "Added track to X" as a
@@ -87,7 +107,7 @@ outlives the screen that raised it. A confirmation is not a bar occupant but a m
 notice and pauses a live restore window rather than letting it burn behind the question.
 
 Two restore semantics exist and stay named as such: most edits are applied immediately and the
-restore replays the inverse; the playlist delete is deferred, so "Restore <title>" cancels a write
+restore replays the inverse; the playlist delete is deferred, so "Restore playlist" cancels a write
 that has not happened yet, and the close square commits it. Removing from a playlist cannot be
 restored by any provider, so it is a confirmation, not an offer (`provider-capabilities.md`).
 

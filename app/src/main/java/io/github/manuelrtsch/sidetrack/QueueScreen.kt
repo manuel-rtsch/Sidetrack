@@ -62,6 +62,8 @@ fun QueueScreen(
     onUndoQueueReplace: () -> Unit = {}
 ) {
     var pendingEdit by remember { mutableStateOf<QueueEdit?>(null) }
+    // The row the cursor goes back to once the offer closes: the restored row, or its neighbour.
+    var returnKey by remember { mutableStateOf<String?>(null) }
     // Removing from the queue offers the same five visible seconds as every other Undo in the app.
     val undoWindow = rememberUndoWindow { pendingEdit = null }
     UndoWindowLifecycle(undoWindow) { pendingEdit = null }
@@ -167,9 +169,13 @@ fun QueueScreen(
     // Removing offers Undo in the bar but drops the focus: the list must not choose a neighbour for
     // the user. The index identifies the occurrence, so duplicates are safe.
     val removeFromQueue: (Int, MediaItem) -> Unit = { index, item ->
+        // Both keys are read before the list changes: after the removal the row is where the
+        // neighbour now is, and nothing is left to look up.
+        val key = upcomingKeys.getOrNull(index)
+        val neighbour = upcomingKeys.getOrNull(index + 1) ?: upcomingKeys.getOrNull(index - 1)
         val removed = onRemove(index)
         if (removed >= 0) {
-            pendingEdit = QueueEdit.Removed(removed, item)
+            pendingEdit = QueueEdit.Removed(removed, item, key, neighbour)
             undoWindow.start()
             focusedKey = null
             clearFocusPending = true
@@ -280,22 +286,34 @@ fun QueueScreen(
 
         is QueueEdit.Removed -> restoreAction(
             "addBackToQueue",
-            "Restore ${pending.item.title}",
+            "Restore track",
             "Restore ${pending.item.title} to the queue"
         ) {
             undoWindow.cancel()
             onRestoreRemoved(pending.index, pending.item)
+            returnKey = pending.key
             pendingEdit = null
         }
 
         null -> null
     }
-    // Refusing the offer ends its window; the edit it offered to take back stays.
+    // Refusing the offer ends its window; the edit it offered to take back stays, so the cursor
+    // goes to the row that took the removed one's place.
     val dismissUndo = {
+        (pendingEdit as? QueueEdit.Removed)?.let { returnKey = it.neighbourKey }
         undoWindow.cancel()
         pendingEdit = null
     }
-    PromptBack(pendingEdit != null, onDismiss = dismissUndo)
+    PromptBack(
+        live = pendingEdit != null,
+        onDismiss = dismissUndo,
+        returnTo = {
+            focusedKey = returnKey
+            returnKey = null
+            focusPending = true
+            true
+        }
+    )
     val actions = when {
         reorderMode -> listOf(
             SideAction.cancel("cancelReorder", "Cancel", onClick = cancelReorder),
@@ -309,7 +327,7 @@ fun QueueScreen(
 
         rowActions.selection != null -> rowActionBarActions(rowActions, normal)
 
-        undo != null -> restoreBar(undo, "dismissUndo", dismissUndo)
+        undo != null -> restoreBar(undo, dismissUndo)
 
         else -> normal
     }

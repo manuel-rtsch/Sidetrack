@@ -65,6 +65,7 @@ fun HistoryScreen(
                     rowActions,
                     Modifier.listFade(listState, index),
                     focusRequester = moreFocus.requesterFor(index),
+                    neighbourKey = rowKeys.getOrNull(index + 1) ?: rowKeys.getOrNull(index - 1),
                     onAddToQueue = onAddToQueue,
                     onRemove = onRemove,
                     onClick = { onPlay(item) }

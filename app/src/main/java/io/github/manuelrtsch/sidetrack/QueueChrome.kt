@@ -22,5 +22,14 @@ internal fun QueueSectionHeader(count: Int, shuffled: Boolean, modifier: Modifie
 internal sealed interface QueueEdit {
     class Cleared(val items: List<MediaItem>) : QueueEdit
 
-    class Removed(val index: Int, val item: MediaItem) : QueueEdit
+    /**
+     * [key] is the removed row's list key — the row comes back on restore — and [neighbourKey] is
+     * the row that took its place, which is where the cursor goes once the offer is refused.
+     */
+    class Removed(
+        val index: Int,
+        val item: MediaItem,
+        val key: String? = null,
+        val neighbourKey: String? = null
+    ) : QueueEdit
 }

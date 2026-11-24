@@ -72,16 +72,15 @@ fun SettingsScreen(
         undoWindow.cancel()
         historyCleared = false
     }
-    PromptBack(historyCleared, onDismiss = dismissUndo)
+    PromptBack(live = historyCleared, onDismiss = dismissUndo)
     // A question takes the Back key: Back answers "no" and stays in Settings.
-    PromptBack(confirmation != null) { confirmation = null }
+    PromptBack(live = confirmation != null, onDismiss = { confirmation = null })
     val actions = when {
         confirmation == SettingsConfirmation.ClearCache -> confirmBar(
             confirm = confirmAction("confirmClearCache", "Clear cache?", "Clear the cache? Nothing can be brought back") {
                 confirmation = null
                 onClearCache()
             },
-            cancelKey = "cancelClearCache",
             onCancel = { confirmation = null }
         )
 
@@ -90,11 +89,10 @@ fun SettingsScreen(
                 confirmation = null
                 onSignOut()
             },
-            cancelKey = "cancelSignOut",
             onCancel = { confirmation = null }
         )
 
-        undo != null -> restoreBar(undo, "dismissUndo", dismissUndo)
+        undo != null -> restoreBar(undo, dismissUndo)
 
         else -> normal
     }

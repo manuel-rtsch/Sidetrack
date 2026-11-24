@@ -135,6 +135,8 @@ fun CollectionScreen(
     // the target, and the two-action row bar stays labelled instead of becoming icon-only.
     val isPlaylist = collection.type == CollectionType.Playlist
     val canRemoveItems = isPlaylist && collection.playlistActions?.canRemoveItems == true
+    // One key list for the rows and for the neighbour a removed entry hands the cursor to.
+    val entryKeys = remember(collection.items) { mediaRowKeys(collection.items) }
     val rows = rememberTrackRows(
         saved,
         onSaveTrack,
@@ -142,7 +144,8 @@ fun CollectionScreen(
         onAddItemToQueue,
         onPlayFirst = onPlayItem?.let { play -> { track -> play(track) } },
         onAddToPlaylist = if (isPlaylist) null else onAddToPlaylist,
-        onRemoveFromPlaylist = if (canRemoveItems) onRemoveFromPlaylist else null
+        onRemoveFromPlaylist = if (canRemoveItems) onRemoveFromPlaylist else null,
+        neighbourKey = { index -> entryKeys.getOrNull(index + 1) ?: entryKeys.getOrNull(index - 1) }
     )
     val savedCollection = collection.key.encode() in saved.savedCollectionKeys
     val back = remember { sidetrackBack("Back", onBack).first() }
@@ -158,7 +161,7 @@ fun CollectionScreen(
         )
     )
     val undoDelete = if (pendingDelete) {
-        restoreAction("restorePlaylist", "Restore ${collection.title}", "Keep ${collection.title} and cancel the deletion") {
+        restoreAction("restorePlaylist", "Restore playlist", "Keep ${collection.title} and cancel the deletion") {
             deleteWindow.cancel()
             pendingDelete = false
         }
@@ -175,7 +178,7 @@ fun CollectionScreen(
             onDeleteInBackground?.invoke()
         }
     }
-    PromptBack(pendingDelete, onDismiss = dismissDelete)
+    PromptBack(live = pendingDelete, onDismiss = dismissDelete)
     // A rename destroys the name it replaced, and retyping that name on a keypad is expensive, so
     // the page offers it back. The label is constant so a long name cannot truncate the one slot.
     val restoreName = previousTitle?.let { old ->
@@ -189,10 +192,10 @@ fun CollectionScreen(
         renameWindow.cancel()
         previousTitle = null
     }
-    PromptBack(restoreName != null, onDismiss = dismissRename)
+    PromptBack(live = restoreName != null, onDismiss = dismissRename)
     val actions = when {
-        undoDelete != null -> restoreBar(undoDelete, "dismissDelete", dismissDelete)
-        restoreName != null -> restoreBar(restoreName, "dismissRename", dismissRename)
+        undoDelete != null -> restoreBar(undoDelete, dismissDelete)
+        restoreName != null -> restoreBar(restoreName, dismissRename)
         else -> normalActions
     }
     // The header keeps the three primary actions: play, artwork and save. The artist lives in the
@@ -271,7 +274,7 @@ fun CollectionScreen(
             loadingMore,
             firstItemListIndex = 2
         )
-        val rowKeys = remember(collection.items) { mediaRowKeys(collection.items) }
+        val rowKeys = entryKeys
         SidekitList(padding, state = listState) {
             var rowIndex = 0
             item(key = "tiles") {

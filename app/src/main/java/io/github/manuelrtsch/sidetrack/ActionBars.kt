@@ -11,7 +11,6 @@ import hrln.interactive.sidekit.design.icons.SidekitIcon
  */
 fun queueReplacedActions(onDismiss: () -> Unit, onUndo: () -> Unit): List<SideAction> = restoreBar(
     restore = restoreAction("restoreQueue", "Restore queue", "Restore the queue this tap replaced", onUndo),
-    dismissKey = "dismissQueueReplace",
     onDismiss = onDismiss
 )
 
@@ -80,7 +79,7 @@ fun sidetrackBar(
  *   as transport. A stateful control is not an option: [toggleAction] puts it beside Back.
  * - Colour: [ActionTone.Primary] for every option, wherever it leads; [ActionTone.Secondary] marks a
  *   toggle that is on; [ActionTone.Destructive] destroys something. Grey is left to the close
- *   button, notices and undo, which are not options.
+ *   square and to notices, which are not choices.
  *
  * Order is destinations, then list-wide controls, with Now playing last and a destructive entry
  * always last of all. Pass `null` for an entry the state or service cannot offer: it disappears.

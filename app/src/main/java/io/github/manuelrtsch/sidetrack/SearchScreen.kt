@@ -169,7 +169,7 @@ fun SearchScreen(
         undoWindow.cancel()
         clearedHistory = null
     }
-    PromptBack(clearedHistory != null, onDismiss = dismissUndo)
+    PromptBack(live = clearedHistory != null, onDismiss = dismissUndo)
     val clear = if (typed.isNotEmpty() && !keyboardVisible && !notice) {
         SideAction.square(
             "clear",
@@ -188,7 +188,7 @@ fun SearchScreen(
     val actions = when {
         keyboardVisible -> emptyList()
 
-        undo != null -> restoreBar(undo, "dismissUndo", dismissUndo)
+        undo != null -> restoreBar(undo, dismissUndo)
 
         else -> sidetrackActions(
             chrome,

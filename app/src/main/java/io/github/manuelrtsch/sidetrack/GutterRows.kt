@@ -230,12 +230,15 @@ fun HistoryRow(
     modifier: Modifier = Modifier,
     secondary: String = item.creator,
     focusRequester: FocusRequester? = null,
+    /** The row that takes this one's place once it is forgotten, for the cursor. */
+    neighbourKey: Any? = null,
     onAddToQueue: (MediaItem) -> Unit,
     onRemove: (MediaItem) -> (() -> Unit)?,
     onClick: () -> Unit
 ) {
     val selected = bar.selection?.key == key
     val rowFocus = remember { FocusRequester() }
+    RegisterRowFocus(bar.rows, key, rowFocus)
     CloseRowActionsWhenDisposed(selected, bar)
     GutterRow(key, focus, squares = 1, modifier = modifier, content = { gutterVisible ->
         MediaRow(
@@ -262,9 +265,11 @@ fun HistoryRow(
                     if (undo != null) {
                         bar.showRestore(
                             PendingRestore(
-                                label = "Restore ${item.title}",
+                                label = "Restore track",
                                 description = "Restore ${item.title} to history",
-                                onClick = undo
+                                onClick = undo,
+                                returnKey = key,
+                                neighbourKey = neighbourKey
                             )
                         )
                     }

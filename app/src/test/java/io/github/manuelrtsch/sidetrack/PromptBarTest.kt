@@ -24,13 +24,13 @@ class PromptBarTest {
     )
 
     @Test
-    fun `the restore names the act, stays grey and rises in place`() {
+    fun `the restore names the act, leads in the accent and rises in place`() {
         val restore = offering()
 
         assertEquals("Restore queue", restore.label)
         assertEquals("Restore the queue this tap replaced", restore.contentDescription)
         assertEquals(SidekitIcon.Undo, restore.icon)
-        assertEquals(ActionTone.Muted, restore.tone)
+        assertEquals(ActionTone.Primary, restore.tone)
         assertEquals(ActionMotion.Up, restore.motion)
     }
 
@@ -43,9 +43,9 @@ class PromptBarTest {
 
     @Test
     fun `the restore bar leads with the restore and closes with a square`() {
-        val actions = restoreBar(offering(), "dismissUndo") {}
+        val actions = restoreBar(offering()) {}
 
-        assertEquals(listOf("restoreQueue", "dismissUndo"), actions.map { it.key })
+        assertEquals(listOf("restoreQueue", PROMPT_CLOSE_KEY), actions.map { it.key })
         assertEquals(SidekitIcon.Close, actions.last().icon)
         assertEquals("Dismiss", actions.last().contentDescription)
         assertEquals(ActionTone.Muted, actions.last().tone)
@@ -55,11 +55,10 @@ class PromptBarTest {
     fun `a confirmation is red, asks a question, and its square cancels`() {
         val actions = confirmBar(
             confirm = confirmAction("clearCache", "Clear cache?", "Clear cache? This cannot be undone") {},
-            cancelKey = "cancelClearCache",
             onCancel = {}
         )
 
-        assertEquals(listOf("clearCache", "cancelClearCache"), actions.map { it.key })
+        assertEquals(listOf("clearCache", PROMPT_CLOSE_KEY), actions.map { it.key })
         assertEquals(ActionTone.Destructive, actions.first().tone)
         assertTrue("The question mark carries the warning", actions.first().label!!.endsWith("?"))
         assertEquals(SidekitIcon.Close, actions.last().icon)
@@ -72,7 +71,7 @@ class PromptBarTest {
 
         assertEquals(normal, noticeBar(null, {}, normal))
         val actions = noticeBar("Added track to Road Trip", {}, normal, NoticeKind.Success)
-        assertEquals(listOf("notice", "dismissNotice"), actions.map { it.key })
+        assertEquals(listOf("notice", PROMPT_CLOSE_KEY), actions.map { it.key })
         assertEquals("Added track to Road Trip", actions.first().label)
         assertEquals(ActionTone.Muted, actions.first().tone)
         assertEquals("Dismiss the notice", actions.last().contentDescription)
@@ -90,7 +89,7 @@ class PromptBarTest {
             onUndoQueueReplace = {}
         )
 
-        assertEquals(listOf("notice", "dismissNotice"), bar.map { it.key })
+        assertEquals(listOf("notice", PROMPT_CLOSE_KEY), bar.map { it.key })
         assertNull(bar.firstOrNull { it.key == "restoreQueue" })
     }
 }

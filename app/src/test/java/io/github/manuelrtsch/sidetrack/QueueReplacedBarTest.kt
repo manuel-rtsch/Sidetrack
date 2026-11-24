@@ -47,12 +47,13 @@ class QueueReplacedBarTest {
     fun theOfferNamesWhatComesBackThenACloseSquare() {
         val actions = bar(ChromeUiState(queueReplaced = true))
 
-        assertEquals(listOf("restoreQueue", "dismissQueueReplace"), actions.map { it.key })
+        assertEquals(listOf("restoreQueue", PROMPT_CLOSE_KEY), actions.map { it.key })
         assertEquals("Restore queue", actions.first().label)
         assertEquals("Restore the queue this tap replaced", actions.first().contentDescription)
         assertEquals("Dismiss", actions.last().contentDescription)
-        // Both entries are grey: neither promises to advance, one takes back and one accepts.
-        assertEquals(ActionTone.Muted, actions.first().tone)
+        // The restore is the bar's one action; the square is grey because nothing happens when it
+        // is pressed.
+        assertEquals(ActionTone.Primary, actions.first().tone)
         assertEquals(ActionTone.Muted, actions.last().tone)
     }
 
@@ -89,7 +90,7 @@ class QueueReplacedBarTest {
         // a deadline that takes something away.
         val actions = bar(ChromeUiState(queueReplaced = true, nowPlayingNotice = track("A")))
 
-        assertEquals(listOf("restoreQueue", "dismissQueueReplace"), actions.map { it.key })
+        assertEquals(listOf("restoreQueue", PROMPT_CLOSE_KEY), actions.map { it.key })
     }
 
     @Test

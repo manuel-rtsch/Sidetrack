@@ -102,6 +102,46 @@ class RowActionBarTest {
     }
 
     @Test
+    fun aConfirmedRemovalLeavesTheCursorARowToLandOn() {
+        val state = RowActionBarState()
+        state.show(
+            RowActionSelection(
+                key = "night",
+                title = "Remove Night Signals?",
+                confirm = true,
+                neighbourKey = "aurora",
+                actions = rowActions(confirmRemoveFromPlaylistRowAction("Night Signals") {})
+            )
+        )
+
+        // The question lands on the shared close square, so Enter cancels.
+        assertEquals(PROMPT_CLOSE_KEY, rowActionBarActions(state, emptyList()).last().key)
+
+        state.close()
+        // The row is gone once the answer is yes: the neighbour is what the cursor can reach.
+        assertEquals("aurora", state.pendingReturn?.neighbour)
+    }
+
+    @Test
+    fun refusingARestoreHandsTheCursorToTheNeighbour() {
+        val state = RowActionBarState()
+        state.showRestore(
+            PendingRestore(
+                label = "Restore track",
+                description = "Restore Night Signals to history",
+                onClick = {},
+                returnKey = "night",
+                neighbourKey = "aurora"
+            )
+        )
+
+        state.clearRestore()
+
+        assertEquals("night", state.pendingReturn?.key)
+        assertEquals("aurora", state.pendingReturn?.neighbour)
+    }
+
+    @Test
     fun rowActionsPutTheDestructiveButtonLastAndDropWhatTheRowCannotOffer() {
         val actions = rowActions(
             removeFromQueueRowAction("A") {},
