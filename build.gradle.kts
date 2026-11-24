@@ -22,7 +22,9 @@ allprojects {
     apply(plugin = "com.diffplug.spotless")
 
     configure<com.diffplug.gradle.spotless.SpotlessExtension> {
-        ratchetFrom(providers.gradleProperty("spotlessRatchet").getOrElse("origin/main"))
+        // Deliberately no ratchetFrom: a ratchet only sees files changed since its base, so a file
+        // that drifted after it was pushed was never checked again. With the tree clean, checking all
+        // 374 Kotlin files costs a few seconds and catches drift that a ratchet cannot.
         kotlin {
             target("src/**/*.kt")
             ktlint(libs.versions.ktlint.get()).editorConfigOverride(ktlintRulesFromEditorConfig)

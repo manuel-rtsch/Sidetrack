@@ -222,11 +222,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # No fetch-depth: 0: the formatting check no longer consults git history, so a shallow
+      # checkout is enough.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/android-setup
-      - name: Check ktlint formatting of changed files
+      - name: Check ktlint formatting of every file
         run: ./gradlew spotlessCheck --stacktrace
 
   secrets:
