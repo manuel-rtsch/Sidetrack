@@ -57,9 +57,10 @@ internal fun notesRoute(key: String) = "$ROOT/notes/${Uri.encode(key)}"
  * Routes with a way back: either a Back action (or a named "Home"/"Library" back), or, for the
  * service picker, no action bar at all but a step behind it. The keypad's Back key uses the same
  * set, so it must not pop a screen that offers no way out: Home and Welcome leave the press to
- * the system.
+ * the system. The tests read this set rather than repeating it, so a new screen is covered the
+ * moment it is listed here.
  */
-private val KEYPAD_BACK_ROUTES = setOf(
+internal val KEYPAD_BACK_ROUTES = setOf(
     HISTORY,
     LIBRARY,
     COLLECTION,
