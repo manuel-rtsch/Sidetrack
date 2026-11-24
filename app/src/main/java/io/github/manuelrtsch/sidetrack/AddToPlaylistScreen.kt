@@ -54,6 +54,9 @@ fun AddToPlaylistScreen(
         onOpenNowPlaying = {},
         onDismissNowPlaying = onDismissNowPlaying,
         onUndoQueueReplace = onUndoQueueReplace,
+        // The picker has nowhere to open Now Playing, so the confirmation's leading button would
+        // do nothing while hiding Back. The Queue screen drops it for the same reason.
+        showNowPlayingNotice = false,
         actions = baseActions
     )
     SidekitScaffold(title = "Add to playlist", actions = actions) { padding ->

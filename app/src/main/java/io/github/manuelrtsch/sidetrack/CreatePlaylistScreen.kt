@@ -73,6 +73,9 @@ fun CreatePlaylistScreen(
         onOpenNowPlaying = {},
         onDismissNowPlaying = onDismissNowPlaying,
         onUndoQueueReplace = onUndoQueueReplace,
+        // The form has nowhere to open Now Playing, so the confirmation's leading button would do
+        // nothing while hiding Back. The Queue screen drops it for the same reason.
+        showNowPlayingNotice = false,
         actions = buildList {
             add(SideAction.back("back", "Library", onBack))
             if (canCreate) add(SideAction.forward("create", if (creating) "Creating…" else "Create", submit))
