@@ -217,20 +217,7 @@ class SubsonicApiTest {
     }
 
     @Test fun `renamePlaylist sends the new name for an owned playlist`() = runTest {
-        val transport = FakeTransport { url ->
-            when {
-                url.contains("getPlaylist") -> ok(
-                    """{"status":"ok","playlist":{"id":"p1","name":"Mix","owner":"joe","songCount":1,"entry":[{"id":"s1"}]}}"""
-                )
-
-                else -> ok("""{"status":"ok"}""")
-            }
-        }
-        val api = SubsonicApi(
-            SubsonicCredentials("http://nas.local", "joe", "sesame"),
-            transport = transport,
-            salt = { "salt" }
-        )
+        val (api, transport) = playlistApi()
 
         api.renamePlaylist("p1", "Mix Two")
 
@@ -240,20 +227,7 @@ class SubsonicApiTest {
     }
 
     @Test fun `deletePlaylist sends the id for an owned playlist`() = runTest {
-        val transport = FakeTransport { url ->
-            when {
-                url.contains("getPlaylist") -> ok(
-                    """{"status":"ok","playlist":{"id":"p1","name":"Mix","owner":"joe","songCount":1,"entry":[{"id":"s1"}]}}"""
-                )
-
-                else -> ok("""{"status":"ok"}""")
-            }
-        }
-        val api = SubsonicApi(
-            SubsonicCredentials("http://nas.local", "joe", "sesame"),
-            transport = transport,
-            salt = { "salt" }
-        )
+        val (api, transport) = playlistApi()
 
         api.deletePlaylist("p1")
 
@@ -262,20 +236,7 @@ class SubsonicApiTest {
     }
 
     @Test fun `a playlist owned by another account is read-only`() = runTest {
-        val transport = FakeTransport { url ->
-            when {
-                url.contains("getPlaylist") -> ok(
-                    """{"status":"ok","playlist":{"id":"p1","name":"Mix","owner":"alex","songCount":1,"entry":[{"id":"s1"}]}}"""
-                )
-
-                else -> ok("""{"status":"ok"}""")
-            }
-        }
-        val api = SubsonicApi(
-            SubsonicCredentials("http://nas.local", "joe", "sesame"),
-            transport = transport,
-            salt = { "salt" }
-        )
+        val (api, transport) = playlistApi(owner = "alex")
 
         val playlist = api.playlist("p1")!!
 
@@ -487,6 +448,30 @@ class SubsonicApiTest {
         override fun clear() {
             value = null
         }
+    }
+
+    /**
+     * An API whose `getPlaylist` answers one playlist owned by [owner].
+     *
+     * The playlist-mutation tests differ only in what they assert the request carries, so the
+     * whole fake transport, credentials and salt setup lives here once.
+     */
+    private fun playlistApi(owner: String = "joe"): Pair<SubsonicApi, FakeTransport> {
+        val transport = FakeTransport { url ->
+            when {
+                url.contains("getPlaylist") -> ok(
+                    """{"status":"ok","playlist":{"id":"p1","name":"Mix","owner":"$owner","songCount":1,"entry":[{"id":"s1"}]}}"""
+                )
+
+                else -> ok("""{"status":"ok"}""")
+            }
+        }
+        val api = SubsonicApi(
+            SubsonicCredentials("http://nas.local", "joe", "sesame"),
+            transport = transport,
+            salt = { "salt" }
+        )
+        return api to transport
     }
 
     private class FakeTransport(private val handler: (String) -> JSONObject) : SubsonicTransport {
