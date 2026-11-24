@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.ActionMotion
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
+import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.components.SidekitCompactItem
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
@@ -158,7 +159,7 @@ fun SearchScreen(
         null
     }
     val undo = clearedHistory?.let { previous ->
-        SideAction.undo("undoClearHistory", "Undo", "Undo clear search history") {
+        undoAction("undoClearHistory", "clear search history") {
             undoWindow.cancel()
             clearedHistory = null
             onRestoreHistory(previous)

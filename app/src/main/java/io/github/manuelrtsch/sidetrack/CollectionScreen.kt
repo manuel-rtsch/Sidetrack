@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import hrln.interactive.sidekit.design.action.SideAction
+import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.components.SidekitItemRow
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
@@ -147,7 +148,7 @@ fun CollectionScreen(
         )
     )
     val undoDelete = if (pendingDelete) {
-        SideAction.undo("undoDeletePlaylist", "Undo", "Undo delete ${collection.title}") {
+        undoAction("undoDeletePlaylist", "delete ${collection.title}") {
             deleteWindow.cancel()
             pendingDelete = false
         }

@@ -88,7 +88,7 @@ class RowActionBarTest {
         compose.runOnIdle {
             state.showUndo(
                 RowActionUndo(
-                    contentDescription = "Undo remove Row from Liked Songs",
+                    what = "remove Row from Liked Songs",
                     onClick = {}
                 )
             )

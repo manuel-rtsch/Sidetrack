@@ -243,22 +243,6 @@ class PlaylistControllerTest {
         assertEquals(3, addedAt)
     }
 
-    @Test
-    fun `undo add decrements the patched count, not the stale argument`() = runTest {
-        val target = playlist("target", PlaylistActions.All)
-        val row = target.copy(trackCount = 4)
-        val writer = FakeWriter(addIndex = 2)
-        val store = store(libraryPages = mapOf(LibraryFilter.Playlists to LibraryPage(listOf(row))))
-        val controller = controller(FakeCatalog(), store, this, writer = writer)
-
-        assertEquals(2, controller.add(target, second))
-        assertEquals(5, store.value.playlistRow("target").trackCount)
-
-        controller.undoAdd(target, second, 2)
-
-        assertEquals(4, store.value.playlistRow("target").trackCount)
-    }
-
     private fun SidetrackUiState.playlistRow(id: String): Playlist = libraryPages.values
         .flatMap { it.items }
         .filterIsInstance<Playlist>()

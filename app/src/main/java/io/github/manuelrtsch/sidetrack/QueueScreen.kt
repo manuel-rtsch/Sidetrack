@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
+import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
 import hrln.interactive.sidekit.design.components.listFade
@@ -272,13 +273,13 @@ fun QueueScreen(
         showNowPlayingNotice = false
     )
     val undo = when (val pending = pendingUndo) {
-        is QueueUndo.Cleared -> SideAction.undo("undoClear", "Undo", "Undo clear upcoming") {
+        is QueueUndo.Cleared -> undoAction("undoClear", "clear upcoming") {
             undoWindow.cancel()
             onRestoreUpcoming(pending.items)
             pendingUndo = null
         }
 
-        is QueueUndo.Removed -> SideAction.undo("undoRemove", "Undo", "Undo remove ${pending.item.title}") {
+        is QueueUndo.Removed -> undoAction("undoRemove", "remove ${pending.item.title}") {
             undoWindow.cancel()
             onRestoreRemoved(pending.index, pending.item)
             pendingUndo = null

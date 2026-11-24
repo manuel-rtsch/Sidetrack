@@ -23,9 +23,9 @@ import kotlinx.coroutines.launch
  * Picks the playlist a track should be appended to.
  *
  * Only playlists that report [PlaylistActions.canAddItems] are listed. A target that the account
- * may not edit would otherwise be a button whose only outcome is a server refusal. The add itself
- * returns the index the service placed the row at, so the bar can offer an Undo that removes
- * exactly that copy.
+ * may not edit would otherwise be a button whose only outcome is a server refusal. The add is a
+ * creation, so it is reported by the screen's notice ("Added track to X") and never offered as
+ * Undo: Undo is reserved for destructive edits.
  */
 @Composable
 fun AddToPlaylistScreen(
@@ -38,32 +38,26 @@ fun AddToPlaylistScreen(
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
     onAdd: suspend (Playlist) -> Int?,
-    onUndoAdd: suspend (Playlist, Int) -> Unit,
     onDismissNotice: () -> Unit,
     onDismissNowPlaying: () -> Unit,
     onUndoQueueReplace: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
-    val bar = rememberRowActionBarState()
     val choices = playlists.choices
     val loadFailed = playlists.error != null && choices.isEmpty()
     val baseActions = remember(loadFailed, onRetry) {
         sidetrackBack("Back", onBack) + if (loadFailed) listOf(retryAction(onRetry)) else emptyList()
     }
-    val actions = rowActionBarActions(
-        bar,
-        sidetrackActions(
-            chrome,
-            onDismissNotice,
-            onOpenNowPlaying = {},
-            onDismissNowPlaying = onDismissNowPlaying,
-            onUndoQueueReplace = onUndoQueueReplace,
-            actions = baseActions
-        )
+    val actions = sidetrackActions(
+        chrome,
+        onDismissNotice,
+        onOpenNowPlaying = {},
+        onDismissNowPlaying = onDismissNowPlaying,
+        onUndoQueueReplace = onUndoQueueReplace,
+        actions = baseActions
     )
     SidekitScaffold(title = "Add to playlist", actions = actions) { padding ->
         val listState = rememberLazyListState()
-        bar.DismissOnScroll(listState)
         val loading = playlists.loading && choices.isEmpty()
         val nothingToShow = choices.isEmpty() && playlists.loaded && !playlists.hasMore
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -119,17 +113,7 @@ fun AddToPlaylistScreen(
                     // The registry refuses a second write for the same target; the row says
                     // "Adding…" meanwhile so the tap does not look lost.
                     if (pending) return@LibraryRow
-                    scope.launch {
-                        val addedAt = onAdd(playlist) ?: return@launch
-                        bar.showUndo(
-                            RowActionUndo(
-                                contentDescription = "Undo adding ${track.title} to ${playlist.name}",
-                                onClick = {
-                                    scope.launch { onUndoAdd(playlist, addedAt) }
-                                }
-                            )
-                        )
-                    }
+                    scope.launch { onAdd(playlist) }
                 }
             }
             if (playlists.hasMore) {

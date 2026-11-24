@@ -53,6 +53,24 @@ carry `Play` (`playRowAction`), which plays the row now and puts the previous it
 of the tail: the queue resumes where it was once the picked track ends. Its label stays one word
 because the square drops it; the content description says "Play <title> now".
 
+**Undo is for destructive edits only.** Removing, clearing or deleting something the user can see
+is offered back; creation is not. Adding a track to a playlist reports "Added track to X" as a
+notice and offers no Undo, because the way back would itself be a destructive action wearing a
+safety label. One factory writes every offer: `undoAction(key, what)` in `UndoActions.kt`. It is
+grey with `SidekitIcon.Undo`, rises in place (`ActionMotion.Up`), is labelled `Undo`, and its
+content description is `Undo <what>`, where `<what>` is the verb phrase of the edit — "clear
+upcoming", "delete Road Trip", "remove X from history" — never just "Undo".
+
+The shape is Sidekit's `undoBar`: the continuation keeps the left slot and Undo is added to the
+right, never substituted for the exit. The bar shows one offer at a time. The window is five
+*visible* seconds (`UndoWindow`, paused while the screen is away); the queue-replaced offer is the
+one exception at eight, because it outlives the screen that raised it.
+
+Two semantics exist and stay named as such: most edits are applied immediately and Undo replays
+the inverse; the playlist delete is deferred, so Undo cancels a write that has not happened yet.
+Removing from a playlist confirms instead of offering Undo, because no provider can put an item
+back into its original slot (`provider-capabilities.md`).
+
 **A replaced queue is offered back.** The collection tap is the one gesture that can throw away a
 queue the user lined up, so `PlaybackDriver.play` keeps the outgoing queue for
 `QUEUE_REPLACED_UNDO_MS` and the bar shows `Queue replaced | Undo` (`queueReplacedActions`). Undo

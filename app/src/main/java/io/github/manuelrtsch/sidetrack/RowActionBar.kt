@@ -21,6 +21,7 @@ import androidx.compose.ui.input.key.type
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.LocalChrome
 import hrln.interactive.sidekit.design.action.SideAction
+import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
@@ -160,9 +161,9 @@ fun confirmRemoveFromPlaylistRowAction(title: String, onClick: () -> Unit) = Row
     onClick = onClick
 )
 
-/** A destructive row action that can still be taken back from the bar. */
+/** A destructive row action that can still be taken back from the bar: [what] names it. */
 data class RowActionUndo(
-    val contentDescription: String,
+    val what: String,
     val onClick: () -> Unit
 )
 
@@ -271,14 +272,10 @@ fun rowActionBarActions(
     normal: List<SideAction>
 ): List<SideAction> {
     state.undo?.let { pending ->
-        val undo = SideAction.undo(
-            key = "rowUndo",
-            contentDescription = pending.contentDescription,
-            onClick = {
-                state.clearUndo()
-                pending.onClick()
-            }
-        )
+        val undo = undoAction("rowUndo", pending.what) {
+            state.clearUndo()
+            pending.onClick()
+        }
         val continueWith = normal.firstOrNull()
         return if (continueWith != null) undoBar(continueWith, undo) else listOf(undo)
     }

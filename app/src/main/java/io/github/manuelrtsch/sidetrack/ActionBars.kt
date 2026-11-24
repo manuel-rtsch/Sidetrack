@@ -2,6 +2,7 @@ package io.github.manuelrtsch.sidetrack
 
 import hrln.interactive.sidekit.design.action.ActionTone
 import hrln.interactive.sidekit.design.action.SideAction
+import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 
@@ -18,12 +19,7 @@ fun queueReplacedActions(onDismiss: () -> Unit, onUndo: () -> Unit): List<SideAc
         contentDescription = "Queue replaced. Dismiss",
         onClick = onDismiss
     ),
-    undo = SideAction.undo(
-        key = "undoQueueReplace",
-        label = "Undo",
-        contentDescription = "Put the replaced queue back",
-        onClick = onUndo
-    )
+    undo = undoAction("undoQueueReplace", "queue replacement", onUndo)
 )
 
 /**

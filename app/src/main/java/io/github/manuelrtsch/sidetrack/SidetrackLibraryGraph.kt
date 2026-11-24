@@ -142,9 +142,6 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             onLoadMore = vm::loadMorePlaylistChoices,
             onRetry = vm::retryPlaylistChoices,
             onAdd = { playlist -> track?.let { vm.addToPlaylist(playlist, it) } },
-            onUndoAdd = { playlist, index ->
-                track?.let { vm.undoAddToPlaylist(playlist, it, index) }
-            },
             onDismissNotice = vm::dismissNotice,
             onUndoQueueReplace = vm::undoQueueReplace,
             onDismissNowPlaying = vm::dismissNowPlayingNotice

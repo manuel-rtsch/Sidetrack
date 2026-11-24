@@ -357,10 +357,6 @@ class SidetrackViewModel(
 
     suspend fun addToPlaylist(playlist: Playlist, item: MediaItem): Int? = playlists.add(playlist, item)
 
-    suspend fun undoAddToPlaylist(playlist: Playlist, item: MediaItem, index: Int) {
-        playlists.undoAdd(playlist, item, index)
-    }
-
     fun removeFromPlaylist(collection: Collection, item: MediaItem, index: Int) {
         playlists.remove(collection, item, index)
     }

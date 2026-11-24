@@ -158,8 +158,9 @@ internal class PlaylistController(
     }
 
     /**
-     * Appends one item and returns the index the service placed it at, which is what Undo removes.
-     * Null means nothing was written; the failure is already in the bar.
+     * Appends one item and returns the index the service placed it at. Null means nothing was
+     * written; the failure is already in the bar. The add is a creation, so it reports with a
+     * notice and offers no Undo.
      */
     suspend fun add(playlist: Playlist, item: MediaItem): Int? = tasks.submit(
         action(TaskKey.Action.Kind.AddToPlaylist, playlist.key.encode())
@@ -194,24 +195,6 @@ internal class PlaylistController(
         } catch (e: Exception) {
             store.update { it.say(catalogNotice(e)) }
             null
-        }
-    }
-
-    /** Takes back an append by removing exactly the index the service reported. */
-    suspend fun undoAdd(playlist: Playlist, item: MediaItem, index: Int) {
-        val writer = writer ?: return
-        try {
-            writer.removeFromPlaylist(playlist.key, item, index)
-            store.update { state ->
-                val count = (state.playlistTrackCount(playlist.key, playlist.trackCount) - 1).coerceAtLeast(0)
-                state.copy(collections = state.collections - playlist.key.encode())
-                    .withPlaylistTrackCount(playlist.key, count)
-            }
-            store.update { it.say("Removed ${item.title} from ${playlist.name}", NoticeKind.Success) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            store.update { it.say(catalogNotice(e)) }
         }
     }
 

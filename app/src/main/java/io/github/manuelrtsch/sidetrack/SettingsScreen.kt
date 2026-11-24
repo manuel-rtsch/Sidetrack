@@ -15,6 +15,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.platform.LocalContext
 import hrln.interactive.sidekit.design.action.SideAction
+import hrln.interactive.sidekit.design.action.undoBar
 import hrln.interactive.sidekit.design.action.withNotice
 import hrln.interactive.sidekit.design.components.SidekitList
 import hrln.interactive.sidekit.design.components.SidekitScaffold
@@ -60,7 +61,7 @@ fun SettingsScreen(
     val baseActions = remember(back) { listOf(back, SideAction.forward("about", "About", onClick = onAbout)) }
     val normal = withNotice(chrome.notice, onDismissNotice, baseActions, chrome.noticeKind)
     val undo = if (historyCleared) {
-        SideAction.undo("undoClearHistory", "Undo", "Undo clear history") {
+        undoAction("undoClearHistory", "clear history") {
             undoWindow.cancel()
             historyCleared = false
             onUndoClearHistory()

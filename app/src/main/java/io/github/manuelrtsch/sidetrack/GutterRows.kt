@@ -262,7 +262,7 @@ fun HistoryRow(
                     if (undo != null) {
                         bar.showUndo(
                             RowActionUndo(
-                                contentDescription = "Undo remove ${item.title} from history",
+                                what = "remove ${item.title} from history",
                                 onClick = undo
                             )
                         )
