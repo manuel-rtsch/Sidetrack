@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import kotlin.math.roundToInt
 
 /**
  * Whether track, album, playlist and the other media rows use the denser layout.
@@ -28,9 +29,10 @@ val LocalCompactRows = compositionLocalOf { false }
 
 /**
  * The list item's corner radius. Mirrors `SidekitTheme.shapes.item`, which is 36 dp but is a shape
- * rather than a number, so the artwork radius below needs the value locally.
+ * rather than a number, so the artwork radius below needs the value locally, and
+ * [RowPlaybackLine] insets itself by it so its ends are never cut off.
  */
-private val ItemCornerRadius = 36.dp
+internal val ItemCornerRadius = 36.dp
 
 /**
  * The cover's corner radius when it sits [inset] inside a list item: the item radius minus that
@@ -99,6 +101,18 @@ private val TrailingGap = 8.dp
 private val TrackNumberWidth = 30.dp
 
 /**
+ * How much of the cover's width a badge takes: [PlaybackChip] and the explicit chip are the same
+ * size, and at two-fifths of the artwork both the "E" and the three bars are readable at arm's
+ * length instead of being a texture on the corner. 80 dp gives 32 dp, the compact 64 gives 26
+ * after rounding: the canvas pins 1 dp to 1 px, so a fractional 25.6 would only be rounded by the
+ * layout anyway.
+ */
+private const val BADGE_WIDTH_FRACTION = 0.4f
+
+/** [artwork]'s two-fifths, as a whole dp, so the chip lands on the pixel the canvas draws. */
+private fun badgeSize(artwork: Dp): Dp = (artwork.value * BADGE_WIDTH_FRACTION).roundToInt().dp
+
+/**
  * The measured sizes of a media row. Both branches name every value, so a row reads one object
  * instead of deciding each dimension for itself and drifting from the list's pitch.
  */
@@ -124,6 +138,7 @@ data class MediaRowMetrics(
     val trackNumberStyle: TextStyle,
     /** For a three-digit index, which would otherwise overflow the narrowed number column. */
     val trackNumberDenseStyle: TextStyle,
+    /** The explicit chip's size, and [PlaybackChip]'s: [BADGE_WIDTH_FRACTION] of [artworkSize]. */
     val explicitBadgeSize: Dp,
     val explicitBadgeStyle: TextStyle
 )
@@ -155,10 +170,10 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
                 trailingStyle = typography.tiny.copy(fontFeatureSettings = "tnum"),
                 trackNumberStyle = typography.tiny,
                 trackNumberDenseStyle = typography.tiny.copy(fontSize = 18.sp, lineHeight = 22.sp),
-                explicitBadgeSize = 19.dp,
+                explicitBadgeSize = badgeSize(CompactArtworkSize),
                 explicitBadgeStyle = typography.tiny.copy(
-                    fontSize = 14.sp,
-                    lineHeight = 16.sp,
+                    fontSize = 18.sp,
+                    lineHeight = 21.sp,
                     fontWeight = FontWeight.Medium
                 )
             )
@@ -179,10 +194,10 @@ fun rememberMediaRowMetrics(): MediaRowMetrics {
                 trailingStyle = typography.small.copy(fontFeatureSettings = "tnum"),
                 trackNumberStyle = typography.tiny,
                 trackNumberDenseStyle = typography.tiny.copy(fontSize = 18.sp, lineHeight = 22.sp),
-                explicitBadgeSize = 22.dp,
+                explicitBadgeSize = badgeSize(SpaciousArtworkSize),
                 explicitBadgeStyle = typography.tiny.copy(
-                    fontSize = 15.sp,
-                    lineHeight = 17.sp,
+                    fontSize = 22.sp,
+                    lineHeight = 26.sp,
                     fontWeight = FontWeight.Medium
                 )
             )

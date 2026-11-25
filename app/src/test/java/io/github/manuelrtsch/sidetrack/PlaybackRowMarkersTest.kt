@@ -245,6 +245,100 @@ class PlaybackRowMarkersTest {
     }
 
     @Test
+    fun `the explicit badge takes two fifths of the cover`() {
+        // The cover is 80 dp in the spacious row, so the badge is 32: at the old 22 dp the "E"
+        // read as a smudge on the corner.
+        compose.setContent {
+            SidekitPreviewFrame {
+                MediaRow(MockSpotifyDataSource.track("ns5")!!, onClick = {})
+            }
+        }
+        compose.waitForIdle()
+
+        val bounds = compose.onNodeWithContentDescription("Explicit", useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(80f * 0.4f, (bounds.right - bounds.left).value, 0.01f)
+        assertEquals(80f * 0.4f, (bounds.bottom - bounds.top).value, 0.01f)
+    }
+
+    @Test
+    fun `a compact row's badge keeps the same share of its smaller cover`() {
+        compose.setContent {
+            SidekitPreviewFrame {
+                CompositionLocalProvider(LocalCompactRows provides true) {
+                    MediaRow(
+                        MockSpotifyDataSource.track("ns5")!!,
+                        onClick = {}
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        // Two-fifths of 64 is 25.6, rounded to the 26 dp the canvas can draw.
+        val bounds = compose.onNodeWithContentDescription("Explicit", useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(26f, (bounds.right - bounds.left).value, 0.01f)
+    }
+
+    @Test
+    fun `the playing chip is the explicit badge's size, not a speck`() {
+        compose.setContent {
+            SidekitPreviewFrame {
+                LibraryRow(
+                    artRes = 0,
+                    title = "Night Signals",
+                    secondary = "Aurora Vale · 2024",
+                    audio = playback().audioFor(
+                        Album(
+                            id = track.albumId,
+                            title = "Night Signals",
+                            artist = track.artist,
+                            artistId = track.artistId,
+                            year = 2024,
+                            artRes = 0,
+                            tracks = listOf(track)
+                        )
+                    ),
+                    onClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        val bounds = compose.onNodeWithTag(ROW_CHIP_TAG, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(80f * 0.4f, (bounds.right - bounds.left).value, 0.01f)
+    }
+
+    @Test
+    fun `the line begins and ends where the rounded corners stop cutting it`() {
+        // A full-bleed line was hidden under the tile's 36 dp bottom corners: its first seconds
+        // fell under the left arc and its last under the right one. Inset by the radius, the first
+        // and last pixel of the fill sit on the flat part of the lower edge.
+        val flow = MutableStateFlow(0L)
+        compose.setContent {
+            SidekitPreviewFrame {
+                MediaRow(
+                    track,
+                    modifier = Modifier.testTag("row"),
+                    audio = RowAudio(playing = true, position = flow),
+                    onClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        val row = compose.onNodeWithTag("row").getBoundsInRoot()
+
+        flow.value = track.durationMs / 2
+        compose.waitForIdle()
+        val half = compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(row.left.value + 36f, half.left.value, 0.01f)
+
+        flow.value = track.durationMs
+        compose.waitForIdle()
+        val full = compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(row.right.value - 36f, full.right.value, 0.01f)
+    }
+
+    @Test
     fun `the line starts empty and fills as soon as the clock moves`() {
         val flow = MutableStateFlow(0L)
         compose.setContent {

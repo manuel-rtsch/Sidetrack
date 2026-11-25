@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -76,9 +77,10 @@ internal const val ROW_CHIP_TAG = "rowChip"
  * a letter.
  *
  * It is drawn rather than iconed because Sidekit has no equaliser glyph; the bars are the same
- * idea as [PlayingBars] on the Now Playing tile, held still. Silenced for a screen reader: the row
- * it sits on says "Playing" in its own state description, and a chip that announced itself too
- * would be read twice.
+ * idea as [PlayingBars] on the Now Playing tile, held still. It takes [MediaRowMetrics.explicitBadgeSize],
+ * so the marker is two-fifths of the cover wide rather than a speck on it. Silenced for a screen
+ * reader: the row it sits on says "Playing" in its own state description, and a chip that
+ * announced itself too would be read twice.
  */
 @Composable
 fun PlaybackChip(size: Dp, modifier: Modifier = Modifier) {
@@ -122,8 +124,14 @@ internal const val ROW_PROGRESS_FILL_TAG = "rowProgressFill"
  * the row instead of on Now Playing.
  *
  * This is the same language as a podcast row's resume line (four dp, muted track, accent fill,
- * clipped by the tile's corner so it reads as part of the row and not as a control). It is the
- * only thing on a list that subscribes to the seek clock, and it recomposes alone.
+ * part of the row and not a control). It is the only thing on a list that subscribes to the seek
+ * clock, and it recomposes alone.
+ *
+ * The line stops where the tile's own rounding stops cutting it: inset by [ItemCornerRadius] at
+ * both ends, it spans exactly the flat part of the lower edge. Drawn full-bleed it vanished for
+ * the first seconds of a track under the bottom-left arc and disappeared again under the
+ * bottom-right one before the track ended; now its first and last pixel are visible, and the fill
+ * maps onto the visible span instead of the whole width.
  *
  * The track is drawn from the first frame rather than only once there is something to fill: this is
  * the row's one mark, so a row playing from the top still has to look different from its
@@ -140,6 +148,9 @@ fun RowPlaybackLine(audio: RowAudio, durationMs: Long, modifier: Modifier = Modi
         modifier
             .fillMaxWidth()
             .height(4.dp)
+            // The corners are 36 dp: at x = radius the upper edge is flat, so the line is whole
+            // from its first pixel. Anything wider starts under the arc and appears late.
+            .padding(horizontal = ItemCornerRadius)
             .testTag(ROW_PROGRESS_TAG)
     ) {
         Box(Modifier.fillMaxSize().background(SidekitTheme.colors.surfaceA5))
