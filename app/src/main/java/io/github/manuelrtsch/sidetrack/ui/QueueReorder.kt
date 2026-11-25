@@ -60,6 +60,9 @@ class QueueReorderState internal constructor(
     private var startOffset = 0f
     private var count = 0
 
+    /** The list key of the row being lifted, to read its real layout offset while it moves. */
+    private var liftKey: Any? = null
+
     /** The gesture or keypad action that opened this lift; only it may end it. */
     private var owner: Any? = null
 
@@ -70,7 +73,8 @@ class QueueReorderState internal constructor(
         count: Int,
         listOffset: Float,
         keypad: Boolean = false,
-        owner: Any? = null
+        owner: Any? = null,
+        key: Any? = null
     ) {
         from = index
         to = index
@@ -78,6 +82,7 @@ class QueueReorderState internal constructor(
         this.count = count
         this.keypad = keypad
         this.owner = owner
+        this.liftKey = key
         startOffset = listOffset
         pointerDelta = 0f
         scrolled = 0f
@@ -87,8 +92,9 @@ class QueueReorderState internal constructor(
 
     /**
      * Moves the picked-up row with the finger, handing back the move the caller commits, or null.
-     * The queue reorders as the finger crosses each row so its slot travels with it — a left-behind
-     * slot scrolls out and cancels the drag; translation then puts the row back under the finger.
+     * The queue reorders as the finger crosses each row so its slot travels with it. Only slots
+     * that are on screen are eligible: a slot outside the viewport is not composed, and losing the
+     * row would end the drag. [translation] then puts the row back under the finger.
      */
     internal fun drag(dy: Float): Pair<Int, Int>? {
         val current = from ?: return null
@@ -132,11 +138,40 @@ class QueueReorderState internal constructor(
 
     /**
      * Whatever puts the row back under the finger: the finger's travel plus the auto-scroll, less
-     * the distance its slot has already moved with the data.
+     * the distance its slot has already moved with the data. The result is clamped to the list
+     * viewport: past the top row the list cannot scroll any further, and a row drawn above the
+     * viewport is clipped away, which reads as if the drag had been cancelled.
      */
     private fun updateTranslation() {
         val current = from ?: return
-        translation = pointerDelta + scrolled - (current - origin) * pitchPx
+        val info = listState.layoutInfo
+        // The item's real offset already accounts for the moves and for the scrolling, including
+        // any scroll the list keeps for its anchor as keyed items move across it. Reconstructing
+        // that from the drag start drifts once the row passes the current-track item.
+        val layout = info.visibleItemsInfo
+        val itemTop = layout.firstOrNull { it.key == liftKey }?.offset
+        if (itemTop == null) {
+            // Nothing laid out yet (unit tests, the first frame): fall back to the travel math.
+            // Otherwise the row is only momentarily absent; keep what it had rather than jump.
+            if (layout.isEmpty()) {
+                translation = pointerDelta + scrolled - (current - origin) * pitchPx
+            }
+            return
+        }
+        // A list that has not been laid out yet (unit tests, the first frame) has an empty
+        // viewport; clamping to it would park every row at zero.
+        val fingerTop = startOffset + pointerDelta
+        val clampedTop = if (info.viewportEndOffset > info.viewportStartOffset) {
+            clampToViewport(
+                fingerTop,
+                info.viewportStartOffset.toFloat(),
+                info.viewportEndOffset.toFloat(),
+                pitchPx
+            )
+        } else {
+            fingerTop
+        }
+        translation = clampedTop - itemTop
     }
 
     /** Whether [token] is the gesture that opened the current lift. */
@@ -167,6 +202,7 @@ class QueueReorderState internal constructor(
         scrolled = 0f
         keypad = false
         hasMoved = false
+        liftKey = null
         owner = null
     }
 
@@ -178,6 +214,10 @@ class QueueReorderState internal constructor(
     internal suspend fun autoScroll() {
         while (active && !keypad) {
             withFrameNanos { }
+            // The data can move under a still finger (a fast drag crosses several rows in one
+            // event), which changes the row's slot without another callback: re-derive the
+            // translation from the real layout offset every frame, not only when we scroll.
+            updateTranslation()
             val info = listState.layoutInfo
             val edge = pitchPx * 0.6f
             val visualTop = startOffset + pointerDelta
@@ -207,6 +247,17 @@ class QueueReorderState internal constructor(
 
 /** How far the auto-scroll may travel in one frame, so a held finger cannot fling the list. */
 private const val MAX_AUTO_SCROLL_PX = 16f
+
+/** The row's top, kept far enough inside the viewport that the whole row stays drawn. */
+internal fun clampToViewport(
+    visualTop: Float,
+    viewportStart: Float,
+    viewportEnd: Float,
+    pitch: Float
+): Float {
+    val lowest = (viewportEnd - pitch).coerceAtLeast(viewportStart)
+    return visualTop.coerceIn(viewportStart, lowest)
+}
 
 /** One long-press drag at a time, measured against the SideKit row pitch. */
 @Composable
@@ -266,7 +317,13 @@ fun Modifier.queueReorder(
                     if (!state.active) {
                         val info = state.listState.layoutInfo
                         val offset = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
-                        state.begin(latestIndex, latestCount, offset.toFloat(), owner = gesture)
+                        state.begin(
+                            latestIndex,
+                            latestCount,
+                            offset.toFloat(),
+                            owner = gesture,
+                            key = key
+                        )
                         latestPickUp()
                     }
                 },

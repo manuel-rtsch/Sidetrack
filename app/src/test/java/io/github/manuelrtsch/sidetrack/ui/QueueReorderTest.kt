@@ -91,6 +91,22 @@ class QueueReorderTest {
         assertFalse(state.active)
     }
 
+    @Test fun `a row dragged past the top is parked at the viewport start`() {
+        assertEquals(0f, clampToViewport(-120f, viewportStart = 0f, viewportEnd = 555f, pitch = 77f))
+    }
+
+    @Test fun `a row dragged past the bottom keeps its last visible slot`() {
+        assertEquals(478f, clampToViewport(700f, viewportStart = 0f, viewportEnd = 555f, pitch = 77f))
+    }
+
+    @Test fun `a row between the edges follows the finger`() {
+        assertEquals(250f, clampToViewport(250f, viewportStart = 0f, viewportEnd = 555f, pitch = 77f))
+    }
+
+    @Test fun `a viewport shorter than a row clamps to its start`() {
+        assertEquals(10f, clampToViewport(200f, viewportStart = 10f, viewportEnd = 40f, pitch = 77f))
+    }
+
     @Test fun `a lift only answers to the gesture that started it`() {
         val state = state()
         val dragging = Any()
