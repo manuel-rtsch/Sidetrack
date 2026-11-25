@@ -232,7 +232,13 @@ fun QueueScreen(
                 ?.offset ?: 0
             reorderCurrentId = playback.current?.id
             reorderSize = visibleUpcoming.size
-            reorder.begin(target, visibleUpcoming.size, offset.toFloat(), keypad = true)
+            reorder.begin(
+                target,
+                visibleUpcoming.size,
+                offset.toFloat(),
+                keypad = true,
+                key = targetKey
+            )
             reorderMode = true
             focusPending = true
         }

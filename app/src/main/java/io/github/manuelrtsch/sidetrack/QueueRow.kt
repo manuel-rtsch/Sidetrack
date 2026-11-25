@@ -76,7 +76,9 @@ internal fun QueueUpcomingRow(
     val view = LocalView.current
     val selected = host.rowActions.selection?.key == key
     CloseRowActionsWhenDisposed(selected, host.rowActions)
-    val pickedUp = host.reorder.from == index
+    // Keyed on the row's identity, not its slot: the data reorders under the finger, and a slot
+    // check would drop the lift for the frame before the new index is composed.
+    val pickedUp = host.reorder.isLifted(key)
     // A swiped-open row already shows its Remove button; the gutter would be
     // a second copy of the same action.
     val focused = host.gutterKey == key && !pickedUp && !host.reorderMode && host.swipes.openKey == null
@@ -119,7 +121,7 @@ internal fun QueueUpcomingRow(
                 .graphicsLayer {
                     // The queue reorders as the finger crosses each row, so only
                     // the picked-up row is offset: it is the one under the finger.
-                    translationY = if (pickedUp) host.reorder.translation else 0f
+                    translationY = if (pickedUp) host.reorder.drawTranslation(key) else 0f
                     if (pickedUp) {
                         scaleX = 1.02f
                         scaleY = 1.02f

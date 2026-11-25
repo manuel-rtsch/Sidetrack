@@ -107,6 +107,19 @@ class QueueReorderTest {
         assertEquals(10f, clampToViewport(200f, viewportStart = 10f, viewportEnd = 40f, pitch = 77f))
     }
 
+    @Test fun `a lift is recognized by key, not by the slot the data moved it to`() {
+        val state = state()
+        state.begin(index = 3, count = 6, listOffset = 0f, key = "track")
+
+        assertTrue(state.isLifted("track"))
+        assertFalse(state.isLifted("another"))
+        assertFalse(state.isLifted(null))
+
+        state.end()
+
+        assertFalse(state.isLifted("track"))
+    }
+
     @Test fun `a lift only answers to the gesture that started it`() {
         val state = state()
         val dragging = Any()

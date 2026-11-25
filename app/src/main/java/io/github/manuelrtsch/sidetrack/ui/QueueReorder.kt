@@ -158,10 +158,33 @@ class QueueReorderState internal constructor(
             }
             return
         }
+        translation = clampedTop(info) - itemTop
+    }
+
+    /** Whether [key] is the lifted row, whichever slot the data has moved it to. */
+    internal fun isLifted(key: Any?): Boolean = from != null && key != null && liftKey == key
+
+    /**
+     * The translation the row draws with, computed against the layout it is drawn into. Reading
+     * the slot here instead of storing it keeps a fast move — which changes the data after the
+     * translation was computed — from drawing the row a slot away for one frame, and the read of
+     * [translation] makes the draw layer follow the finger between layout changes.
+     */
+    internal fun drawTranslation(key: Any?): Float {
+        if (!isLifted(key)) return 0f
+        // Snapshot read: every finger move stores [translation], which invalidates the layer.
+        val fallback = translation
+        val info = listState.layoutInfo
+        val itemTop = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset
+        return if (itemTop != null) clampedTop(info) - itemTop else fallback
+    }
+
+    /** The finger's top, kept inside the viewport so the row is never drawn clipped away. */
+    private fun clampedTop(info: androidx.compose.foundation.lazy.LazyListLayoutInfo): Float {
+        val fingerTop = startOffset + pointerDelta
         // A list that has not been laid out yet (unit tests, the first frame) has an empty
         // viewport; clamping to it would park every row at zero.
-        val fingerTop = startOffset + pointerDelta
-        val clampedTop = if (info.viewportEndOffset > info.viewportStartOffset) {
+        return if (info.viewportEndOffset > info.viewportStartOffset) {
             clampToViewport(
                 fingerTop,
                 info.viewportStartOffset.toFloat(),
@@ -171,7 +194,6 @@ class QueueReorderState internal constructor(
         } else {
             fingerTop
         }
-        translation = clampedTop - itemTop
     }
 
     /** Whether [token] is the gesture that opened the current lift. */
@@ -214,10 +236,6 @@ class QueueReorderState internal constructor(
     internal suspend fun autoScroll() {
         while (active && !keypad) {
             withFrameNanos { }
-            // The data can move under a still finger (a fast drag crosses several rows in one
-            // event), which changes the row's slot without another callback: re-derive the
-            // translation from the real layout offset every frame, not only when we scroll.
-            updateTranslation()
             val info = listState.layoutInfo
             val edge = pitchPx * 0.6f
             val visualTop = startOffset + pointerDelta
