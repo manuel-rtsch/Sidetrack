@@ -48,7 +48,6 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
-import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -56,6 +55,7 @@ import androidx.compose.ui.util.lerp
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.motion.SidekitMotion
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.rememberMediaRowMetrics
 import kotlin.math.min
 import kotlinx.coroutines.Job

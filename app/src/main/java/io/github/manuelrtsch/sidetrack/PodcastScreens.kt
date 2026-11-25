@@ -272,7 +272,7 @@ private fun EpisodeRow(
     focus: RowGutterState,
     bar: RowActionBarState,
     modifier: Modifier = Modifier,
-    /** Non-null marks the episode playing now; its resume line already shows the offset. */
+    /** Non-null marks the episode playing now, whose line follows the audio instead of the resume point. */
     audio: RowAudio? = null,
     focusRequester: FocusRequester? = null,
     onAddToQueue: (MediaItem) -> Unit,
@@ -280,7 +280,6 @@ private fun EpisodeRow(
     onClick: () -> Unit
 ) {
     val colors = SidekitTheme.colors
-    val metrics = rememberMediaRowMetrics()
     val notes = remember(episode.description) { plainPodcastText(episode.description) }
     val resume = progress?.takeIf { !it.completed }
     val selected = bar.selection?.key == key
@@ -319,17 +318,12 @@ private fun EpisodeRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(13.dp)
                 ) {
-                    Box(Modifier.size(80.dp)) {
-                        Cover(
-                            episode.artRes,
-                            Modifier.fillMaxSize(),
-                            shape = artworkShapeFor(ListItemContentInset),
-                            artUrl = episode.artUrl
-                        )
-                        if (audio != null) {
-                            PlaybackChip(metrics.explicitBadgeSize, Modifier.align(Alignment.BottomStart))
-                        }
-                    }
+                    Cover(
+                        episode.artRes,
+                        Modifier.size(80.dp),
+                        shape = artworkShapeFor(ListItemContentInset),
+                        artUrl = episode.artUrl
+                    )
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         SidekitText(episode.title, style = SidekitTheme.typography.bodySmall, maxLines = 2)
                         SidekitText(
@@ -356,9 +350,13 @@ private fun EpisodeRow(
                     )
                 }
             }
-            if (resume != null) {
-                // Full-bleed resume line: no inset, no spacing, clipped by the card's own radius so
-                // it disappears into the corners instead of reading as a scrubbable control.
+            // Full-bleed line along the card's own lower edge: no inset, no spacing, clipped by the
+            // radius so it disappears into the corners instead of reading as a scrubbable control.
+            // The episode playing now draws where the audio has got to, which is the same line at a
+            // live offset; the others draw where they were left off.
+            if (audio != null) {
+                RowPlaybackLine(audio, episode.durationMs, Modifier.align(Alignment.BottomCenter))
+            } else if (resume != null) {
                 EpisodeProgressBar(
                     resume.fraction(),
                     Modifier.align(Alignment.BottomCenter)

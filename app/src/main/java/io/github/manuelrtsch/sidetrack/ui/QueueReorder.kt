@@ -181,6 +181,10 @@ class QueueReorderState internal constructor(
             if (consumed != 0f) {
                 scrolled += consumed
                 updateTranslation()
+                SidetrackDebug.log(
+                    "reorder auto: visualTop=$visualTop edge=$nearTop..$nearBottom delta=$delta " +
+                        "current=$current step=$step consumed=$consumed scrolled=$scrolled"
+                )
             }
         }
     }
@@ -195,6 +199,9 @@ fun rememberQueueReorderState(listState: LazyListState): QueueReorderState {
     val pitch = with(LocalDensity.current) { rememberMediaRowPitch().toPx() }
     return remember(listState, pitch) { QueueReorderState(listState, pitch) }
 }
+
+/** One id per pointer-input coroutine, so a restart mid-drag is visible in the log. */
+private val gestureIds = java.util.concurrent.atomic.AtomicInteger()
 
 /** Runs the auto-scroll loop for as long as a row is picked up. */
 @Composable
@@ -228,9 +235,11 @@ fun Modifier.queueReorder(
     val latestDrop by rememberUpdatedState(onDrop)
     val latestDropEnd by rememberUpdatedState(onDropEnd)
     return pointerInput(state, key) {
+        val gid = gestureIds.incrementAndGet()
+        SidetrackDebug.log("reorder touch: COROUTINE START gid=$gid key=$key")
         fun finishDrag() {
             val moved = state.hasMoved
-            SidetrackDebug.log("reorder touch: finish key=$key moved=$moved from=${state.from} to=${state.to}")
+            SidetrackDebug.log("reorder touch: finish gid=$gid key=$key moved=$moved from=${state.from} to=${state.to}")
             state.end()
             if (moved) latestDropEnd()
         }
@@ -240,7 +249,7 @@ fun Modifier.queueReorder(
                     val info = state.listState.layoutInfo
                     val offset = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
                     SidetrackDebug.log(
-                        "reorder touch: START key=$key index=$latestIndex offset=$offset " +
+                        "reorder touch: START gid=$gid key=$key index=$latestIndex offset=$offset " +
                             "viewport=${info.viewportStartOffset}..${info.viewportEndOffset} visible=${info.visibleItemsInfo.size}"
                     )
                     state.begin(latestIndex, latestCount, offset.toFloat())
@@ -250,23 +259,33 @@ fun Modifier.queueReorder(
                     change.consume()
                     val move = state.drag(delta.y)
                     SidetrackDebug.log(
-                        "reorder touch: drag key=$key dy=${delta.y} from=${state.from} to=${state.to} " +
+                        "reorder touch: drag gid=$gid key=$key dy=${delta.y} from=${state.from} to=${state.to} " +
                             "translation=${state.translation} move=$move consumed=${change.isConsumed}"
                     )
                     move?.let { (from, to) -> latestDrop(from, to) }
                 },
-                onDragEnd = { SidetrackDebug.log("reorder touch: END key=$key"); finishDrag() },
-                onDragCancel = { SidetrackDebug.log("reorder touch: CANCEL key=$key"); finishDrag() }
+                onDragEnd = {
+                    SidetrackDebug.log("reorder touch: END gid=$gid key=$key")
+                    finishDrag()
+                },
+                onDragCancel = {
+                    val info = state.listState.layoutInfo
+                    SidetrackDebug.log(
+                        "reorder touch: CANCEL gid=$gid key=$key visible=" +
+                            info.visibleItemsInfo.joinToString { "${it.key}@${it.offset}" }
+                    )
+                    finishDrag()
+                }
             )
         } finally {
             // A row that scrolls out of the list is disposed mid-drag, which cancels this coroutine
             // without a callback: never leave a lift behind. Moves already committed during the
             // drag still count, so commit the hand-picked order once.
             if (state.active) {
-                SidetrackDebug.log("reorder touch: FINALLY active, committing key=$key")
+                SidetrackDebug.log("reorder touch: FINALLY active gid=$gid key=$key")
                 finishDrag()
             } else {
-                SidetrackDebug.log("reorder touch: FINALLY idle key=$key")
+                SidetrackDebug.log("reorder touch: FINALLY idle gid=$gid key=$key")
             }
         }
     }

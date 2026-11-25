@@ -28,8 +28,13 @@ import hrln.interactive.sidekit.design.theme.SidekitTheme
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * What a list row says about the audio: the chip on its cover (or in place of its number) and,
- * for the one row that is playing now, a progress line along its lower edge.
+ * What a list row says about the audio, and it says it once.
+ *
+ * The row that is playing now is marked by where it has got to: [RowPlaybackLine] along its lower
+ * edge, the line a podcast row already draws for where it was left off. A collection row has no
+ * offset of its own, so an album, playlist, show or artist whose content is playing is marked by
+ * [PlaybackChip] on its cover instead. Never both: two accents on one row at 480 px read as clutter
+ * rather than as one fact, and a chip beside the line would be the second telling.
  *
  * Built once per list from [PlaybackUiState.audioFor] rather than read per row, so a row receives
  * a small value it can compare and skip on. [position] is carried, not collected: only
@@ -63,8 +68,12 @@ fun Modifier.playbackState(audio: RowAudio?): Modifier = if (audio == null) {
     semantics { stateDescription = if (audio.playing) PLAYING_STATE else PAUSED_STATE }
 }
 
+/** The chip's node, so a test can tell a marked collection from an unmarked one. */
+internal const val ROW_CHIP_TAG = "rowChip"
+
 /**
- * The marker itself: the explicit badge's dark chip, with three bars instead of a letter.
+ * The marker a collection row carries: the explicit badge's dark chip, with three bars instead of
+ * a letter.
  *
  * It is drawn rather than iconed because Sidekit has no equaliser glyph; the bars are the same
  * idea as [PlayingBars] on the Now Playing tile, held still. Silenced for a screen reader: the row
@@ -79,6 +88,7 @@ fun PlaybackChip(size: Dp, modifier: Modifier = Modifier) {
             .size(size)
             .clip(RoundedCornerShape(size * 0.3f))
             .background(SidekitTheme.colors.surfaceA1.copy(alpha = 0.82f))
+            .testTag(ROW_CHIP_TAG)
             .clearAndSetSemantics { }
             .drawBehind {
                 // Three bars in a 2:3:2.4 rhythm, the tallest in the middle: a level meter read at
@@ -103,8 +113,9 @@ fun PlaybackChip(size: Dp, modifier: Modifier = Modifier) {
     )
 }
 
-/** The progress line's node, so a test can tell "not started yet" from "not composed". */
+/** The progress line's node, and its fill's, so a test can tell "not started yet" from "not there". */
 internal const val ROW_PROGRESS_TAG = "rowProgress"
+internal const val ROW_PROGRESS_FILL_TAG = "rowProgressFill"
 
 /**
  * The current row's own lower edge, from 0 to [durationMs]: how far the audio has come, read in
@@ -113,15 +124,17 @@ internal const val ROW_PROGRESS_TAG = "rowProgress"
  * This is the same language as a podcast row's resume line (four dp, muted track, accent fill,
  * clipped by the tile's corner so it reads as part of the row and not as a control). It is the
  * only thing on a list that subscribes to the seek clock, and it recomposes alone.
+ *
+ * The track is drawn from the first frame rather than only once there is something to fill: this is
+ * the row's one mark, so a row playing from the top still has to look different from its
+ * neighbours. An item that reports no duration has nothing to measure and draws nothing.
  */
 @Composable
 fun RowPlaybackLine(audio: RowAudio, durationMs: Long, modifier: Modifier = Modifier) {
-    // Subscribed before the guard below: a line that is composed while the clock still reads zero
-    // has to hear the first tick, and only a reader of the state is recomposed when it arrives.
+    // Subscribed before the guard below: a line composed while the clock still reads zero has to
+    // hear the first tick, and only a reader of the state is recomposed when it arrives.
     val position by audio.position.collectAsStateWithLifecycle()
-    // Nothing to measure yet: a line from the very start would read as an underline the row has
-    // for being current rather than as how far the audio has come.
-    if (durationMs <= 0L || position <= 0L) return
+    if (durationMs <= 0L) return
     val fraction = (position.toFloat() / durationMs).coerceIn(0f, 1f)
     Box(
         modifier
@@ -130,11 +143,14 @@ fun RowPlaybackLine(audio: RowAudio, durationMs: Long, modifier: Modifier = Modi
             .testTag(ROW_PROGRESS_TAG)
     ) {
         Box(Modifier.fillMaxSize().background(SidekitTheme.colors.surfaceA5))
-        Box(
-            Modifier
-                .fillMaxWidth(fraction)
-                .fillMaxHeight()
-                .background(if (audio.playing) SidekitTheme.colors.emphasisA1 else SidekitTheme.colors.surfaceA6)
-        )
+        if (fraction > 0f) {
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction)
+                    .fillMaxHeight()
+                    .testTag(ROW_PROGRESS_FILL_TAG)
+                    .background(if (audio.playing) SidekitTheme.colors.emphasisA1 else SidekitTheme.colors.surfaceA6)
+            )
+        }
     }
 }

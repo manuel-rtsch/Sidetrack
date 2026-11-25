@@ -21,8 +21,8 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The playback markers a list row can carry: the chip that says "the audio is here" and the
- * state description that says which way the transport is going.
+ * The playback markers a list row can carry, one per row: an item row draws the line it has got to
+ * and a collection row wears the chip; both say "Playing" or "Paused" to a screen reader.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -82,18 +82,43 @@ class PlaybackRowMarkersTest {
     }
 
     @Test
-    fun `the chip takes the track number's place on a page without artwork`() {
+    fun `an item row is marked by its line and never by a chip`() {
         showRow(playback(), index = 2, showArt = false)
 
-        compose.onNodeWithText("3").assertDoesNotExist()
+        // A page without artwork keeps its numbers: the row's mark is the line, not a swap.
+        compose.onNodeWithText("3").assertExists()
+        compose.onNodeWithTag(ROW_CHIP_TAG, useUnmergedTree = true).assertDoesNotExist()
         rowWith("Playing").assertIsDisplayed()
     }
 
     @Test
-    fun `a page without artwork keeps its numbers when nothing is playing there`() {
-        showRow(playback(current = MockSpotifyDataSource.track("ns2")!!), index = 2, showArt = false)
+    fun `a collection row wears the chip and draws no line`() {
+        compose.setContent {
+            SidekitPreviewFrame {
+                LibraryRow(
+                    artRes = 0,
+                    title = "Night Signals",
+                    secondary = "Aurora Vale · 2024",
+                    audio = playback().audioFor(
+                        Album(
+                            id = track.albumId,
+                            title = "Night Signals",
+                            artist = track.artist,
+                            artistId = track.artistId,
+                            year = 2024,
+                            artRes = 0,
+                            tracks = listOf(track)
+                        )
+                    ),
+                    onClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
 
-        compose.onNodeWithText("3").assertExists()
+        compose.onNodeWithTag(ROW_CHIP_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(ROW_PROGRESS_TAG, useUnmergedTree = true).assertDoesNotExist()
+        rowWith("Playing").assertIsDisplayed()
     }
 
     @Test
@@ -197,9 +222,9 @@ class PlaybackRowMarkersTest {
     }
 
     @Test
-    fun `the chip fits a compact row without growing it`() {
-        // Five rows fit because the artwork shrinks to 64 dp; a chip with a size of its own would
-        // either overflow the cover or push the row past the height the list is solved for.
+    fun `the line fits a compact row without growing it`() {
+        // Five rows fit because the artwork shrinks to 64 dp; a line with a height of its own would
+        // push the row past the height the list is solved for.
         compose.setContent {
             SidekitPreviewFrame {
                 CompositionLocalProvider(LocalCompactRows provides true) {
@@ -220,7 +245,7 @@ class PlaybackRowMarkersTest {
     }
 
     @Test
-    fun `the progress line appears as soon as the clock leaves zero`() {
+    fun `the line starts empty and fills as soon as the clock moves`() {
         val flow = MutableStateFlow(0L)
         compose.setContent {
             SidekitPreviewFrame {
@@ -228,14 +253,15 @@ class PlaybackRowMarkersTest {
             }
         }
         compose.waitForIdle()
-        // A line from the first pixel would read as an underline rather than as progress.
-        compose.onNodeWithTag(ROW_PROGRESS_TAG, useUnmergedTree = true).assertDoesNotExist()
+        // The row is marked from its first frame, before there is anything to fill.
+        compose.onNodeWithTag(ROW_PROGRESS_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).assertDoesNotExist()
 
         flow.value = 60_000L
         compose.waitForIdle()
 
         // The line heard the tick on its own: the row it hangs under was never recomposed.
-        compose.onNodeWithTag(ROW_PROGRESS_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).assertExists()
     }
 
     @Test
