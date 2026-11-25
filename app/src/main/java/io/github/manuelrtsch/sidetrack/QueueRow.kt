@@ -23,7 +23,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import hrln.interactive.sidekit.design.components.listFade
@@ -39,8 +38,6 @@ import io.github.manuelrtsch.sidetrack.ui.QueueReorderState
 import io.github.manuelrtsch.sidetrack.ui.SidekitSwipeRow
 import io.github.manuelrtsch.sidetrack.ui.SwipeAction
 import io.github.manuelrtsch.sidetrack.ui.SwipeRevealGroup
-import io.github.manuelrtsch.sidetrack.ui.longPressHaptic
-import io.github.manuelrtsch.sidetrack.ui.queueReorder
 
 internal class QueueRowHost(
     val listState: LazyListState,
@@ -59,10 +56,7 @@ internal class QueueRowHost(
     val onFocusedKey: (String?) -> Unit,
     val keepRowInBand: (Int, Any) -> Unit,
     val openRowActions: (Int, MediaItem) -> Unit,
-    val onJump: (Int) -> Unit,
-    val onMoveUpcoming: (Int, Int) -> Unit,
-    val onCommitReorder: () -> Unit,
-    val closeSwipes: () -> Unit
+    val onJump: (Int) -> Unit
 )
 
 @Composable
@@ -73,7 +67,6 @@ internal fun QueueUpcomingRow(
     host: QueueRowHost
 ) {
     val density = LocalDensity.current
-    val view = LocalView.current
     val selected = host.rowActions.selection?.key == key
     CloseRowActionsWhenDisposed(selected, host.rowActions)
     // Keyed on the row's identity, not its slot: the data reorders under the finger, and a slot
@@ -127,18 +120,6 @@ internal fun QueueUpcomingRow(
                         scaleY = 1.02f
                     }
                 }
-                .queueReorder(
-                    state = host.reorder,
-                    index = index,
-                    count = host.lastIndex + 1,
-                    key = key,
-                    onPickUp = {
-                        host.closeSwipes()
-                        view.longPressHaptic()
-                    },
-                    onDrop = host.onMoveUpcoming,
-                    onDropEnd = { if (!host.reorderMode) host.onCommitReorder() }
-                )
         ) {
             SidekitSwipeRow(
                 key = key,

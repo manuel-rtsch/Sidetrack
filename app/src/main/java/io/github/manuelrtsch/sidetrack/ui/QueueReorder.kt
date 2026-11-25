@@ -1,7 +1,9 @@
 package io.github.manuelrtsch.sidetrack.ui
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,16 +17,25 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import io.github.manuelrtsch.sidetrack.rememberMediaRowPitch
-import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
  * Pick-up-and-drop reordering of the queue's upcoming tail, touch only; the keypad works the same
  * state, [step]ping the data so the row scrolls into view in the same measure pass ([origin] for
- * Back). Rows span one media-row pitch, so the drop slot is rows travelled, not layout hit-testing.
+ * Back).
+ *
+ * The touch drag is a single gesture on the list, not one per row. A row's own pointer input dies
+ * the moment the list disposes that row, and a drag past the viewport edges does exactly that, so
+ * the lift is owned by [queueReorderGestures], which the list container keeps for its whole life.
+ * The finger's position is all the gesture records; the slot and the row's draw offset are read
+ * from the layout every frame, so the row rides the finger no matter what the data or the scroll
+ * does underneath it.
  */
 @Stable
 class QueueReorderState internal constructor(
@@ -39,7 +50,7 @@ class QueueReorderState internal constructor(
     var to by mutableIntStateOf(-1)
         private set
 
-    /** Vertical translation of the picked-up row, in pixels, including auto-scroll compensation. */
+    /** Vertical translation of the picked-up row, in pixels, for the draw layer to follow. */
     var translation by mutableFloatStateOf(0f)
         private set
 
@@ -55,15 +66,20 @@ class QueueReorderState internal constructor(
     var hasMoved by mutableStateOf(false)
         private set
 
-    private var pointerDelta = 0f
-    private var scrolled = 0f
-    private var startOffset = 0f
+    /** Where the finger is along the list, in item-offset space — free to leave the viewport. */
+    private var finger = 0f
 
-    /** Where inside the row the finger landed, so the edge test can use the finger itself. */
-    private var touchOffset = 0f
+    /** The lifted row's top less the finger at pick-up: the row rides at that fixed distance. */
+    private var grab = 0f
+
+    private var startFinger = 0f
+    private var startOffset = 0f
     private var count = 0
 
-    /** The list key of the row being lifted, to read its real layout offset while it moves. */
+    /** The list index of upcoming slot 0, so a measured row can name the slot it stands for. */
+    private var firstItem = 0
+
+    /** The list key of the row being lifted. */
     private var liftKey: Any? = null
 
     /** The gesture or keypad action that opened this lift; only it may end it. */
@@ -78,7 +94,8 @@ class QueueReorderState internal constructor(
         keypad: Boolean = false,
         owner: Any? = null,
         key: Any? = null,
-        touch: Float = 0f
+        touch: Float = 0f,
+        firstItem: Int = 0
     ) {
         from = index
         to = index
@@ -87,41 +104,29 @@ class QueueReorderState internal constructor(
         this.keypad = keypad
         this.owner = owner
         this.liftKey = key
+        this.firstItem = firstItem
         startOffset = listOffset
-        touchOffset = touch
-        pointerDelta = 0f
-        scrolled = 0f
+        // The finger landed [touch] below the row's top; keeping that distance is what makes the
+        // row feel picked up where it was grabbed instead of jumping under the fingertip.
+        finger = listOffset + touch
+        grab = -touch
+        startFinger = finger
         translation = 0f
         hasMoved = false
     }
 
-    /**
-     * Moves the picked-up row with the finger, handing back the move the caller commits, or null.
-     * The queue reorders as the finger crosses each row so its slot travels with it. Only slots
-     * that are on screen are eligible: a slot outside the viewport is not composed, and losing the
-     * row would end the drag. [translation] then puts the row back under the finger.
-     */
+    /** Moves the finger by [dy] and hands back the move the caller commits, or null. */
     internal fun drag(dy: Float): Pair<Int, Int>? {
-        val current = from ?: return null
-        if (keypad) return null
-        pointerDelta += dy
-        // The row may only take a slot that is on screen: a slot outside the viewport is not
-        // composed, so the list would dispose the row and end the drag on the spot.
-        val info = listState.layoutInfo
-        val firstOnScreen = origin + floor((info.viewportStartOffset + scrolled - startOffset) / pitchPx).toInt()
-        val lastOnScreen = origin + floor((info.viewportEndOffset + scrolled - startOffset) / pitchPx).toInt()
-        val low = firstOnScreen.coerceIn(0, (count - 1).coerceAtLeast(0))
-        val high = lastOnScreen.coerceIn(low, (count - 1).coerceAtLeast(0))
-        val desired = (origin + ((pointerDelta + scrolled) / pitchPx).roundToInt()).coerceIn(low, high)
-        if (desired == current) {
-            updateTranslation()
-            return null
-        }
-        from = desired
-        to = desired
-        hasMoved = true
-        updateTranslation()
-        return current to desired
+        if (from == null || keypad) return null
+        finger += dy
+        return follow()
+    }
+
+    /** Puts the finger at [listY] (item-offset space) and hands back the move to commit, or null. */
+    internal fun dragTo(listY: Float): Pair<Int, Int>? {
+        if (from == null || keypad) return null
+        finger = listY
+        return follow()
     }
 
     /**
@@ -141,29 +146,87 @@ class QueueReorderState internal constructor(
         return current to next
     }
 
+    /** Reads the slot the row now covers and commits it, keeping the row drawn under the finger. */
+    private fun follow(): Pair<Int, Int>? {
+        val current = from ?: return null
+        val desired = slotUnderRow().coerceIn(0, (count - 1).coerceAtLeast(0))
+        return commit(current, desired)
+    }
+
+    private fun commit(current: Int, desired: Int): Pair<Int, Int>? {
+        if (desired == current) {
+            updateTranslation()
+            return null
+        }
+        from = desired
+        to = desired
+        hasMoved = true
+        holdScroll()
+        updateTranslation()
+        return current to desired
+    }
+
     /**
-     * Whatever puts the row back under the finger: the finger's travel plus the auto-scroll, less
-     * the distance its slot has already moved with the data. The result is clamped to the list
-     * viewport: past the top row the list cannot scroll any further, and a row drawn above the
-     * viewport is clipped away, which reads as if the drag had been cancelled.
+     * Keeps the viewport still while the data is reordered. LazyList remembers the first visible
+     * row by key and, when a reorder moves that row, shifts the whole list a row to keep it in
+     * place: near the head of the queue the row being dragged *is* the first visible one, so every
+     * slot it crossed threw the list a row down and, because the slot is read from the layout, the
+     * next frame read it back and threw it up again — a visible flicker for as long as the finger
+     * held at the edge. Asking for the position the list already has drops that memory, so a
+     * reorder moves rows and never the viewport.
      */
+    private fun holdScroll() {
+        val index = listState.firstVisibleItemIndex
+        val offset = listState.firstVisibleItemScrollOffset
+        listState.requestScrollToItem(index, offset)
+    }
+
+    /** Where the lifted row's top sits, in item-offset space: wherever the finger has carried it. */
+    private fun desiredTop() = finger + grab
+
+    /**
+     * The slot the lifted row covers: the row whose span holds the lifted row's centre. Rows
+     * reorder under the finger and the list scrolls beneath it, so this is read from the layout
+     * every time rather than counted from rows travelled.
+     */
+    private fun slotUnderRow(): Int {
+        val visible = listState.layoutInfo.visibleItemsInfo
+        if (visible.isEmpty()) {
+            // Nothing laid out yet (unit tests, the first frame): rows travelled is all there is.
+            return origin + ((finger - startFinger) / pitchPx).roundToInt()
+        }
+        val centre = desiredTop() + pitchPx / 2f
+        val hit = visible.lastOrNull { it.offset <= centre } ?: visible.first()
+        return hit.index - firstItem
+    }
+
+    /**
+     * The lifted row's top as it is drawn: carried by the finger, kept inside the visible content
+     * area so the title bar and the action bar never hide it.
+     */
+    private fun drawnTop(info: LazyListLayoutInfo): Float {
+        val start = visibleStart(info)
+        val end = visibleEnd(info)
+        if (end <= start) return desiredTop()
+        val height = info.visibleItemsInfo.firstOrNull { it.key == liftKey }?.size?.toFloat()
+            ?: pitchPx
+        return clampToViewport(desiredTop(), start.toFloat(), end.toFloat(), height)
+    }
+
+    /** Whatever puts the row back under the finger: its carried top less its current slot's top. */
     private fun updateTranslation() {
-        val current = from ?: return
-        val info = listState.layoutInfo
-        // The item's real offset already accounts for the moves and for the scrolling, including
-        // any scroll the list keeps for its anchor as keyed items move across it. Reconstructing
-        // that from the drag start drifts once the row passes the current-track item.
-        val layout = info.visibleItemsInfo
-        val itemTop = layout.firstOrNull { it.key == liftKey }?.offset
-        if (itemTop == null) {
-            // Nothing laid out yet (unit tests, the first frame): fall back to the travel math.
-            // Otherwise the row is only momentarily absent; keep what it had rather than jump.
-            if (layout.isEmpty()) {
-                translation = pointerDelta + scrolled - (current - origin) * pitchPx
-            }
+        if (from == null) {
+            translation = 0f
             return
         }
-        translation = clampedTop(info) - itemTop
+        val info = listState.layoutInfo
+        if (info.visibleItemsInfo.isEmpty()) {
+            // Nothing laid out yet: the travel math is the only thing there is.
+            translation = desiredTop() - startOffset
+            return
+        }
+        val itemTop = info.visibleItemsInfo.firstOrNull { it.key == liftKey }?.offset ?: return
+        translation = drawnTop(info) - itemTop
     }
 
     /** Whether [key] is the lifted row, whichever slot the data has moved it to. */
@@ -181,24 +244,7 @@ class QueueReorderState internal constructor(
         val fallback = translation
         val info = listState.layoutInfo
         val itemTop = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset
-        return if (itemTop != null) clampedTop(info) - itemTop else fallback
-    }
-
-    /** The finger's top, kept inside the viewport so the row is never drawn clipped away. */
-    private fun clampedTop(info: androidx.compose.foundation.lazy.LazyListLayoutInfo): Float {
-        val fingerTop = startOffset + pointerDelta
-        // A list that has not been laid out yet (unit tests, the first frame) has an empty
-        // viewport; clamping to it would park every row at zero.
-        return if (info.viewportEndOffset > info.viewportStartOffset) {
-            clampToViewport(
-                fingerTop,
-                info.viewportStartOffset.toFloat(),
-                info.viewportEndOffset.toFloat(),
-                pitchPx
-            )
-        } else {
-            fingerTop
-        }
+        return if (itemTop != null) drawnTop(info) - itemTop else fallback
     }
 
     /** Whether [token] is the gesture that opened the current lift. */
@@ -206,9 +252,7 @@ class QueueReorderState internal constructor(
 
     /**
      * Ends the drag. Every move was committed as it happened, so there is nothing left to drop.
-     * Passing a [token] makes the call a no-op unless that gesture owns the lift: a row the list
-     * disposes cancels its own gesture even when it never picked anything up, and that must not
-     * end the lift of the row under the finger.
+     * Passing a [token] makes the call a no-op unless that gesture owns the lift.
      */
     internal fun end(token: Any? = null) {
         if (token != null && !owns(token)) return
@@ -225,9 +269,9 @@ class QueueReorderState internal constructor(
         to = -1
         origin = -1
         translation = 0f
-        pointerDelta = 0f
-        scrolled = 0f
-        touchOffset = 0f
+        finger = 0f
+        grab = 0f
+        startFinger = 0f
         keypad = false
         hasMoved = false
         liftKey = null
@@ -235,62 +279,66 @@ class QueueReorderState internal constructor(
     }
 
     /**
-     * Keeps a long drag alive past the viewport edges: while the picked-up row is near the top or
-     * bottom, scroll a fraction of a pitch per frame. The scrolled pixels are added to the row's
-     * translation so it stays under the finger, and the drop slot advances with them.
+     * Keeps a long drag alive past the viewport edges: while the finger is near the top or the
+     * bottom of the visible content, scroll a fraction of the way to the edge per frame. The
+     * scroll moves the slots under the row, so the slot it covers is read again every frame and
+     * the row keeps advancing through the queue while the finger is held still.
      */
     internal suspend fun autoScroll(onMove: (Int, Int) -> Unit = { _, _ -> }) {
+        var lastFrame = 0L
         while (active && !keypad) {
-            withFrameNanos { }
+            val frame = withFrameNanos { it }
+            val elapsed = if (lastFrame == 0L) 0f else (frame - lastFrame) / NANOS_PER_MILLI
+            lastFrame = frame
             val info = listState.layoutInfo
-            val edge = pitchPx * 0.6f
-            // The edge is the finger's, not the row's top: a row picked up near the top of the
-            // screen would otherwise start scrolling before the finger moves at all.
-            val finger = startOffset + touchOffset + pointerDelta
-            val nearTop = info.viewportStartOffset + edge
-            val nearBottom = info.viewportEndOffset - edge
-            val delta = when {
-                finger < nearTop -> (finger - nearTop).coerceAtLeast(-pitchPx)
-                finger > nearBottom -> (finger - nearBottom).coerceAtMost(pitchPx)
-                else -> 0f
-            }
-            if (delta == 0f) continue
-            val current = from ?: continue
-            // Never let the scroll carry the lifted row's slot out of composition: the list would
-            // dispose the row, which Compose reports as onDragCancel and the drag would end early.
-            // A negative delta scrolls the content down, toward the viewport's bottom edge.
-            val itemTop = info.visibleItemsInfo.firstOrNull { it.key == liftKey }?.offset
-            if (delta < 0 && itemTop != null && itemTop + pitchPx > info.viewportEndOffset) {
-                continue
-            }
-            if (delta > 0 && itemTop != null && itemTop < info.viewportStartOffset) {
-                continue
-            }
-            // Stop at the ends of the queue as well.
-            if (delta < 0 && current <= 0) {
-                continue
-            }
-            if (delta > 0 && current >= count - 1) {
-                continue
-            }
-            val step = (delta * 0.35f).coerceIn(-MAX_AUTO_SCROLL_PX, MAX_AUTO_SCROLL_PX)
-            val consumed = listState.scrollBy(step)
-            if (consumed != 0f) {
-                scrolled += consumed
-                // The scroll moves the slot without a pointer event: commit the slot it landed in
-                // every frame, or the data falls behind the pixels and the row jumps several slots
-                // on the next move (and keeps scrolling as if nothing had moved).
-                drag(0f)?.let { (from, to) ->
-                    onMove(from, to)
-                }
-                updateTranslation()
-            }
+            if (info.visibleItemsInfo.isEmpty()) continue
+            val step = autoScrollStep(info, elapsed)
+            if (step != 0f) listState.scrollBy(step)
+            follow()?.let { (from, to) -> onMove(from, to) }
         }
+    }
+
+    /**
+     * How far to scroll this frame, in pixels: nothing in the middle of the list, rising to a
+     * capped speed as the finger goes past an edge. A finger held beyond the edge keeps scrolling
+     * at full speed, so the row can be carried the length of the queue without lifting.
+     */
+    private fun autoScrollStep(info: LazyListLayoutInfo, elapsedMillis: Float): Float {
+        if (elapsedMillis <= 0f) return 0f
+        val start = visibleStart(info).toFloat()
+        val end = visibleEnd(info).toFloat()
+        val span = end - start
+        if (span < 1f) return 0f
+        val edge = (pitchPx * AUTO_SCROLL_EDGE).coerceAtMost(span / 2f)
+        if (edge < 1f) return 0f
+        val depth = when {
+            finger < start + edge -> ((finger - start - edge) / edge).coerceIn(-1f, 0f)
+            finger > end - edge -> ((finger - end + edge) / edge).coerceIn(0f, 1f)
+            else -> return 0f
+        }
+        val distance = depth * AUTO_SCROLL_SPEED * (elapsedMillis / MILLIS_PER_SECOND)
+        return distance.coerceIn(-AUTO_SCROLL_MAX_PX, AUTO_SCROLL_MAX_PX)
     }
 }
 
-/** How far the auto-scroll may travel in one frame, so a held finger cannot fling the list. */
-private const val MAX_AUTO_SCROLL_PX = 16f
+private const val NANOS_PER_MILLI = 1_000_000f
+
+private const val MILLIS_PER_SECOND = 1_000f
+
+/** How much of a row at the edge is the auto-scroll zone. */
+private const val AUTO_SCROLL_EDGE = 0.4f
+
+/** Auto-scroll speed at the very edge, in pixels per second. */
+private const val AUTO_SCROLL_SPEED = 900f
+
+/** The most the auto-scroll may travel in one frame, so a long frame cannot fling the list. */
+private const val AUTO_SCROLL_MAX_PX = 28f
+
+/** The top of the visible content area, in item-offset space (below the title bar). */
+private fun visibleStart(info: LazyListLayoutInfo) = info.viewportStartOffset + info.beforeContentPadding
+
+/** The bottom of the visible content area, in item-offset space (above the action bar). */
+private fun visibleEnd(info: LazyListLayoutInfo) = info.viewportEndOffset - info.afterContentPadding
 
 /** The row's top, kept far enough inside the viewport that the whole row stays drawn. */
 internal fun clampToViewport(
@@ -321,74 +369,101 @@ fun QueueReorderAutoScroll(state: QueueReorderState, onMove: (Int, Int) -> Unit 
 }
 
 /**
- * Long press to pick the row at [index] up, drag, release to drop. The detector is outside the
- * row's horizontal swipe: a horizontal move cancels the pending long press, a vertical one after
- * the press cancels the row's tap, so picking a track up never also opens it.
+ * Long press anywhere in the list to pick up the upcoming row under the finger, then drag. The
+ * gesture is declared once on the list container rather than on each row: a row leaves
+ * composition as soon as the list scrolls it out, and a gesture that lives on the row dies with
+ * it, which ended long drags the moment they reached an edge. Reading the finger in the
+ * [PointerEventPass.Initial] pass lets the lift claim the gesture before the list scrolls or the
+ * row's swipe reveals an action.
+ *
+ * @param firstItem the list index of upcoming slot 0.
+ * @param count the number of upcoming slots that can be lifted.
  */
 @Composable
-fun Modifier.queueReorder(
+fun Modifier.queueReorderGestures(
     state: QueueReorderState,
-    index: Int,
+    firstItem: Int,
     count: Int,
-    key: Any,
     onPickUp: () -> Unit = {},
-    onDrop: (from: Int, to: Int) -> Unit,
+    onDrop: (Int, Int) -> Unit,
     onDropEnd: () -> Unit = {}
 ): Modifier {
-    // The row's index changes every time the drag reorders the queue, so the gesture must not be
-    // keyed on it: a restarted pointer input would drop the row mid-drag. The latest values are
-    // read through these instead.
-    val latestIndex by rememberUpdatedState(index)
+    val latestFirst by rememberUpdatedState(firstItem)
     val latestCount by rememberUpdatedState(count)
     val latestPickUp by rememberUpdatedState(onPickUp)
     val latestDrop by rememberUpdatedState(onDrop)
     val latestDropEnd by rememberUpdatedState(onDropEnd)
-    return pointerInput(state, key) {
-        // Every pointer-input coroutine gets its own token. The list disposes rows as it scrolls —
-        // including, during a drag, rows that are only passing out of composition — and Compose
-        // reports that cancellation to `detectDragGesturesAfterLongPress` as `onDragCancel` even
-        // for a row that never picked anything up. Without a token such a cancel would end the
-        // lift of the row actually under the finger.
-        val gesture = Any()
-        fun finishDrag() {
-            if (!state.owns(gesture)) return
-            val moved = state.hasMoved
-            state.end(gesture)
-            if (moved) latestDropEnd()
-        }
-        try {
-            detectDragGesturesAfterLongPress(
-                onDragStart = { touch ->
-                    // A keypad lift or another row's drag already owns the state.
-                    if (!state.active) {
-                        val info = state.listState.layoutInfo
-                        val offset = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
-                        state.begin(
-                            latestIndex,
-                            latestCount,
-                            offset.toFloat(),
-                            owner = gesture,
-                            key = key,
-                            touch = touch.y
-                        )
-                        latestPickUp()
-                    }
-                },
-                onDrag = { change, delta ->
-                    if (state.owns(gesture)) {
-                        change.consume()
-                        val move = state.drag(delta.y)
-                        move?.let { (from, to) -> latestDrop(from, to) }
-                    }
-                },
-                onDragEnd = { finishDrag() },
-                onDragCancel = { finishDrag() }
+    return pointerInput(state) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            // Another lift (a keypad reorder) or a queue too short to reorder owns the screen.
+            if (state.active || latestCount <= 1) return@awaitEachGesture
+            // A finger that travels before the press is complete is scrolling, not picking a row
+            // up: leave the gesture to the list.
+            if (!awaitLongPress(down)) return@awaitEachGesture
+            val info = state.listState.layoutInfo
+            val pointer = info.toItemOffset(down.position.y)
+            val hit = info.visibleItemsInfo.lastOrNull { it.offset <= pointer }
+                ?: info.visibleItemsInfo.firstOrNull()
+                ?: return@awaitEachGesture
+            val upcoming = hit.index - latestFirst
+            if (upcoming !in 0 until latestCount) return@awaitEachGesture
+            val gesture = Any()
+            state.begin(
+                index = upcoming,
+                count = latestCount,
+                listOffset = hit.offset.toFloat(),
+                owner = gesture,
+                key = hit.key,
+                touch = pointer - hit.offset,
+                firstItem = latestFirst
             )
-        } finally {
-            // The list can dispose this row outright while it owns the lift: never leave one
-            // behind. Moves already committed during the drag still count, so commit the
-            // hand-picked order once.
-            finishDrag()
+            latestPickUp()
+            try {
+                state.dragTo(pointer)?.let { (from, to) -> latestDrop(from, to) }
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    // Consumed on the Initial pass, so neither the list's scroll nor the row's
+                    // swipe can act on a gesture the lift owns.
+                    change.consume()
+                    if (!change.pressed) break
+                    val y = state.listState.layoutInfo.toItemOffset(change.position.y)
+                    state.dragTo(y)?.let { (from, to) -> latestDrop(from, to) }
+                }
+            } finally {
+                val moved = state.hasMoved
+                state.end(gesture)
+                if (moved) latestDropEnd()
+            }
         }
     }
 }
+
+/**
+ * Waits out the long-press timeout while the finger stays put. Returns false when the finger is
+ * lifted or wanders past the touch slop first, leaving the gesture to whatever it was doing.
+ */
+private suspend fun AwaitPointerEventScope.awaitLongPress(down: PointerInputChange): Boolean {
+    var held = false
+    withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+        held = true
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val change = event.changes.firstOrNull { it.id == down.id }
+            val moved = change != null && change.pressed &&
+                (change.position - down.position).getDistance() > viewConfiguration.touchSlop
+            if (moved || change == null || !change.pressed) {
+                held = false
+                break
+            }
+        }
+    }
+    return held
+}
+
+/**
+ * A pointer's y in item-offset space: the list's item offsets start below the content padding,
+ * while pointer positions start at the container's top edge.
+ */
+private fun LazyListLayoutInfo.toItemOffset(pointerY: Float): Float = pointerY - beforeContentPadding

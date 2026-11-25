@@ -36,6 +36,8 @@ import hrln.interactive.sidekit.sdk.ui.UndoWindowLifecycle
 import hrln.interactive.sidekit.sdk.ui.rememberUndoWindow
 import io.github.manuelrtsch.sidetrack.ui.GUTTER_DELAY_MS
 import io.github.manuelrtsch.sidetrack.ui.QueueReorderAutoScroll
+import io.github.manuelrtsch.sidetrack.ui.longPressHaptic
+import io.github.manuelrtsch.sidetrack.ui.queueReorderGestures
 import io.github.manuelrtsch.sidetrack.ui.rememberQueueReorderState
 import io.github.manuelrtsch.sidetrack.ui.rememberSwipeRevealGroup
 import kotlinx.coroutines.delay
@@ -446,12 +448,23 @@ fun QueueScreen(
             onFocusedKey = { focusedKey = it },
             keepRowInBand = keepRowInBand,
             openRowActions = openRowActions,
-            onJump = onJump,
-            onMoveUpcoming = moveUpcoming,
-            onCommitReorder = onCommitReorder,
-            closeSwipes = swipes::closeAll
+            onJump = onJump
         )
-        SidekitList(padding, state = listState) {
+        // The lift is one gesture on the list, not one per row: a row leaves composition as
+        // soon as the list scrolls it out, and its gesture would end the drag with it.
+        val reorderGestures = Modifier.queueReorderGestures(
+            state = reorder,
+            firstItem = firstQueueItem,
+            count = visibleUpcoming.size,
+            onPickUp = {
+                swipes.closeAll()
+                rowActions.close()
+                view.longPressHaptic()
+            },
+            onDrop = moveUpcoming,
+            onDropEnd = { if (!reorderMode) onCommitReorder() }
+        )
+        SidekitList(padding, modifier = reorderGestures, state = listState) {
             if (current != null) {
                 item(key = "current") {
                     MediaRow(
