@@ -58,6 +58,9 @@ class QueueReorderState internal constructor(
     private var pointerDelta = 0f
     private var scrolled = 0f
     private var startOffset = 0f
+
+    /** Where inside the row the finger landed, so the edge test can use the finger itself. */
+    private var touchOffset = 0f
     private var count = 0
 
     /** The list key of the row being lifted, to read its real layout offset while it moves. */
@@ -74,7 +77,8 @@ class QueueReorderState internal constructor(
         listOffset: Float,
         keypad: Boolean = false,
         owner: Any? = null,
-        key: Any? = null
+        key: Any? = null,
+        touch: Float = 0f
     ) {
         from = index
         to = index
@@ -84,6 +88,7 @@ class QueueReorderState internal constructor(
         this.owner = owner
         this.liftKey = key
         startOffset = listOffset
+        touchOffset = touch
         pointerDelta = 0f
         scrolled = 0f
         translation = 0f
@@ -222,6 +227,7 @@ class QueueReorderState internal constructor(
         translation = 0f
         pointerDelta = 0f
         scrolled = 0f
+        touchOffset = 0f
         keypad = false
         hasMoved = false
         liftKey = null
@@ -233,30 +239,40 @@ class QueueReorderState internal constructor(
      * bottom, scroll a fraction of a pitch per frame. The scrolled pixels are added to the row's
      * translation so it stays under the finger, and the drop slot advances with them.
      */
-    internal suspend fun autoScroll() {
+    internal suspend fun autoScroll(onMove: (Int, Int) -> Unit = { _, _ -> }) {
         while (active && !keypad) {
             withFrameNanos { }
             val info = listState.layoutInfo
             val edge = pitchPx * 0.6f
-            val visualTop = startOffset + pointerDelta
-            val visualBottom = visualTop + pitchPx
+            // The edge is the finger's, not the row's top: a row picked up near the top of the
+            // screen would otherwise start scrolling before the finger moves at all.
+            val finger = startOffset + touchOffset + pointerDelta
             val nearTop = info.viewportStartOffset + edge
             val nearBottom = info.viewportEndOffset - edge
             val delta = when {
-                visualTop < nearTop -> (visualTop - nearTop).coerceAtLeast(-pitchPx)
-                visualBottom > nearBottom -> (visualBottom - nearBottom).coerceAtMost(pitchPx)
+                finger < nearTop -> (finger - nearTop).coerceAtLeast(-pitchPx)
+                finger > nearBottom -> (finger - nearBottom).coerceAtMost(pitchPx)
                 else -> 0f
             }
             if (delta == 0f) continue
-            // Stop at the end the row has already reached. Scrolling on would carry its slot out
-            // of the viewport, and the list would dispose the row mid-drag.
             val current = from ?: continue
+            // Never let the scroll carry the lifted row's slot out of composition: the list would
+            // dispose the row, which Compose reports as onDragCancel and the drag would end early.
+            // A negative delta scrolls the content down, toward the viewport's bottom edge.
+            val itemTop = info.visibleItemsInfo.firstOrNull { it.key == liftKey }?.offset
+            if (delta < 0 && itemTop != null && itemTop + pitchPx > info.viewportEndOffset) continue
+            if (delta > 0 && itemTop != null && itemTop < info.viewportStartOffset) continue
+            // Stop at the ends of the queue as well.
             if (delta < 0 && current <= 0) continue
             if (delta > 0 && current >= count - 1) continue
             val step = (delta * 0.35f).coerceIn(-MAX_AUTO_SCROLL_PX, MAX_AUTO_SCROLL_PX)
             val consumed = listState.scrollBy(step)
             if (consumed != 0f) {
                 scrolled += consumed
+                // The scroll moves the slot without a pointer event: commit the slot it landed in
+                // every frame, or the data falls behind the pixels and the row jumps several slots
+                // on the next move (and keeps scrolling as if nothing had moved).
+                drag(0f)?.let { (from, to) -> onMove(from, to) }
                 updateTranslation()
             }
         }
@@ -286,9 +302,9 @@ fun rememberQueueReorderState(listState: LazyListState): QueueReorderState {
 
 /** Runs the auto-scroll loop for as long as a row is picked up. */
 @Composable
-fun QueueReorderAutoScroll(state: QueueReorderState) {
+fun QueueReorderAutoScroll(state: QueueReorderState, onMove: (Int, Int) -> Unit = { _, _ -> }) {
     LaunchedEffect(state.active) {
-        if (state.active) state.autoScroll()
+        if (state.active) state.autoScroll(onMove)
     }
 }
 
@@ -330,7 +346,7 @@ fun Modifier.queueReorder(
         }
         try {
             detectDragGesturesAfterLongPress(
-                onDragStart = {
+                onDragStart = { touch ->
                     // A keypad lift or another row's drag already owns the state.
                     if (!state.active) {
                         val info = state.listState.layoutInfo
@@ -340,7 +356,8 @@ fun Modifier.queueReorder(
                             latestCount,
                             offset.toFloat(),
                             owner = gesture,
-                            key = key
+                            key = key,
+                            touch = touch.y
                         )
                         latestPickUp()
                     }

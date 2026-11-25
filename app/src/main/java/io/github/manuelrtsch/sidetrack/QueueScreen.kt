@@ -373,7 +373,7 @@ fun QueueScreen(
         options = options
     ) { padding ->
         val view = LocalView.current
-        QueueReorderAutoScroll(reorder)
+        QueueReorderAutoScroll(reorder, onMoveUpcoming)
         // Keep the moved row in view, parked one place down rather than at the very top so the track
         // it is about to pass stays visible above it (at the head of the queue that neighbour is the
         // now-playing row). The scroll is requested in the same measure pass as the reorder, because
