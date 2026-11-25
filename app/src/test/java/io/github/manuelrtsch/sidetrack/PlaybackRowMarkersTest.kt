@@ -1,7 +1,9 @@
 package io.github.manuelrtsch.sidetrack
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -15,6 +17,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -309,10 +312,19 @@ class PlaybackRowMarkersTest {
     }
 
     @Test
-    fun `the line begins and ends where the rounded corners stop cutting it`() {
+    fun `the line begins and ends where the corner arc swallows it`() {
         // A full-bleed line was hidden under the tile's 36 dp bottom corners: its first seconds
-        // fell under the left arc and its last under the right one. Inset by the radius, the first
-        // and last pixel of the fill sit on the flat part of the lower edge.
+        // fell under the left arc and its last under the right one. Inset by the whole radius it
+        // regained the first pixel but showed its square ends. Inset by the arc's crossing at the
+        // line's own height, the ends are hidden and the fill starts and stops on the curve.
+        assertTrue(RowProgressInset < ItemCornerRadius)
+        // The arc crosses the line's upper edge at 19.51 dp; floored to the pixel grid so the end
+        // stays under the curve rather than peeking out of it.
+        assertEquals(
+            kotlin.math.floor(36f - kotlin.math.sqrt(2f * 36f * 4f - 4f * 4f)),
+            RowProgressInset.value,
+            0.01f
+        )
         val flow = MutableStateFlow(0L)
         compose.setContent {
             SidekitPreviewFrame {
@@ -330,12 +342,30 @@ class PlaybackRowMarkersTest {
         flow.value = track.durationMs / 2
         compose.waitForIdle()
         val half = compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).getBoundsInRoot()
-        assertEquals(row.left.value + 36f, half.left.value, 0.01f)
+        assertEquals(row.left.value + RowProgressInset.value, half.left.value, 0.01f)
 
         flow.value = track.durationMs
         compose.waitForIdle()
         val full = compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).getBoundsInRoot()
-        assertEquals(row.right.value - 36f, full.right.value, 0.01f)
+        assertEquals(row.right.value - RowProgressInset.value, full.right.value, 0.01f)
+    }
+
+    @Test
+    fun `the shared line maps its fraction onto the inset span`() {
+        // The playing row and the podcast resume line are the same drawing, so the inset is
+        // asserted once here rather than per caller: both ends are swallowed and the fill is a
+        // fraction of the span that remains visible.
+        compose.setContent {
+            SidekitPreviewFrame { ProgressLine(0.5f, Color.Red, Modifier.fillMaxWidth()) }
+        }
+        compose.waitForIdle()
+        val line = compose.onNodeWithTag(ROW_PROGRESS_TAG).getBoundsInRoot()
+        val fill = compose.onNodeWithTag(ROW_PROGRESS_FILL_TAG, useUnmergedTree = true).getBoundsInRoot()
+        // The tag sits after the padding, so the node is the span that remains between the arcs.
+        assertEquals(RowProgressInset.value, line.left.value, 0.01f)
+        assertEquals(0f, fill.left.value - line.left.value, 0.01f)
+        val lineWidth = line.right.value - line.left.value
+        assertEquals(lineWidth / 2f, fill.right.value - fill.left.value, 0.01f)
     }
 
     @Test

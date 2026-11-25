@@ -29,8 +29,8 @@ val LocalCompactRows = compositionLocalOf { false }
 
 /**
  * The list item's corner radius. Mirrors `SidekitTheme.shapes.item`, which is 36 dp but is a shape
- * rather than a number, so the artwork radius below needs the value locally, and
- * [RowPlaybackLine] insets itself by it so its ends are never cut off.
+ * rather than a number, so the artwork radius below needs the value locally, and [RowPlaybackLine]
+ * derives where its ends are swallowed from it.
  */
 internal val ItemCornerRadius = 36.dp
 

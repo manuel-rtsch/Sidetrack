@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
@@ -26,6 +27,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import hrln.interactive.sidekit.design.theme.SidekitTheme
+import kotlin.math.floor
+import kotlin.math.sqrt
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -119,6 +122,29 @@ fun PlaybackChip(size: Dp, modifier: Modifier = Modifier) {
 internal const val ROW_PROGRESS_TAG = "rowProgress"
 internal const val ROW_PROGRESS_FILL_TAG = "rowProgressFill"
 
+/** The line's thickness, and the depth the tile's corner arc has to clear to swallow an end. */
+internal val RowProgressHeight = 4.dp
+
+/**
+ * How far inside the tile's edge the line starts: the point where the bottom corner's
+ * [ItemCornerRadius] arc has climbed the line's full [RowProgressHeight].
+ *
+ * The arc is the full radius wide across the row's height, but the line only occupies the bottom
+ * few dp, so the arc has already moved this far in by the time it reaches the line's top. Inset by
+ * the radius instead, the line's square end sat in the flat stretch and showed its hard corner.
+ * Inset by this, the end is under the arc: the curve swallows it, the fill's first pixel appears on
+ * the arc rather than after it, and a full line ends exactly on the visible edge.
+ *
+ * Derived in dp, not px: dp-to-px is linear, so the same number holds at every density. Floored to
+ * the whole dp because padding lands on whole pixels: rounded up, the end would peek back out from
+ * under the arc and show a sliver of its square corner.
+ */
+internal val RowProgressInset = run {
+    val radius = ItemCornerRadius.value
+    val height = RowProgressHeight.value
+    floor(radius - sqrt(2f * radius * height - height * height)).dp
+}
+
 /**
  * The current row's own lower edge, from 0 to [durationMs]: how far the audio has come, read in
  * the row instead of on Now Playing.
@@ -127,11 +153,12 @@ internal const val ROW_PROGRESS_FILL_TAG = "rowProgressFill"
  * part of the row and not a control). It is the only thing on a list that subscribes to the seek
  * clock, and it recomposes alone.
  *
- * The line stops where the tile's own rounding stops cutting it: inset by [ItemCornerRadius] at
- * both ends, it spans exactly the flat part of the lower edge. Drawn full-bleed it vanished for
- * the first seconds of a track under the bottom-left arc and disappeared again under the
- * bottom-right one before the track ended; now its first and last pixel are visible, and the fill
- * maps onto the visible span instead of the whole width.
+ * The line runs wider than the flat part of the lower edge and lets the tile's own rounding swallow
+ * its ends: inset by [RowProgressInset] at both ends, each square end sits exactly where the corner
+ * arc has climbed the line's full height, so the curve hides it and the fill appears from the very
+ * first pixel. Inset by the whole [ItemCornerRadius] instead, the ends landed in the flat stretch
+ * and their hard corners read as cut off; drawn full-bleed, the line was hidden for the first and
+ * last seconds of a track.
  *
  * The track is drawn from the first frame rather than only once there is something to fill: this is
  * the row's one mark, so a row playing from the top still has to look different from its
@@ -144,13 +171,28 @@ fun RowPlaybackLine(audio: RowAudio, durationMs: Long, modifier: Modifier = Modi
     val position by audio.position.collectAsStateWithLifecycle()
     if (durationMs <= 0L) return
     val fraction = (position.toFloat() / durationMs).coerceIn(0f, 1f)
+    ProgressLine(
+        fraction,
+        if (audio.playing) SidekitTheme.colors.emphasisA1 else SidekitTheme.colors.surfaceA6,
+        modifier
+    )
+}
+
+/**
+ * The line itself, shared by everything that draws one along a row's lower edge: the item playing
+ * now and a podcast episode's resume point. Both sit under the same [ItemCornerRadius] tile, so
+ * both take the same [RowProgressInset] and let the corner arc swallow their ends.
+ */
+@Composable
+internal fun ProgressLine(fraction: Float, fillColor: Color, modifier: Modifier = Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .height(4.dp)
-            // The corners are 36 dp: at x = radius the upper edge is flat, so the line is whole
-            // from its first pixel. Anything wider starts under the arc and appears late.
-            .padding(horizontal = ItemCornerRadius)
+            .height(RowProgressHeight)
+            // Not the radius: only the top of the line has to clear the arc. At this inset the
+            // arc meets the line's upper edge, so the curve, not a square corner, is where the
+            // fill starts and stops.
+            .padding(horizontal = RowProgressInset)
             .testTag(ROW_PROGRESS_TAG)
     ) {
         Box(Modifier.fillMaxSize().background(SidekitTheme.colors.surfaceA5))
@@ -160,7 +202,7 @@ fun RowPlaybackLine(audio: RowAudio, durationMs: Long, modifier: Modifier = Modi
                     .fillMaxWidth(fraction)
                     .fillMaxHeight()
                     .testTag(ROW_PROGRESS_FILL_TAG)
-                    .background(if (audio.playing) SidekitTheme.colors.emphasisA1 else SidekitTheme.colors.surfaceA6)
+                    .background(fillColor)
             )
         }
     }

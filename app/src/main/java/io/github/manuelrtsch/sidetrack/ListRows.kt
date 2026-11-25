@@ -166,9 +166,9 @@ fun MediaRow(
                 )
             }
         }
-        // Full-bleed along the row's own lower edge, inside the item's corner: the row already has
-        // a height the list is solved for (see [MediaRowMetrics]), so the line is drawn over it and
-        // the pitch does not move. One mark and not two: an item row is marked by the offset it is
+        // Along the row's own lower edge, its ends tucked under the item's corner: the row already
+        // has a height the list is solved for (see [MediaRowMetrics]), so the line is drawn over it
+        // and the pitch does not move. One mark and not two: an item row is marked by the offset it is
         // at, the way a podcast row already is, and a chip on the cover as well would put two
         // accents on the one row that already has the loudest cue on the screen.
         if (audio != null) {

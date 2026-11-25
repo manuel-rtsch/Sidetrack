@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -350,10 +348,10 @@ private fun EpisodeRow(
                     )
                 }
             }
-            // Full-bleed line along the card's own lower edge: no inset, no spacing, clipped by the
-            // radius so it disappears into the corners instead of reading as a scrubbable control.
-            // The episode playing now draws where the audio has got to, which is the same line at a
-            // live offset; the others draw where they were left off.
+            // Line along the card's own lower edge, its ends tucked under the corner: no spacing,
+            // clipped by the radius so it disappears into the corners instead of reading as a
+            // scrubbable control. The episode playing now draws where the audio has got to, which
+            // is the same line at a live offset; the others draw where they were left off.
             if (audio != null) {
                 RowPlaybackLine(audio, episode.durationMs, Modifier.align(Alignment.BottomCenter))
             } else if (resume != null) {
@@ -378,22 +376,14 @@ private fun EpisodeRow(
     }
 }
 
-/** A thin local resume line under the episode notes; the seek bar owns the playing screen. */
+/**
+ * A thin local resume line under the episode notes; the seek bar owns the playing screen. Drawn by
+ * the same [ProgressLine] as the playing row, so the card's corner arc swallows its square ends and
+ * the resume point reads as part of the card rather than as a cut-off bar.
+ */
 @Composable
 private fun EpisodeProgressBar(fraction: Float, modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(4.dp)
-    ) {
-        Box(Modifier.fillMaxSize().background(SidekitTheme.colors.surfaceA5))
-        Box(
-            Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .fillMaxHeight()
-                .background(SidekitTheme.colors.emphasisA1)
-        )
-    }
+    ProgressLine(fraction.coerceIn(0f, 1f), SidekitTheme.colors.emphasisA1, modifier)
 }
 
 /** Full show or episode notes, kept off the row so a long description can be read at leisure. */
