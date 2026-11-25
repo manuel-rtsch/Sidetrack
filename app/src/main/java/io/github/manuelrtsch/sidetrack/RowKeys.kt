@@ -36,3 +36,32 @@ internal fun mediaContentType(item: Any): String = when (item) {
     is Episode -> "episode"
     else -> "media"
 }
+
+/**
+ * Row identities for a list the user can reorder.
+ *
+ * [mediaRowKeys] ranks duplicates by their position, so moving one of two identical tracks past
+ * the other renames both rows: the moving row's lazy-list key changes, its node is replaced, and a
+ * drag in flight loses its gesture (and its lift). These keys are handed out once per entry, in
+ * appearance order, and moved with [move] when the data moves, so a reorder never renames a row.
+ * The entry's [mediaRowKey] stays in the key to keep it recognizable.
+ */
+internal class StableRowKeys {
+    private val ids = ArrayList<Long>()
+    private var nextId = 0L
+
+    /** Keys for [items], aligned by position; new entries get an id the first time they appear. */
+    fun keys(items: List<Any>): List<String> {
+        while (ids.size < items.size) ids.add(nextId++)
+        while (ids.size > items.size) ids.removeAt(ids.lastIndex)
+        return items.mapIndexed { index, item -> "${mediaRowKey(item)}#${ids[index]}" }
+    }
+
+    /** Mirrors the queue's move: remove at [from], insert at [to], clamped like the data. */
+    fun move(from: Int, to: Int) {
+        if (from !in ids.indices) return
+        val target = to.coerceIn(0, ids.lastIndex)
+        if (from == target) return
+        ids.add(target, ids.removeAt(from))
+    }
+}

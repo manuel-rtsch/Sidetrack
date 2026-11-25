@@ -92,9 +92,17 @@ fun QueueScreen(
     val currentRow = if (hasCurrent) 1 else 0
     val queueHeader = if (hasUpcoming) 1 else 0
     val firstQueueItem = currentRow + queueHeader
-    // Keys are the track's identity, not its position, so a row that moves keeps its node and its
-    // focus. Duplicates get an occurrence suffix: the queue may hold the same track twice.
-    val upcomingKeys = remember(visibleUpcoming) { mediaRowKeys(visibleUpcoming) }
+    // Keys are the entry's identity, not its position, so a row that moves keeps its node, its
+    // gesture and its focus. Duplicates would otherwise be named by their rank and swap names
+    // when one crosses the other.
+    val entryKeys = remember { StableRowKeys() }
+    val upcomingKeys = remember(visibleUpcoming) { entryKeys.keys(visibleUpcoming) }
+    // The rows' identities move with the rows, so a duplicate crossing its twin does not rename
+    // either of them and a drag keeps its node. Every move goes through here for that reason.
+    val moveUpcoming: (Int, Int) -> Unit = { from, to ->
+        entryKeys.move(from, to)
+        onMoveUpcoming(from, to)
+    }
     // Keyed, not indexed: a shuffle or a move changes every index while the row under the focus ring
     // stays the same.
     var focusedKey by remember { mutableStateOf<String?>(null) }
@@ -209,7 +217,7 @@ fun QueueScreen(
             reorder.cancel()
             if (moved) {
                 if (sameQueue && current != null && origin >= 0 && current != origin) {
-                    onMoveUpcoming(current, origin)
+                    moveUpcoming(current, origin)
                 } else {
                     // The queue changed underneath the lift; the old origin no longer exists.
                     onCommitReorder()
@@ -367,13 +375,13 @@ fun QueueScreen(
         modifier = Modifier
             .dismissRowActionsOnVerticalKey(rowActions)
             .onPreviewKeyEvent { event ->
-                reorderMode && queueReorderKey(event, reorder, onMoveUpcoming, finishReorder)
+                reorderMode && queueReorderKey(event, reorder, moveUpcoming, finishReorder)
             },
         actions = actions,
         options = options
     ) { padding ->
         val view = LocalView.current
-        QueueReorderAutoScroll(reorder, onMoveUpcoming)
+        QueueReorderAutoScroll(reorder, moveUpcoming)
         // Keep the moved row in view, parked one place down rather than at the very top so the track
         // it is about to pass stays visible above it (at the head of the queue that neighbour is the
         // now-playing row). The scroll is requested in the same measure pass as the reorder, because
@@ -439,7 +447,7 @@ fun QueueScreen(
             keepRowInBand = keepRowInBand,
             openRowActions = openRowActions,
             onJump = onJump,
-            onMoveUpcoming = onMoveUpcoming,
+            onMoveUpcoming = moveUpcoming,
             onCommitReorder = onCommitReorder,
             closeSwipes = swipes::closeAll
         )

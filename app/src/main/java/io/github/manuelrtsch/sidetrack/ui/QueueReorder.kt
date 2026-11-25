@@ -260,11 +260,19 @@ class QueueReorderState internal constructor(
             // dispose the row, which Compose reports as onDragCancel and the drag would end early.
             // A negative delta scrolls the content down, toward the viewport's bottom edge.
             val itemTop = info.visibleItemsInfo.firstOrNull { it.key == liftKey }?.offset
-            if (delta < 0 && itemTop != null && itemTop + pitchPx > info.viewportEndOffset) continue
-            if (delta > 0 && itemTop != null && itemTop < info.viewportStartOffset) continue
+            if (delta < 0 && itemTop != null && itemTop + pitchPx > info.viewportEndOffset) {
+                continue
+            }
+            if (delta > 0 && itemTop != null && itemTop < info.viewportStartOffset) {
+                continue
+            }
             // Stop at the ends of the queue as well.
-            if (delta < 0 && current <= 0) continue
-            if (delta > 0 && current >= count - 1) continue
+            if (delta < 0 && current <= 0) {
+                continue
+            }
+            if (delta > 0 && current >= count - 1) {
+                continue
+            }
             val step = (delta * 0.35f).coerceIn(-MAX_AUTO_SCROLL_PX, MAX_AUTO_SCROLL_PX)
             val consumed = listState.scrollBy(step)
             if (consumed != 0f) {
@@ -272,7 +280,9 @@ class QueueReorderState internal constructor(
                 // The scroll moves the slot without a pointer event: commit the slot it landed in
                 // every frame, or the data falls behind the pixels and the row jumps several slots
                 // on the next move (and keeps scrolling as if nothing had moved).
-                drag(0f)?.let { (from, to) -> onMove(from, to) }
+                drag(0f)?.let { (from, to) ->
+                    onMove(from, to)
+                }
                 updateTranslation()
             }
         }
@@ -303,8 +313,10 @@ fun rememberQueueReorderState(listState: LazyListState): QueueReorderState {
 /** Runs the auto-scroll loop for as long as a row is picked up. */
 @Composable
 fun QueueReorderAutoScroll(state: QueueReorderState, onMove: (Int, Int) -> Unit = { _, _ -> }) {
+    // The effect outlives the composition that started it; read the current callback.
+    val latestOnMove by rememberUpdatedState(onMove)
     LaunchedEffect(state.active) {
-        if (state.active) state.autoScroll(onMove)
+        if (state.active) state.autoScroll { from, to -> latestOnMove(from, to) }
     }
 }
 
