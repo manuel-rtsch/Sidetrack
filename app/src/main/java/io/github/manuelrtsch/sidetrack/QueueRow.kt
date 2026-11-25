@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,14 +77,6 @@ internal fun QueueUpcomingRow(
     val selected = host.rowActions.selection?.key == key
     CloseRowActionsWhenDisposed(selected, host.rowActions)
     val pickedUp = host.reorder.from == index
-    DisposableEffect(key) {
-        SidetrackDebug.log("row: compose key=$key index=$index")
-        onDispose {
-            SidetrackDebug.log(
-                "row: DISPOSE key=$key index=$index liftFrom=${host.reorder.from} active=${host.reorder.active}"
-            )
-        }
-    }
     // A swiped-open row already shows its Remove button; the gutter would be
     // a second copy of the same action.
     val focused = host.gutterKey == key && !pickedUp && !host.reorderMode && host.swipes.openKey == null
@@ -140,7 +131,6 @@ internal fun QueueUpcomingRow(
                     count = host.lastIndex + 1,
                     key = key,
                     onPickUp = {
-                        SidetrackDebug.log("row: picked up key=$key index=$index")
                         host.closeSwipes()
                         view.longPressHaptic()
                     },
@@ -169,10 +159,6 @@ internal fun QueueUpcomingRow(
                     item,
                     Modifier
                         .onFocusChanged {
-                            SidetrackDebug.log(
-                                "row: focus key=$key index=$index focused=${it.isFocused} hasFocus=${it.hasFocus} " +
-                                    "liftFrom=${host.reorder.from}"
-                            )
                             if (it.isFocused) {
                                 host.onFocusedKey(key)
                                 // Never fight a lift: the drag and the keypad both

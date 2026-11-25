@@ -55,7 +55,6 @@ import androidx.compose.ui.util.lerp
 import hrln.interactive.sidekit.design.icons.SidekitIcon
 import hrln.interactive.sidekit.design.motion.SidekitMotion
 import hrln.interactive.sidekit.design.theme.SidekitTheme
-import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.rememberMediaRowMetrics
 import kotlin.math.min
 import kotlinx.coroutines.Job
@@ -277,13 +276,11 @@ fun SidekitSwipeRow(
                 state = dragState,
                 orientation = Orientation.Horizontal,
                 onDragStarted = {
-                    SidetrackDebug.log("swipe: START key=$key offset=$offset")
                     settleJob?.cancel()
                     dragging = true
                     group.openKey = key
                 },
                 onDragStopped = { velocity ->
-                    SidetrackDebug.log("swipe: STOP key=$key velocity=$velocity offset=$offset")
                     dragging = false
                     val width = metrics.width.toFloat()
                     when {

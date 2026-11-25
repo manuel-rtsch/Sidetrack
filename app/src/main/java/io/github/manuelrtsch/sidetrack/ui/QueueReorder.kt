@@ -17,7 +17,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.rememberMediaRowPitch
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -61,14 +60,24 @@ class QueueReorderState internal constructor(
     private var startOffset = 0f
     private var count = 0
 
+    /** The gesture or keypad action that opened this lift; only it may end it. */
+    private var owner: Any? = null
+
     val active: Boolean get() = from != null
 
-    internal fun begin(index: Int, count: Int, listOffset: Float, keypad: Boolean = false) {
+    internal fun begin(
+        index: Int,
+        count: Int,
+        listOffset: Float,
+        keypad: Boolean = false,
+        owner: Any? = null
+    ) {
         from = index
         to = index
         origin = index
         this.count = count
         this.keypad = keypad
+        this.owner = owner
         startOffset = listOffset
         pointerDelta = 0f
         scrolled = 0f
@@ -93,11 +102,6 @@ class QueueReorderState internal constructor(
         val low = firstOnScreen.coerceIn(0, (count - 1).coerceAtLeast(0))
         val high = lastOnScreen.coerceIn(low, (count - 1).coerceAtLeast(0))
         val desired = (origin + ((pointerDelta + scrolled) / pitchPx).roundToInt()).coerceIn(low, high)
-        SidetrackDebug.log(
-            "reorder touch: slot dy=$dy pointerDelta=$pointerDelta scrolled=$scrolled start=$startOffset " +
-                "viewport=${info.viewportStartOffset}..${info.viewportEndOffset} low=$low high=$high " +
-                "desired=$desired current=$current"
-        )
         if (desired == current) {
             updateTranslation()
             return null
@@ -135,10 +139,24 @@ class QueueReorderState internal constructor(
         translation = pointerDelta + scrolled - (current - origin) * pitchPx
     }
 
-    /** Ends the drag. Every move was committed as it happened, so there is nothing left to drop. */
-    internal fun end() = reset()
+    /** Whether [token] is the gesture that opened the current lift. */
+    internal fun owns(token: Any?): Boolean = token != null && owner === token
 
-    internal fun cancel() = reset()
+    /**
+     * Ends the drag. Every move was committed as it happened, so there is nothing left to drop.
+     * Passing a [token] makes the call a no-op unless that gesture owns the lift: a row the list
+     * disposes cancels its own gesture even when it never picked anything up, and that must not
+     * end the lift of the row under the finger.
+     */
+    internal fun end(token: Any? = null) {
+        if (token != null && !owns(token)) return
+        reset()
+    }
+
+    internal fun cancel(token: Any? = null) {
+        if (token != null && !owns(token)) return
+        reset()
+    }
 
     private fun reset() {
         from = null
@@ -149,6 +167,7 @@ class QueueReorderState internal constructor(
         scrolled = 0f
         keypad = false
         hasMoved = false
+        owner = null
     }
 
     /**
@@ -181,10 +200,6 @@ class QueueReorderState internal constructor(
             if (consumed != 0f) {
                 scrolled += consumed
                 updateTranslation()
-                SidetrackDebug.log(
-                    "reorder auto: visualTop=$visualTop edge=$nearTop..$nearBottom delta=$delta " +
-                        "current=$current step=$step consumed=$consumed scrolled=$scrolled"
-                )
             }
         }
     }
@@ -199,9 +214,6 @@ fun rememberQueueReorderState(listState: LazyListState): QueueReorderState {
     val pitch = with(LocalDensity.current) { rememberMediaRowPitch().toPx() }
     return remember(listState, pitch) { QueueReorderState(listState, pitch) }
 }
-
-/** One id per pointer-input coroutine, so a restart mid-drag is visible in the log. */
-private val gestureIds = java.util.concurrent.atomic.AtomicInteger()
 
 /** Runs the auto-scroll loop for as long as a row is picked up. */
 @Composable
@@ -235,58 +247,44 @@ fun Modifier.queueReorder(
     val latestDrop by rememberUpdatedState(onDrop)
     val latestDropEnd by rememberUpdatedState(onDropEnd)
     return pointerInput(state, key) {
-        val gid = gestureIds.incrementAndGet()
-        SidetrackDebug.log("reorder touch: COROUTINE START gid=$gid key=$key")
+        // Every pointer-input coroutine gets its own token. The list disposes rows as it scrolls —
+        // including, during a drag, rows that are only passing out of composition — and Compose
+        // reports that cancellation to `detectDragGesturesAfterLongPress` as `onDragCancel` even
+        // for a row that never picked anything up. Without a token such a cancel would end the
+        // lift of the row actually under the finger.
+        val gesture = Any()
         fun finishDrag() {
+            if (!state.owns(gesture)) return
             val moved = state.hasMoved
-            SidetrackDebug.log("reorder touch: finish gid=$gid key=$key moved=$moved from=${state.from} to=${state.to}")
-            state.end()
+            state.end(gesture)
             if (moved) latestDropEnd()
         }
         try {
             detectDragGesturesAfterLongPress(
                 onDragStart = {
-                    val info = state.listState.layoutInfo
-                    val offset = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
-                    SidetrackDebug.log(
-                        "reorder touch: START gid=$gid key=$key index=$latestIndex offset=$offset " +
-                            "viewport=${info.viewportStartOffset}..${info.viewportEndOffset} visible=${info.visibleItemsInfo.size}"
-                    )
-                    state.begin(latestIndex, latestCount, offset.toFloat())
-                    latestPickUp()
+                    // A keypad lift or another row's drag already owns the state.
+                    if (!state.active) {
+                        val info = state.listState.layoutInfo
+                        val offset = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
+                        state.begin(latestIndex, latestCount, offset.toFloat(), owner = gesture)
+                        latestPickUp()
+                    }
                 },
                 onDrag = { change, delta ->
-                    change.consume()
-                    val move = state.drag(delta.y)
-                    SidetrackDebug.log(
-                        "reorder touch: drag gid=$gid key=$key dy=${delta.y} from=${state.from} to=${state.to} " +
-                            "translation=${state.translation} move=$move consumed=${change.isConsumed}"
-                    )
-                    move?.let { (from, to) -> latestDrop(from, to) }
+                    if (state.owns(gesture)) {
+                        change.consume()
+                        val move = state.drag(delta.y)
+                        move?.let { (from, to) -> latestDrop(from, to) }
+                    }
                 },
-                onDragEnd = {
-                    SidetrackDebug.log("reorder touch: END gid=$gid key=$key")
-                    finishDrag()
-                },
-                onDragCancel = {
-                    val info = state.listState.layoutInfo
-                    SidetrackDebug.log(
-                        "reorder touch: CANCEL gid=$gid key=$key visible=" +
-                            info.visibleItemsInfo.joinToString { "${it.key}@${it.offset}" }
-                    )
-                    finishDrag()
-                }
+                onDragEnd = { finishDrag() },
+                onDragCancel = { finishDrag() }
             )
         } finally {
-            // A row that scrolls out of the list is disposed mid-drag, which cancels this coroutine
-            // without a callback: never leave a lift behind. Moves already committed during the
-            // drag still count, so commit the hand-picked order once.
-            if (state.active) {
-                SidetrackDebug.log("reorder touch: FINALLY active gid=$gid key=$key")
-                finishDrag()
-            } else {
-                SidetrackDebug.log("reorder touch: FINALLY idle gid=$gid key=$key")
-            }
+            // The list can dispose this row outright while it owns the lift: never leave one
+            // behind. Moves already committed during the drag still count, so commit the
+            // hand-picked order once.
+            finishDrag()
         }
     }
 }

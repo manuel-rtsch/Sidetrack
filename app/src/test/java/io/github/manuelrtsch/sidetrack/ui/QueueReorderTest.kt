@@ -91,6 +91,36 @@ class QueueReorderTest {
         assertFalse(state.active)
     }
 
+    @Test fun `a lift only answers to the gesture that started it`() {
+        val state = state()
+        val dragging = Any()
+        val scrolling = Any()
+        state.begin(index = 2, count = 5, listOffset = 0f, owner = dragging)
+
+        state.end(scrolling)
+        state.cancel(scrolling)
+
+        assertTrue("a row disposed mid-drag must not end the lift", state.active)
+        assertEquals(2, state.from)
+
+        state.end(dragging)
+
+        assertFalse(state.active)
+    }
+
+    @Test fun `a keypad lift is not ended by a stray touch gesture`() {
+        val state = state()
+        state.begin(index = 2, count = 5, listOffset = 0f, keypad = true)
+
+        state.end(Any())
+
+        assertTrue(state.active)
+
+        state.end()
+
+        assertFalse(state.active)
+    }
+
     @Test fun `ending a lift clears every field Back reads`() {
         val state = state()
         state.begin(index = 2, count = 5, listOffset = 0f, keypad = true)
