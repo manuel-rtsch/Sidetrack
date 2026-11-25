@@ -93,6 +93,7 @@ fun SidetrackHomeScreen(
                         recentGutters,
                         rowActions,
                         Modifier.listFade(listState, index + 2),
+                        audio = playback.audioFor(item),
                         onAddToQueue = onAddToQueue,
                         onRemove = onRemoveHistory,
                         onClick = { onPlay(item) }

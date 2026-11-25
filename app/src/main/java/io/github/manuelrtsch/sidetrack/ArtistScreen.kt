@@ -83,7 +83,6 @@ fun ArtistScreen(
     ) { padding ->
         val listState = rememberLazyListState()
         rows.bar.DismissOnScroll(listState)
-        val playIds = remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
         val tracksFocus = rememberLoadMoreFocus()
         val albumsFocus = rememberLoadMoreFocus()
         // Tiles, then the "Top tracks" label, then the tracks. The album section follows the
@@ -107,8 +106,8 @@ fun ArtistScreen(
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, rowIndex)) {
                     ContextPlayTile(
-                        playIds,
-                        playback.current?.id,
+                        artist.key,
+                        playback.origin,
                         playback.transport,
                         onPlay,
                         onPlayPause,
@@ -147,6 +146,7 @@ fun ArtistScreen(
                     rows,
                     Modifier.listFade(listState, tracksBase + index),
                     secondary = albumTitles[track.albumId] ?: track.artist,
+                    audio = playback.audioFor(track),
                     focusRequester = tracksFocus.requesterFor(index)
                 ) { onTrack(track) }
             }
@@ -195,7 +195,8 @@ fun ArtistScreen(
                     "${album.year}" + if (album.trackCount > 0) " · ${album.trackCount} tracks" else "",
                     Modifier.listFade(listState, albumsBase + index)
                         .rowFocusTarget(albumsFocus, index),
-                    artUrl = album.artUrl
+                    artUrl = album.artUrl,
+                    audio = playback.audioFor(album)
                 ) { onAlbum(album) }
             }
             rowIndex += albums.size

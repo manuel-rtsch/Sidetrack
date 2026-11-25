@@ -17,6 +17,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import io.github.manuelrtsch.sidetrack.rememberMediaRowPitch
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -92,6 +93,11 @@ class QueueReorderState internal constructor(
         val low = firstOnScreen.coerceIn(0, (count - 1).coerceAtLeast(0))
         val high = lastOnScreen.coerceIn(low, (count - 1).coerceAtLeast(0))
         val desired = (origin + ((pointerDelta + scrolled) / pitchPx).roundToInt()).coerceIn(low, high)
+        SidetrackDebug.log(
+            "reorder touch: slot dy=$dy pointerDelta=$pointerDelta scrolled=$scrolled start=$startOffset " +
+                "viewport=${info.viewportStartOffset}..${info.viewportEndOffset} low=$low high=$high " +
+                "desired=$desired current=$current"
+        )
         if (desired == current) {
             updateTranslation()
             return null
@@ -224,28 +230,44 @@ fun Modifier.queueReorder(
     return pointerInput(state, key) {
         fun finishDrag() {
             val moved = state.hasMoved
+            SidetrackDebug.log("reorder touch: finish key=$key moved=$moved from=${state.from} to=${state.to}")
             state.end()
             if (moved) latestDropEnd()
         }
         try {
             detectDragGesturesAfterLongPress(
                 onDragStart = {
-                    val offset = state.listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
+                    val info = state.listState.layoutInfo
+                    val offset = info.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
+                    SidetrackDebug.log(
+                        "reorder touch: START key=$key index=$latestIndex offset=$offset " +
+                            "viewport=${info.viewportStartOffset}..${info.viewportEndOffset} visible=${info.visibleItemsInfo.size}"
+                    )
                     state.begin(latestIndex, latestCount, offset.toFloat())
                     latestPickUp()
                 },
                 onDrag = { change, delta ->
                     change.consume()
-                    state.drag(delta.y)?.let { (from, to) -> latestDrop(from, to) }
+                    val move = state.drag(delta.y)
+                    SidetrackDebug.log(
+                        "reorder touch: drag key=$key dy=${delta.y} from=${state.from} to=${state.to} " +
+                            "translation=${state.translation} move=$move consumed=${change.isConsumed}"
+                    )
+                    move?.let { (from, to) -> latestDrop(from, to) }
                 },
-                onDragEnd = { finishDrag() },
-                onDragCancel = { finishDrag() }
+                onDragEnd = { SidetrackDebug.log("reorder touch: END key=$key"); finishDrag() },
+                onDragCancel = { SidetrackDebug.log("reorder touch: CANCEL key=$key"); finishDrag() }
             )
         } finally {
             // A row that scrolls out of the list is disposed mid-drag, which cancels this coroutine
             // without a callback: never leave a lift behind. Moves already committed during the
             // drag still count, so commit the hand-picked order once.
-            if (state.active) finishDrag()
+            if (state.active) {
+                SidetrackDebug.log("reorder touch: FINALLY active, committing key=$key")
+                finishDrag()
+            } else {
+                SidetrackDebug.log("reorder touch: FINALLY idle key=$key")
+            }
         }
     }
 }

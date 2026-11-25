@@ -35,6 +35,7 @@ import io.github.manuelrtsch.sidetrack.ui.rememberRowGutterState
 fun LibraryScreen(
     library: LibraryUiState,
     saved: SavedUiState,
+    playback: PlaybackUiState,
     chrome: ChromeUiState,
     onBack: () -> Unit,
     onSearch: () -> Unit,
@@ -197,6 +198,7 @@ fun LibraryScreen(
                         holdSwitch,
                         rows,
                         libraryGutters,
+                        playback,
                         focusRequester = if (index == restoreFocusIndex) {
                             restoreFocus
                         } else {

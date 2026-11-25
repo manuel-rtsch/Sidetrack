@@ -32,7 +32,8 @@ interface HistoryStore {
  * Sidenotes. A corrupt or missing file falls back to an empty state instead of blocking startup.
  *
  * Version 2 adds a service id to every record. Version 1 files are read as Spotify and rewritten
- * as version 2 on the next save, so an existing install keeps its queue and history.
+ * as version 3 on the next save, so an existing install keeps its queue and history. Version 3 adds
+ * the collection the queue was started from; a version 2 file simply has no origin.
  */
 class FileQueueStore(file: File) : QueueStore {
     private val file = AtomicFile(file)
@@ -47,8 +48,9 @@ class FileQueueStore(file: File) : QueueStore {
             DataInputStream(BufferedInputStream(stream)).use { input ->
                 if (input.readInt() != MAGIC) return QueueRepository.Snapshot()
                 when (input.readInt()) {
-                    VERSION_1 -> input.readQueue(service = ServiceId.Spotify, versioned = false)
-                    VERSION_2 -> input.readQueue(service = null, versioned = true)
+                    VERSION_1 -> input.readQueue(service = ServiceId.Spotify, versioned = false, hasOrigin = false)
+                    VERSION_2 -> input.readQueue(service = null, versioned = true, hasOrigin = false)
+                    VERSION_3 -> input.readQueue(service = null, versioned = true, hasOrigin = true)
                     else -> QueueRepository.Snapshot()
                 }
             }
@@ -62,7 +64,7 @@ class FileQueueStore(file: File) : QueueStore {
         try {
             val data = DataOutputStream(BufferedOutputStream(out))
             data.writeInt(MAGIC)
-            data.writeInt(VERSION_2)
+            data.writeInt(VERSION_3)
             data.writeBoolean(snapshot.shuffle)
             data.writeInt(snapshot.repeat.ordinal)
             data.writeItemOrNull(snapshot.current, versioned = true)
@@ -70,6 +72,7 @@ class FileQueueStore(file: File) : QueueStore {
             data.writeItems(snapshot.history, versioned = true)
             data.writeItems(snapshot.context, versioned = true)
             data.writeItemsOrNull(snapshot.shuffleBackup, versioned = true)
+            data.writeNullableString(snapshot.origin?.encode())
             data.flush()
             file.finishWrite(out)
         } catch (e: Exception) {
@@ -78,7 +81,7 @@ class FileQueueStore(file: File) : QueueStore {
         }
     }
 
-    private fun DataInputStream.readQueue(service: ServiceId?, versioned: Boolean): QueueRepository.Snapshot {
+    private fun DataInputStream.readQueue(service: ServiceId?, versioned: Boolean, hasOrigin: Boolean): QueueRepository.Snapshot {
         val shuffle = readBoolean()
         val repeat = RepeatMode.entries.getOrNull(readInt()) ?: RepeatMode.Off
         return QueueRepository.Snapshot(
@@ -88,7 +91,8 @@ class FileQueueStore(file: File) : QueueStore {
             shuffle = shuffle,
             repeat = repeat,
             context = readItems(service, versioned),
-            shuffleBackup = readItemsOrNull(service, versioned)
+            shuffleBackup = readItemsOrNull(service, versioned),
+            origin = if (hasOrigin) readNullableString()?.let(MediaKey::decode) else null
         )
     }
 
@@ -96,6 +100,7 @@ class FileQueueStore(file: File) : QueueStore {
         const val MAGIC = 0x534B5451 // "SKTQ"
         const val VERSION_1 = 1
         const val VERSION_2 = 2
+        const val VERSION_3 = 3
     }
 }
 

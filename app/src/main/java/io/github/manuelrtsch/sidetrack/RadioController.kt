@@ -60,7 +60,7 @@ internal class RadioController(
 
     fun playRadio(index: Int) {
         val radio = store.value.radio ?: return
-        driver.play(radio.items, index)
+        driver.play(radio.items, index, radio.key)
     }
 
     /**
@@ -84,7 +84,7 @@ internal class RadioController(
 
     fun playArtistRadio(index: Int) {
         val station = store.value.artistRadio ?: return
-        driver.play(station.items, index)
+        driver.play(station.items, index, station.key)
     }
 
     /**
@@ -205,14 +205,16 @@ internal class RadioController(
                 }
                 // The seed keeps playing; the station becomes what follows it. Only do that if
                 // the queue is still the one this request started from. A late response must not
-                // overwrite a track the user added, removed, cleared or reordered meanwhile.
+                // overwrite a track the user added, removed, cleared or reordered meanwhile. The
+                // origin travels through untouched: the station arriving is not the user pressing
+                // play on the station screen, so that page's tile must not claim the queue.
                 val queueNow = queue.snapshot
                 if (
                     queueNow.current?.id == seed.id &&
                     queueNow.upcoming == queueAtRequest.upcoming &&
                     queueNow.shuffle == queueAtRequest.shuffle
                 ) {
-                    effects.applyQueue(queue.play(listOf(seed) + tracks, 0), syncNowPlaying = false)
+                    effects.applyQueue(queue.play(listOf(seed) + tracks, 0, queueNow.origin), syncNowPlaying = false)
                 }
             } catch (e: CancellationException) {
                 throw e

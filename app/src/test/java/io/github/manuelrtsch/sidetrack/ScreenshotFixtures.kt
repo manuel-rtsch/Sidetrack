@@ -34,10 +34,20 @@ internal fun screenshotState(): SidetrackUiState {
             }
         ),
         transport = Transport.Playing,
+        // The queue came from the album the current track sits on, so the album page's tile can
+        // show Pause and its row can carry the marker.
+        origin = (current as? Track)?.takeIf { it.albumId.isNotEmpty() }
+            ?.let { MediaKey(it.service, MediaType.Album, it.albumId) },
         savedTrackIds = setOf(current.id),
         filter = LibraryFilter.Albums
     )
 }
+
+/**
+ * The same playback, further into the current item, so the screenshots show the row's progress
+ * line with something on it instead of the empty state every fixture starts at.
+ */
+internal fun PlaybackUiState.at(positionMs: Long): PlaybackUiState = copy(position = MutableStateFlow(positionMs))
 
 /** The Home screen at one point of the player, as both screenshot suites shoot it. */
 @Composable
@@ -66,6 +76,7 @@ internal fun LibraryShot(state: SidetrackUiState) {
     LibraryScreen(
         state.library,
         state.saved,
+        state.playback,
         state.chrome,
         onBack = {},
         onSearch = {},

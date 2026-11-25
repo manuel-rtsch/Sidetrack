@@ -75,7 +75,6 @@ fun ArtistSongsScreen(
     ) { padding ->
         val listState = rememberLazyListState()
         rows.bar.DismissOnScroll(listState)
-        val playIds = remember(songs) { songs.mapTo(mutableSetOf()) { it.id } }
         val songsFocus = rememberLoadMoreFocus()
         // Tiles, then the "All songs" label, then the rows.
         val songsBase = 2
@@ -87,8 +86,8 @@ fun ArtistSongsScreen(
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, rowIndex)) {
                     ContextPlayTile(
-                        playIds,
-                        playback.current?.id,
+                        artist.key,
+                        playback.origin,
                         playback.transport,
                         onPlay,
                         onPlayPause,
@@ -118,6 +117,7 @@ fun ArtistSongsScreen(
                     track,
                     rows,
                     Modifier.listFade(listState, songsBase + index),
+                    audio = playback.audioFor(track),
                     focusRequester = songsFocus.requesterFor(index)
                 ) { onTrack(track) }
             }

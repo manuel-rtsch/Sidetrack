@@ -262,7 +262,6 @@ fun CollectionScreen(
         rows.bar.DismissOnScroll(listState)
         val playFocus = remember { FocusRequester() }
         val moreFocus = rememberLoadMoreFocus()
-        val playIds = remember(collection.items) { collection.items.mapTo(mutableSetOf()) { it.id } }
         LaunchedEffect(collection.type, collection.id) {
             moreFocus.reset()
             runCatching { playFocus.requestFocus() }
@@ -280,8 +279,8 @@ fun CollectionScreen(
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, rowIndex)) {
                     ContextPlayTile(
-                        playIds,
-                        playback.current?.id,
+                        collection.key,
+                        playback.origin,
                         playback.transport,
                         onPlay,
                         onPlayPause,
@@ -345,6 +344,7 @@ fun CollectionScreen(
                         index = if (showTrackArt) null else index,
                         entryIndex = index,
                         showArt = showTrackArt,
+                        audio = playback.audioFor(item),
                         focusRequester = moreFocus.requesterFor(index)
                     ) { onItem(index) }
                 } else {
@@ -356,6 +356,7 @@ fun CollectionScreen(
                         index = if (showTrackArt) null else index,
                         showArt = showTrackArt,
                         secondary = if (item is Episode) formatPublishedDate(item.published) else item.creator,
+                        audio = playback.audioFor(item),
                         focusRequester = moreFocus.requesterFor(index),
                         onAddToQueue = onAddItemToQueue,
                         onClick = { onItem(index) }

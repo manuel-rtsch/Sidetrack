@@ -366,7 +366,9 @@ internal class LibraryController(
      * tap playing rather than doing nothing.
      */
     fun playCollection(collection: Collection, index: Int) {
-        driver.play(collection.items, index)
+        // The page is the queue's origin, so its row in a library and its own play tile know the
+        // audio came from here even after the user has navigated away and back.
+        driver.play(collection.items, index, collection.key)
         if (!collection.hasMore) return
         // An unplayable row never became the context, so there is no queue to extend.
         if (store.value.current?.id != collection.items.getOrNull(index)?.id) return
@@ -400,7 +402,7 @@ internal class LibraryController(
             notify("No top tracks for this artist")
             return
         }
-        driver.play(page, 0)
+        driver.play(page, 0, artist.key)
         if (!hasMore) return
         tasks.start(TaskKey.ArtistMore(id)) {
             try {
@@ -425,7 +427,7 @@ internal class LibraryController(
             notify("No songs for this artist")
             return
         }
-        driver.play(page, 0)
+        driver.play(page, 0, artist.key)
         if (store.value.artistSongHasMore[id] != true) return
         tasks.start(TaskKey.ArtistSongsMore(id)) {
             try {

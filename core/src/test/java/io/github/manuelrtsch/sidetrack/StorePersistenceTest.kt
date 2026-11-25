@@ -59,6 +59,25 @@ class StorePersistenceTest {
         assertEquals("b", second.snapshot.current?.id)
     }
 
+    @Test fun `the collection a queue was started from survives a restart`() {
+        val store = FileQueueStore(tempFile("queue-origin"))
+        val first = QueueRepository(Random(1), load = store::read, save = store::write)
+        val album = MediaKey(ServiceId.Spotify, MediaType.Album, "album-1")
+        first.play(tracks, 1, album)
+
+        val second = QueueRepository(Random(2), load = store::read, save = store::write)
+
+        assertEquals(album, second.snapshot.origin)
+    }
+
+    @Test fun `a queue with no origin keeps it empty across a restart`() {
+        val store = FileQueueStore(tempFile("queue-no-origin"))
+        val first = QueueRepository(Random(1), load = store::read, save = store::write)
+        first.playNow(tracks.first())
+
+        assertEquals(null, QueueRepository(Random(2), load = store::read, save = store::write).snapshot.origin)
+    }
+
     @Test fun `a queue file from an unknown version falls back to an empty queue`() {
         val file = tempFile("queue-version")
         val store = FileQueueStore(file)

@@ -1,6 +1,8 @@
 package io.github.manuelrtsch.sidetrack
 
 import hrln.interactive.sidekit.design.action.NoticeKind
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Focused views of [SidetrackUiState].
@@ -20,12 +22,48 @@ data class PlaybackUiState(
     val recent: List<MediaItem> = emptyList(),
     val transport: Transport = Transport.Idle,
     val shuffle: Boolean = false,
-    val repeat: RepeatMode = RepeatMode.Off
+    val repeat: RepeatMode = RepeatMode.Off,
+    /** The collection page the queue was started from; see `QueueRepository.Snapshot.origin`. */
+    val origin: MediaKey? = null,
+    /**
+     * The seek clock, carried rather than collected.
+     *
+     * Lists must not subscribe to it: it ticks once a second while audio plays, and reading it in
+     * composition would recompose every visible row. It travels here only so the one row that is
+     * playing now can hand it to its progress line, which collects it on its own.
+     */
+    val position: StateFlow<Long> = FrozenPosition
 ) {
     /** Read-only projections until every reader takes [transport]. */
     val isPlaying: Boolean get() = transport.isPlaying
     val isBuffering: Boolean get() = transport == Transport.Buffering
+
+    /**
+     * What a row about [entry] should say about playback, or null when it has nothing to say.
+     *
+     * A playable row asks "is this the item playing now" and compares keys, so an item queued twice
+     * is never mistaken for another. A collection row asks whether the content it holds is playing:
+     * an album or a show by the ids its tracks carry (both can be empty on some services, which is
+     * why the emptiness is checked and not just the match), an artist by the track's artist id, and
+     * a playlist by the origin of the queue, because no track knows which playlist it came from.
+     */
+    fun audioFor(entry: LibraryEntry): RowAudio? = when (entry) {
+        is MediaItem -> if (current?.key == entry.key) rowAudio() else null
+        is Album -> markIf { entry.id.isNotEmpty() && (current as? Track)?.albumId == entry.id }
+        is Show -> markIf { entry.id.isNotEmpty() && (current as? Episode)?.showId == entry.id }
+        is Artist -> markIf { entry.id.isNotEmpty() && current?.artistId == entry.id }
+        is Playlist -> markIf { origin == entry.key }
+    }
+
+    private inline fun markIf(contains: () -> Boolean): RowAudio? = if (current != null && contains()) rowAudio() else null
+
+    private fun rowAudio() = RowAudio(transport.isPlaying, position)
 }
+
+/**
+ * The clock a preview or a test falls back to: never emits, so nothing on those screens animates.
+ */
+private val FrozenPosition: StateFlow<Long> = MutableStateFlow(0L)
 
 /**
  * The library as the screen reads it. Every category the user has opened stays in [libraryPages],
@@ -195,7 +233,7 @@ internal fun RadioUiState.artistStation(artistId: String): StationScreenState {
 }
 
 val SidetrackUiState.playback: PlaybackUiState
-    get() = PlaybackUiState(current, upcoming, history, recent, transport, shuffle, repeat)
+    get() = PlaybackUiState(current, upcoming, history, recent, transport, shuffle, repeat, origin)
 
 private inline fun <reified K : TaskKey> Map<TaskKey, String>.byKey(): Map<K, String> = entries.mapNotNull { (key, message) -> (key as? K)?.let { it to message } }.toMap()
 

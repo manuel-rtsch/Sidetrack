@@ -91,7 +91,9 @@ class SidetrackViewModel(
      * recompose it. Each slice is distinct-until-changed, so equal values do not emit.
      */
     val playbackState: StateFlow<PlaybackUiState> = state
-        .map { it.playback }
+        // The seek clock travels with the slice rather than in the state: it ticks once a second
+        // and is not worth a state write. Only the row that is playing now collects it.
+        .map { it.playback.copy(position = clock.positionMs) }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), state.value.playback)
 
@@ -378,7 +380,7 @@ class SidetrackViewModel(
 
     fun playItem(item: MediaItem) = driver.playItem(item)
 
-    fun playEpisode(episode: Episode) = driver.playEpisode(episode)
+    fun playEpisode(episode: Episode, origin: MediaKey? = null) = driver.playEpisode(episode, origin)
 
     fun ensureRadio() = radio.ensureRadio()
 

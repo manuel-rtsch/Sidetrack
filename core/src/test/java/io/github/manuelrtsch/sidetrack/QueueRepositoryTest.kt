@@ -15,6 +15,48 @@ class QueueRepositoryTest {
         track("d")
     )
 
+    @Test fun `a collection tap records the page it started from`() {
+        val queue = QueueRepository(Random(1))
+        val album = MediaKey(ServiceId.Spotify, MediaType.Album, "album-1")
+        queue.play(tracks, 1, album)
+
+        assertEquals(album, queue.snapshot.origin)
+    }
+
+    @Test fun `a single picked track has no origin`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 1, MediaKey(ServiceId.Spotify, MediaType.Album, "album-1"))
+        queue.playNow(track("z"))
+
+        assertNull(queue.snapshot.origin)
+    }
+
+    @Test fun `stopping clears the origin with the queue`() {
+        val queue = QueueRepository(Random(1))
+        queue.play(tracks, 1, MediaKey(ServiceId.Spotify, MediaType.Album, "album-1"))
+        queue.stop()
+
+        assertNull(queue.snapshot.origin)
+    }
+
+    @Test fun `playing a track first keeps the page the queue came from`() {
+        val queue = QueueRepository(Random(1))
+        val playlist = MediaKey(ServiceId.Spotify, MediaType.Playlist, "pl-1")
+        queue.play(tracks, 0, playlist)
+        queue.playFirst(track("z"))
+
+        assertEquals(playlist, queue.snapshot.origin)
+    }
+
+    @Test fun `moving through the queue keeps the origin it was started from`() {
+        val queue = QueueRepository(Random(1))
+        val album = MediaKey(ServiceId.Spotify, MediaType.Album, "album-1")
+        queue.play(tracks, 0, album)
+        queue.next(auto = true)
+
+        assertEquals(album, queue.snapshot.origin)
+    }
+
     @Test fun `play from a row replaces the queue and records the previous item`() {
         val queue = QueueRepository(Random(1))
         queue.play(tracks, 0)

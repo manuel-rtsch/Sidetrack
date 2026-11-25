@@ -58,6 +58,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val vm = entry.sidetrackViewModel(nav)
         val library by vm.libraryState.collectAsStateWithLifecycle()
         val saved by vm.savedState.collectAsStateWithLifecycle()
+        val playback by vm.playbackState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         // Opening the Library paints from the cached category and only refetches when that
         // category is missing, failed, or older than the cache window. Coming back from a
@@ -66,6 +67,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         LibraryScreen(
             library,
             saved,
+            playback,
             chrome,
             onBack = { nav.popBackStack() },
             onSearch = { nav.navigate(SEARCH) },
@@ -189,12 +191,12 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
                 episodeProgress,
                 onBack = { nav.popBackStack() },
                 onPlay = {
-                    (collection.items.firstOrNull() as? Episode)?.let(vm::playEpisode)
+                    (collection.items.firstOrNull() as? Episode)?.let { vm.playEpisode(it, collection.key) }
                 },
                 onPlayPause = vm::togglePlayPause,
                 onItem = { index ->
                     val episode = collection.items.getOrNull(index) as? Episode
-                    if (episode != null) nav.openTrack(vm, episode) { vm.playEpisode(episode) }
+                    if (episode != null) nav.openTrack(vm, episode) { vm.playEpisode(episode, collection.key) }
                 },
                 onSave = { vm.toggleSaved(collection) },
                 onAddLatestToQueue = { collection.items.firstOrNull()?.let(vm::addToQueue) },
@@ -440,6 +442,7 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
         val vm = entry.sidetrackViewModel(nav)
         val search by vm.searchState.collectAsStateWithLifecycle()
         val saved by vm.savedState.collectAsStateWithLifecycle()
+        val playback by vm.playbackState.collectAsStateWithLifecycle()
         val chrome by vm.chromeState.collectAsStateWithLifecycle()
         // Opening the results puts every category back on its first page: a result set left paged
         // deeper is not the list it was entered on.
@@ -474,7 +477,8 @@ internal fun NavGraphBuilder.libraryGraph(nav: NavHostController) {
             onArtistRadio = { nav.navigate(artistRadioRoute(it.key)) },
             onQueueAlbum = { vm.queueAlbum(it) },
             onQueuePlaylist = { vm.queuePlaylist(it) },
-            onAddLatestShowToQueue = { vm.queueLatestEpisode(it) }
+            onAddLatestShowToQueue = { vm.queueLatestEpisode(it) },
+            playback = playback
         )
     }
     composable(SEARCH_SCOPES) { entry ->

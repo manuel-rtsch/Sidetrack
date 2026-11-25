@@ -14,6 +14,8 @@ internal fun LibraryRow(
     bodyModifier: Modifier,
     rows: TrackRows,
     libraryGutters: RowGutterState,
+    /** What the list says about playback; each row asks it for the marker it should show. */
+    playback: PlaybackUiState,
     focusRequester: FocusRequester? = null,
     canRadio: Boolean,
     onArtistRadio: (Artist) -> Unit,
@@ -37,6 +39,7 @@ internal fun LibraryRow(
             rows,
             modifier,
             bodyModifier,
+            audio = playback.audioFor(item),
             focusRequester = focusRequester
         ) { onTrack(item) }
 
@@ -48,6 +51,7 @@ internal fun LibraryRow(
             modifier,
             bodyModifier,
             focusRequester = focusRequester,
+            audio = playback.audioFor(item),
             onAddToQueue = { onQueuePlaylist(item) },
             onClick = { onPlaylist(item) }
         )
@@ -60,6 +64,7 @@ internal fun LibraryRow(
             modifier,
             bodyModifier,
             focusRequester = focusRequester,
+            audio = playback.audioFor(item),
             onAddToQueue = { onQueueAlbum(item) },
             onClick = { onAlbum(item) }
         )
@@ -72,6 +77,7 @@ internal fun LibraryRow(
             modifier,
             bodyModifier,
             focusRequester = focusRequester,
+            audio = playback.audioFor(item),
             canRadio = canRadio,
             onRadio = { onArtistRadio(item) },
             onClick = { onArtist(item) }
@@ -85,6 +91,7 @@ internal fun LibraryRow(
             modifier,
             bodyModifier,
             focusRequester = focusRequester,
+            audio = playback.audioFor(item),
             onAddLatestToQueue = { onAddLatestShowToQueue(item) },
             onClick = { onShow(item) }
         )

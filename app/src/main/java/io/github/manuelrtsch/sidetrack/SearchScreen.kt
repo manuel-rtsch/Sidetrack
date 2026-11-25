@@ -88,7 +88,12 @@ fun SearchScreen(
     keyboardVisible: Boolean = WindowInsets.isImeVisible,
     onDismissFocus: () -> Unit = {},
     onRestoreFocus: () -> Unit = {},
-    onUndoQueueReplace: () -> Unit = {}
+    onUndoQueueReplace: () -> Unit = {},
+    /**
+     * What the result rows say about playback. A search result is a place a track can be found in,
+     * so it carries the same marker a library row does.
+     */
+    playback: PlaybackUiState = PlaybackUiState()
 ) {
     val field = rememberTextFieldState(search.query)
     val typed = field.text.toString()
@@ -402,7 +407,9 @@ fun SearchResultsScreen(
     onQueueAlbum: (Album) -> Unit = {},
     onQueuePlaylist: (Playlist) -> Unit = {},
     onAddLatestShowToQueue: (Show) -> Unit = {},
-    onUndoQueueReplace: () -> Unit = {}
+    onUndoQueueReplace: () -> Unit = {},
+    /** What the result rows say about playback; see [SearchScreen]. */
+    playback: PlaybackUiState = PlaybackUiState()
 ) {
     val results = search.searchResults
     val rows = rememberTrackRows(
@@ -554,6 +561,7 @@ fun SearchResultsScreen(
                             // Search is about finding a result; the duration is not part of that
                             // decision and costs the title a large part of the row.
                             showDuration = false,
+                            audio = playback.audioFor(item),
                             focusRequester = focusRequester
                         ) { onTrack(item) }
 
@@ -565,6 +573,7 @@ fun SearchResultsScreen(
                             modifier,
                             bodyModifier = holdSwitch,
                             focusRequester = focusRequester,
+                            audio = playback.audioFor(item),
                             canRadio = canRadio,
                             onRadio = { onArtistRadio(item) },
                             onClick = { onArtist(item) }
@@ -578,6 +587,7 @@ fun SearchResultsScreen(
                             modifier,
                             bodyModifier = holdSwitch,
                             focusRequester = focusRequester,
+                            audio = playback.audioFor(item),
                             onAddToQueue = { onQueueAlbum(item) },
                             onClick = { onAlbum(item) }
                         )
@@ -590,6 +600,7 @@ fun SearchResultsScreen(
                             modifier,
                             bodyModifier = holdSwitch,
                             focusRequester = focusRequester,
+                            audio = playback.audioFor(item),
                             onAddToQueue = { onQueuePlaylist(item) },
                             onClick = { onPlaylist(item) }
                         )
@@ -602,6 +613,7 @@ fun SearchResultsScreen(
                             modifier,
                             bodyModifier = holdSwitch,
                             focusRequester = focusRequester,
+                            audio = playback.audioFor(item),
                             onAddLatestToQueue = { onAddLatestShowToQueue(item) },
                             onClick = { onShow(item) }
                         )

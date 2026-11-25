@@ -68,7 +68,8 @@ internal class PlaybackDriver(
 
     private fun playbackNotice(error: Exception): String = serviceMessage(error, session?.isOnline != false)
 
-    fun play(items: List<MediaItem>, index: Int) {
+    /** [origin] is the collection page the tap came from, if any; see `QueueRepository.play`. */
+    fun play(items: List<MediaItem>, index: Int, origin: MediaKey? = null) {
         if (index !in items.indices) return
         val item = items[index]
         if (!readyToPlay(item)) return
@@ -86,7 +87,7 @@ internal class PlaybackDriver(
             replacedQueue = ReplacedQueue(before, clock.value, item.id)
             effects.showQueueReplaced { replacedQueue = null }
         }
-        beginPlayback(queue.play(items, index), item, notify = !lost)
+        beginPlayback(queue.play(items, index, origin), item, notify = !lost)
     }
 
     private fun clearReplacedQueue() {
@@ -436,7 +437,8 @@ internal class PlaybackDriver(
         if (store.value.current?.id == item.id) transport.playing()
     }
 
-    fun playItem(item: MediaItem) = play(listOf(item), 0)
+    /** Plays one item on its own, recording [origin] when a page's play button started it. */
+    fun playItem(item: MediaItem, origin: MediaKey? = null) = play(listOf(item), 0, origin)
 
     /**
      * Plays one track picked from a list row without discarding the queue: hearing it now is not a
@@ -470,7 +472,7 @@ internal class PlaybackDriver(
         beginPlayback(queue.playFirst(item), item)
     }
 
-    fun playEpisode(episode: Episode) = playItem(episode)
+    fun playEpisode(episode: Episode, origin: MediaKey? = null) = playItem(episode, origin)
 
     /**
      * Adds the pages behind a collection that is already playing: the page on screen starts the queue
@@ -511,6 +513,7 @@ internal class PlaybackDriver(
                 history = restored.history,
                 shuffle = restored.shuffle,
                 repeat = restored.repeat,
+                origin = restored.origin,
                 transport = if (playback.isActive) Transport.Playing else Transport.Idle,
                 recent = effects.recentItems(excluding = current)
             )

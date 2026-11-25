@@ -447,6 +447,7 @@ fun QueueScreen(
                             .focusRequester(currentFocus)
                             .onFocusChanged { if (it.isFocused) focusedKey = null },
                         secondary = "Now playing",
+                        audio = playback.audioFor(current),
                         onClick = onNowPlaying
                     )
                 }

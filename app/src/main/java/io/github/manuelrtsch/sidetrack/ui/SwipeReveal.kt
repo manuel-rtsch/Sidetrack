@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import io.github.manuelrtsch.sidetrack.SidetrackDebug
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -276,11 +277,13 @@ fun SidekitSwipeRow(
                 state = dragState,
                 orientation = Orientation.Horizontal,
                 onDragStarted = {
+                    SidetrackDebug.log("swipe: START key=$key offset=$offset")
                     settleJob?.cancel()
                     dragging = true
                     group.openKey = key
                 },
                 onDragStopped = { velocity ->
+                    SidetrackDebug.log("swipe: STOP key=$key velocity=$velocity offset=$offset")
                     dragging = false
                     val width = metrics.width.toFloat()
                     when {

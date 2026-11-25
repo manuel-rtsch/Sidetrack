@@ -37,6 +37,12 @@ data class SidetrackUiState(
     val artistTrackHasMore: Map<String, Boolean> = emptyMap(),
     /** What the transport is doing; [isPlaying] and [isBuffering] are read-only projections. */
     val transport: Transport = Transport.Idle,
+    /**
+     * The collection page a queue was started from, so its row in a library can say the audio came
+     * from here. It travels with the queue (see `QueueRepository.Snapshot.origin`), not with the
+     * screen: an album keeps its chip after the user has navigated away and back.
+     */
+    val origin: MediaKey? = null,
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.Off,
     val savedTrackIds: Set<String> = emptySet(),

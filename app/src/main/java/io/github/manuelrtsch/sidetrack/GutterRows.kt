@@ -29,6 +29,8 @@ fun ArtistGutterRow(
     modifier: Modifier = Modifier,
     bodyModifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    /** Non-null marks an artist whose tracks are playing; see [RowAudio]. */
+    audio: RowAudio? = null,
     canRadio: Boolean = true,
     onRadio: () -> Unit,
     onClick: () -> Unit
@@ -46,6 +48,7 @@ fun ArtistGutterRow(
             "Artist",
             plainModifier,
             artUrl = artist.artUrl,
+            audio = audio,
             onClick = onClick
         )
         return
@@ -64,6 +67,7 @@ fun ArtistGutterRow(
                 gutterRowModifier(key, selected, focus, rowFocus, focusRequester, bodyModifier),
                 artUrl = artist.artUrl,
                 showArrow = !gutterVisible,
+                audio = audio,
                 onClick = {
                     focus.touchDismissed(key)
                     onClick()
@@ -88,6 +92,8 @@ fun AlbumGutterRow(
     modifier: Modifier = Modifier,
     bodyModifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    /** Non-null marks an album whose tracks are playing; see [RowAudio]. */
+    audio: RowAudio? = null,
     onAddToQueue: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -104,6 +110,7 @@ fun AlbumGutterRow(
         modifier,
         bodyModifier,
         focusRequester,
+        audio,
         onClick
     )
 }
@@ -121,6 +128,8 @@ fun PlaylistGutterRow(
     modifier: Modifier = Modifier,
     bodyModifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    /** Non-null marks the playlist the queue was started from; see [RowAudio]. */
+    audio: RowAudio? = null,
     onAddToQueue: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -136,6 +145,7 @@ fun PlaylistGutterRow(
         modifier,
         bodyModifier,
         focusRequester,
+        audio,
         onClick
     )
 }
@@ -153,6 +163,8 @@ fun ShowGutterRow(
     modifier: Modifier = Modifier,
     bodyModifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    /** Non-null marks a show whose episodes are playing; see [RowAudio]. */
+    audio: RowAudio? = null,
     onAddLatestToQueue: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -168,6 +180,7 @@ fun ShowGutterRow(
         modifier,
         bodyModifier,
         focusRequester,
+        audio,
         onClick
     )
 }
@@ -186,6 +199,7 @@ private fun LibraryCollectionGutterRow(
     modifier: Modifier = Modifier,
     bodyModifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    audio: RowAudio? = null,
     onClick: () -> Unit
 ) {
     val selected = bar.selection?.key == key
@@ -205,6 +219,7 @@ private fun LibraryCollectionGutterRow(
                 gutterRowModifier(key, selected, focus, rowFocus, focusRequester, bodyModifier),
                 artUrl = artUrl,
                 showArrow = !gutterVisible,
+                audio = audio,
                 onClick = {
                     focus.touchDismissed(key)
                     onClick()
@@ -229,6 +244,8 @@ fun HistoryRow(
     bar: RowActionBarState,
     modifier: Modifier = Modifier,
     secondary: String = item.creator,
+    /** History keeps what is playing now; the row says so with the chip and the progress line. */
+    audio: RowAudio? = null,
     focusRequester: FocusRequester? = null,
     /** The row that takes this one's place once it is forgotten, for the cursor. */
     neighbourKey: Any? = null,
@@ -245,6 +262,7 @@ fun HistoryRow(
             item,
             gutterRowModifier(key, selected, focus, rowFocus, focusRequester),
             secondary = secondary,
+            audio = audio,
             trailing = if (gutterVisible) null else formatListDuration(item.durationMs),
             onClick = {
                 focus.touchDismissed(key)

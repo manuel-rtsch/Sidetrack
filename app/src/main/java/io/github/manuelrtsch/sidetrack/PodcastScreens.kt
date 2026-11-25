@@ -117,7 +117,6 @@ fun ShowScreen(
         val playFocus = remember { FocusRequester() }
         val moreFocus = rememberLoadMoreFocus()
         val gutters = rememberRowGutterState()
-        val playIds = remember(collection.items) { collection.items.mapTo(mutableSetOf()) { it.id } }
         LaunchedEffect(collection.id) {
             moreFocus.reset()
             runCatching { playFocus.requestFocus() }
@@ -143,8 +142,8 @@ fun ShowScreen(
             item(key = "tiles") {
                 SidekitItemRow(Modifier.listFade(listState, rowIndex)) {
                     ContextPlayTile(
-                        playIds,
-                        playback.current?.id,
+                        collection.key,
+                        playback.origin,
                         playback.transport,
                         onPlay,
                         onPlayPause,
@@ -221,6 +220,7 @@ fun ShowScreen(
                         gutters,
                         rowActions,
                         modifier,
+                        audio = playback.audioFor(item),
                         focusRequester = moreFocus.requesterFor(index),
                         onAddToQueue = onAddItemToQueue,
                         onNotes = { onEpisodeNotes(item) },
@@ -272,12 +272,15 @@ private fun EpisodeRow(
     focus: RowGutterState,
     bar: RowActionBarState,
     modifier: Modifier = Modifier,
+    /** Non-null marks the episode playing now; its resume line already shows the offset. */
+    audio: RowAudio? = null,
     focusRequester: FocusRequester? = null,
     onAddToQueue: (MediaItem) -> Unit,
     onNotes: () -> Unit,
     onClick: () -> Unit
 ) {
     val colors = SidekitTheme.colors
+    val metrics = rememberMediaRowMetrics()
     val notes = remember(episode.description) { plainPodcastText(episode.description) }
     val resume = progress?.takeIf { !it.completed }
     val selected = bar.selection?.key == key
@@ -290,6 +293,7 @@ private fun EpisodeRow(
             gutterRowModifier(key, selected, focus, rowFocus, focusRequester, Modifier.fillMaxWidth())
                 .clip(SidekitTheme.shapes.item)
                 .background(if (episode.playable) colors.surfaceA3 else colors.surfaceA2)
+                .playbackState(audio)
                 .clickable(
                     onClickLabel = "Play episode ${episode.title}",
                     role = Role.Button,
@@ -315,12 +319,17 @@ private fun EpisodeRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(13.dp)
                 ) {
-                    Cover(
-                        episode.artRes,
-                        Modifier.size(80.dp),
-                        shape = artworkShapeFor(ListItemContentInset),
-                        artUrl = episode.artUrl
-                    )
+                    Box(Modifier.size(80.dp)) {
+                        Cover(
+                            episode.artRes,
+                            Modifier.fillMaxSize(),
+                            shape = artworkShapeFor(ListItemContentInset),
+                            artUrl = episode.artUrl
+                        )
+                        if (audio != null) {
+                            PlaybackChip(metrics.explicitBadgeSize, Modifier.align(Alignment.BottomStart))
+                        }
+                    }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         SidekitText(episode.title, style = SidekitTheme.typography.bodySmall, maxLines = 2)
                         SidekitText(

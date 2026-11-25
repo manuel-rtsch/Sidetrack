@@ -1,6 +1,7 @@
 package io.github.manuelrtsch.sidetrack.data
 
 import io.github.manuelrtsch.sidetrack.MediaItem
+import io.github.manuelrtsch.sidetrack.MediaKey
 import io.github.manuelrtsch.sidetrack.RepeatMode
 import kotlin.random.Random
 
@@ -25,7 +26,17 @@ class QueueRepository(
         val repeat: RepeatMode = RepeatMode.Off,
         val context: List<MediaItem> = emptyList(),
         /** Upcoming order before shuffle, kept so shuffle can be turned off after process death. */
-        val shuffleBackup: List<MediaItem>? = null
+        val shuffleBackup: List<MediaItem>? = null,
+        /**
+         * The collection page the queue was started from, when it was started from one.
+         *
+         * A track does not know which album or playlist it was played from — no provider reports
+         * that, and a playlist of another service's tracks would answer no — so the origin is
+         * recorded by the one gesture that starts a collection: [play]. A single picked track
+         * ([playNow]) has no origin, and [playFirst] keeps the one it found because it adopts no
+         * new context either.
+         */
+        val origin: MediaKey? = null
     )
 
     var snapshot: Snapshot = runCatching(load).getOrDefault(Snapshot())
@@ -39,7 +50,7 @@ class QueueRepository(
      * the item that was playing moves into history. [items] is also the playback context, so
      * repeat-context replays the list — a page of it until [extendContext] adds the rest.
      */
-    fun play(items: List<MediaItem>, index: Int): Snapshot {
+    fun play(items: List<MediaItem>, index: Int, origin: MediaKey? = null): Snapshot {
         if (index !in items.indices) return snapshot
         val item = items[index]
         if (!item.playable) return snapshot
@@ -56,7 +67,8 @@ class QueueRepository(
                     (listOf(previous) + snapshot.history).take(HISTORY_LIMIT)
                 },
                 context = items,
-                shuffleBackup = if (snapshot.shuffle) items.drop(index + 1) else null
+                shuffleBackup = if (snapshot.shuffle) items.drop(index + 1) else null,
+                origin = origin
             )
         )
     }
@@ -104,7 +116,8 @@ class QueueRepository(
                 } else {
                     (listOf(previous) + snapshot.history).take(HISTORY_LIMIT)
                 },
-                context = listOf(item)
+                context = listOf(item),
+                origin = null
             )
         )
     }
@@ -145,7 +158,8 @@ class QueueRepository(
             upcoming = emptyList(),
             history = emptyList(),
             context = emptyList(),
-            shuffleBackup = null
+            shuffleBackup = null,
+            origin = null
         )
     )
 

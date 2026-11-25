@@ -37,6 +37,7 @@ fun ComposeContentTestRule.showLibrary(
                         filter = filter
                     ),
                     SavedUiState(),
+                    PlaybackUiState(),
                     ChromeUiState(),
                     onBack = {},
                     onSearch = {},

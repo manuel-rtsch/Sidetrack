@@ -4,11 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
@@ -140,14 +135,16 @@ fun PlayTile(
 }
 
 /**
- * A page-local play control. It only becomes a pause button after this page started playback,
- * and only while the current item still belongs to the page's context, so it can never pause
- * unrelated content.
+ * A page-local play control. It is a pause button only while this page is where the queue came
+ * from, so it can never pause unrelated content, and it is a play button for a page whose items
+ * merely contain the item playing now.
  */
 @Composable
 fun ContextPlayTile(
-    contextIds: Set<String>,
-    currentId: String?,
+    /** The collection this tile belongs to. */
+    page: MediaKey?,
+    /** The collection the queue was started from; null when the queue came from somewhere else. */
+    origin: MediaKey?,
     transport: Transport,
     onPlay: () -> Unit,
     onPlayPause: () -> Unit,
@@ -155,24 +152,13 @@ fun ContextPlayTile(
     playLabel: String = "Play",
     pauseLabel: String = "Pause"
 ) {
-    var startedHere by remember { mutableStateOf(false) }
-    var pendingStart by remember { mutableStateOf(false) }
-    val controlsHere = startedHere && currentId in contextIds
-    LaunchedEffect(currentId) {
-        when {
-            currentId == null -> Unit
-            pendingStart && currentId in contextIds -> pendingStart = false
-            !pendingStart && currentId !in contextIds -> startedHere = false
-        }
-    }
+    // Whether this page is where the queue came from. The old test asked whether the item playing
+    // now happened to be on this page, which forgot the page as soon as another screen started
+    // something and showed Play for an album that was audibly playing; the queue records the page
+    // it was started from, so the tile can ask it directly.
+    val controlsHere = page != null && page == origin
     val onClick = {
-        if (controlsHere) {
-            onPlayPause()
-        } else {
-            pendingStart = true
-            startedHere = true
-            onPlay()
-        }
+        if (controlsHere) onPlayPause() else onPlay()
     }
     if (controlsHere && transport == Transport.Starting) {
         StartingTile(onClick, modifier)

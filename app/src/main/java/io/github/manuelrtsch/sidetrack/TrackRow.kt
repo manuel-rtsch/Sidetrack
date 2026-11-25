@@ -103,6 +103,8 @@ fun TrackRow(
     /** False hides the duration on screens where it is not part of the decision, such as search. */
     showDuration: Boolean = true,
     secondary: String = track.artist,
+    /** Non-null marks this as the track playing now; see [RowAudio]. */
+    audio: RowAudio? = null,
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit
 ) {
@@ -117,6 +119,7 @@ fun TrackRow(
             index = index,
             showArt = showArt,
             secondary = secondary,
+            audio = audio,
             // The square gets the right edge while it is visible.
             trailing = if (gutterVisible || !showDuration) null else formatListDuration(track.durationMs),
             onClick = {
@@ -190,6 +193,8 @@ fun GutterMediaRow(
     index: Int? = null,
     showArt: Boolean = true,
     secondary: String = item.creator,
+    /** Non-null marks this as the episode playing now; see [RowAudio]. */
+    audio: RowAudio? = null,
     focusRequester: FocusRequester? = null,
     onAddToQueue: (MediaItem) -> Unit,
     onClick: () -> Unit
@@ -205,6 +210,7 @@ fun GutterMediaRow(
             index = index,
             showArt = showArt,
             secondary = secondary,
+            audio = audio,
             trailing = if (gutterVisible) null else formatListDuration(item.durationMs),
             onClick = {
                 focus.touchDismissed(key)

@@ -100,10 +100,18 @@ class SidetrackScreenshotTest {
     }
 
     @Test fun show() = shoot("sidetrack_show") {
+        val show = runBlocking { MockSpotifyDataSource.collection(CollectionType.Show, "long_way_home") }!!
+        // The latest episode is the one playing, so the shot carries both markers a podcast row has:
+        // the chip on the cover and its own resume line.
+        val playing = state.playback.copy(
+            current = show.items.first(),
+            transport = Transport.Playing,
+            origin = show.key
+        )
         ShowScreen(
-            runBlocking { MockSpotifyDataSource.collection(CollectionType.Show, "long_way_home") }!!,
+            show,
             state.saved,
-            state.playback,
+            playing,
             state.chrome,
             episodeProgress = mapOf(
                 "lw1" to EpisodeProgress("lw1", 1_200_000L, 2_442_000L, 0L, completed = false)
@@ -307,7 +315,8 @@ class SidetrackScreenshotTest {
 
     @Test fun queue() = shoot("sidetrack_queue") {
         QueueScreen(
-            state.playback,
+            // A queue that has been playing for a while, so the current row's line is visible.
+            state.playback.at(80_000L),
             state.chrome,
             onBack = {},
             onNowPlaying = {},

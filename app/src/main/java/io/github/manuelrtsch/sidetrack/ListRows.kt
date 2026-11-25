@@ -60,6 +60,11 @@ fun MediaRow(
     secondary: String = item.creator,
     trailing: String? = formatListDuration(item.durationMs),
     trailingContent: (@Composable () -> Unit)? = null,
+    /**
+     * Non-null marks the row as the audio that is playing now: a chip on the cover (or where the
+     * track number was) and a progress line along the row's lower edge. Null leaves the row plain.
+     */
+    audio: RowAudio? = null,
     /** Non-null turns the row into a checkbox with this checked state; [onClick] toggles it. */
     checked: Boolean? = null,
     onClick: () -> Unit
@@ -70,6 +75,9 @@ fun MediaRow(
     val actionRevealed = LocalSwipeActionRevealed.current
     SidekitTile(
         modifier = modifier.fillMaxWidth().height(metrics.height)
+            // The chip is decoration; the row is what a screen reader reads, and the queue's state
+            // is not otherwise spoken anywhere in a list.
+            .playbackState(audio)
             .then(
                 if (checked != null) {
                     Modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = { onClick() })
@@ -93,6 +101,12 @@ fun MediaRow(
                         artUrl = item.artUrl,
                         requestSize = metrics.artworkSize
                     )
+                    // The playing chip takes the opposite corner from the explicit badge on
+                    // purpose: both are stickers on the cover, and a track that is both explicit
+                    // and playing should read as two marks rather than one crowded one.
+                    if (audio != null) {
+                        PlaybackChip(metrics.explicitBadgeSize, Modifier.align(Alignment.BottomStart))
+                    }
                     // Over the artwork rather than beside the artist: the marker costs the text
                     // block no width and reads as a sticker on the cover.
                     if (item.explicit) {
@@ -107,14 +121,21 @@ fun MediaRow(
                     }
                 }
                 Spacer(Modifier.width(metrics.contentGap))
-            } else if (index != null) {
+            } else if (index != null || audio != null) {
+                // A track number is a reference to a position in a list the user is reading; the
+                // row playing now is a fact about the audio, so the chip takes the number's place
+                // in the same 30 dp lane instead of widening the row.
                 Box(Modifier.width(metrics.trackNumberWidth), contentAlignment = Alignment.Center) {
-                    val number = index + 1
-                    SidekitText(
-                        "$number",
-                        style = if (number >= 100) metrics.trackNumberDenseStyle else metrics.trackNumberStyle,
-                        color = colors.surfaceA6
-                    )
+                    if (audio != null) {
+                        PlaybackChip(metrics.explicitBadgeSize)
+                    } else {
+                        val number = (index ?: 0) + 1
+                        SidekitText(
+                            "$number",
+                            style = if (number >= 100) metrics.trackNumberDenseStyle else metrics.trackNumberStyle,
+                            color = colors.surfaceA6
+                        )
+                    }
                 }
                 Spacer(Modifier.width(metrics.contentGap))
             }
@@ -158,6 +179,12 @@ fun MediaRow(
                 )
             }
         }
+        // Full-bleed along the row's own lower edge, inside the item's corner: the row already has
+        // a height the list is solved for (see [MediaRowMetrics]), so the line is drawn over it and
+        // the pitch does not move.
+        if (audio != null) {
+            RowPlaybackLine(audio, item.durationMs, Modifier.align(Alignment.BottomCenter))
+        }
     }
 }
 
@@ -199,12 +226,18 @@ fun LibraryRow(
     artUrl: String? = null,
     /** False while a row gutter is open: the squares take the right edge from the arrow. */
     showArrow: Boolean = true,
+    /**
+     * Non-null marks a collection whose content is playing. A library row has no item of its own,
+     * so it gets the chip and no progress line: the audio's position belongs to the row that is
+     * playing, not to the album or playlist it came from.
+     */
+    audio: RowAudio? = null,
     onClick: () -> Unit
 ) {
     val colors = SidekitTheme.colors
     val metrics = rememberMediaRowMetrics()
     SidekitTile(
-        modifier.fillMaxWidth().height(metrics.height),
+        modifier.fillMaxWidth().height(metrics.height).playbackState(audio),
         color = colors.surfaceA3,
         onClick = onClick
     ) {
@@ -213,7 +246,10 @@ fun LibraryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(metrics.contentGap)
         ) {
-            Cover(artRes, Modifier.size(metrics.artworkSize), shape = metrics.artworkShape, artUrl = artUrl, requestSize = metrics.artworkSize)
+            Box(Modifier.size(metrics.artworkSize)) {
+                Cover(artRes, Modifier.fillMaxSize(), shape = metrics.artworkShape, artUrl = artUrl, requestSize = metrics.artworkSize)
+                if (audio != null) PlaybackChip(metrics.explicitBadgeSize, Modifier.align(Alignment.BottomStart))
+            }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(metrics.textGap)) {
                 SidekitText(title, style = metrics.titleStyle, maxLines = 1)
                 SidekitText(secondary, style = metrics.secondaryStyle, color = colors.surfaceA6, maxLines = 1)

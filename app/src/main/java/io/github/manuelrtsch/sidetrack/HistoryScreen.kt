@@ -64,6 +64,7 @@ fun HistoryScreen(
                     gutters,
                     rowActions,
                     Modifier.listFade(listState, index),
+                    audio = playback.audioFor(item),
                     focusRequester = moreFocus.requesterFor(index),
                     neighbourKey = rowKeys.getOrNull(index + 1) ?: rowKeys.getOrNull(index - 1),
                     onAddToQueue = onAddToQueue,

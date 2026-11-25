@@ -74,6 +74,7 @@ internal class PlaybackEffects(
                 history = snapshot.history,
                 shuffle = snapshot.shuffle,
                 repeat = snapshot.repeat,
+                origin = snapshot.origin,
                 recent = if (historyChanged) history.items() else it.recent
             )
         }
