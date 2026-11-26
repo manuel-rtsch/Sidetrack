@@ -30,6 +30,7 @@ import io.github.manuelrtsch.sidetrack.playback.PlaybackService
 class SidetrackActivity : SidekitActivity() {
     private val homeRequests = mutableIntStateOf(0)
     private val searchRequests = mutableIntStateOf(0)
+    private val playingNowRequests = mutableIntStateOf(0)
 
     private var navController: NavHostController? = null
     private var keypadBackOverride: (() -> Boolean)? = null
@@ -81,6 +82,11 @@ class SidetrackActivity : SidekitActivity() {
 
     override fun onSidekitSearch() {
         searchRequests.intValue++
+    }
+
+    /** A controller's Y key: the same screen the playback notification opens. */
+    override fun onSidekitPlayingNow() {
+        playingNowRequests.intValue++
     }
 
     override val stores: SidekitStores.Stores by lazy {
@@ -187,6 +193,10 @@ class SidetrackActivity : SidekitActivity() {
         val search = searchRequests.intValue
         LaunchedEffect(search) {
             if (search > 0) nav.navigate(SIDE_PLAY_SEARCH) { launchSingleTop = true }
+        }
+        val playingNow = playingNowRequests.intValue
+        LaunchedEffect(playingNow) {
+            if (playingNow > 0) nav.navigate(NOW_PLAYING) { launchSingleTop = true }
         }
         // One read for the whole graph: every list row follows the same density, and switching
         // the setting recomposes the graph rather than each list re-reading the preference.
