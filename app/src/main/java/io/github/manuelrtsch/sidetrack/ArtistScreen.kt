@@ -53,24 +53,18 @@ fun ArtistScreen(
     onUndoQueueReplace: () -> Unit = {}
 ) {
     val followed = artist.key.encode() in saved.followedArtistIds
-    val rows = rememberTrackRows(
+    val (rows, actions) = artistPageChrome(
         saved,
+        onBack,
         onSaveTrack,
         onEnsureSavedTrack,
         onAddToQueue,
-        onAddToPlaylist = onAddToPlaylist
-    )
-    val back = remember { sidetrackBack("Back", onBack).first() }
-    val actions = rowActionBarActions(
-        rows.bar,
-        sidetrackBar(
-            chrome,
-            onDismissNotice,
-            onNowPlaying,
-            onDismissNowPlaying,
-            back,
-            onUndoQueueReplace = onUndoQueueReplace
-        )
+        onAddToPlaylist,
+        chrome,
+        onDismissNotice,
+        onNowPlaying,
+        onDismissNowPlaying,
+        onUndoQueueReplace
     )
     SidekitScaffold(
         title = artist.name,
@@ -104,22 +98,7 @@ fun ArtistScreen(
         SidekitList(padding, state = listState) {
             var rowIndex = 0
             item(key = "tiles") {
-                SidekitItemRow(Modifier.listFade(listState, rowIndex)) {
-                    ContextPlayTile(
-                        artist.key,
-                        playback.origin,
-                        playback.transport,
-                        onPlay,
-                        onPlayPause,
-                        Modifier.weight(1f)
-                    )
-                    ArtworkTile(
-                        artist.artRes,
-                        "${artist.name} artwork",
-                        Modifier.weight(1f),
-                        artist.artUrl,
-                        onClick = onArtwork
-                    )
+                ArtistTiles(artist, playback, onPlay, onPlayPause, onArtwork, listState, rowIndex) {
                     if (canFollow) {
                         IconTile(
                             if (followed) SidekitIcon.Artist else SidekitIcon.ArtistBorder,

@@ -61,6 +61,32 @@ class PlaybackRowMarkersTest {
         compose.waitForIdle()
     }
 
+    /** Renders a library collection row; the marker the chip wears is asserted by the caller. */
+    private fun libraryCollectionRow() {
+        compose.setContent {
+            SidekitPreviewFrame {
+                LibraryRow(
+                    artRes = 0,
+                    title = "Night Signals",
+                    secondary = "Aurora Vale · 2024",
+                    audio = playback().audioFor(
+                        Album(
+                            id = track.albumId,
+                            title = "Night Signals",
+                            artist = track.artist,
+                            artistId = track.artistId,
+                            year = 2024,
+                            artRes = 0,
+                            tracks = listOf(track)
+                        )
+                    ),
+                    onClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+    }
+
     @Test
     fun `the row that is playing says so to a screen reader`() {
         showRow(playback())
@@ -96,28 +122,7 @@ class PlaybackRowMarkersTest {
 
     @Test
     fun `a collection row wears the chip and draws no line`() {
-        compose.setContent {
-            SidekitPreviewFrame {
-                LibraryRow(
-                    artRes = 0,
-                    title = "Night Signals",
-                    secondary = "Aurora Vale · 2024",
-                    audio = playback().audioFor(
-                        Album(
-                            id = track.albumId,
-                            title = "Night Signals",
-                            artist = track.artist,
-                            artistId = track.artistId,
-                            year = 2024,
-                            artRes = 0,
-                            tracks = listOf(track)
-                        )
-                    ),
-                    onClick = {}
-                )
-            }
-        }
-        compose.waitForIdle()
+        libraryCollectionRow()
 
         compose.onNodeWithTag(ROW_CHIP_TAG, useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(ROW_PROGRESS_TAG, useUnmergedTree = true).assertDoesNotExist()
@@ -284,28 +289,7 @@ class PlaybackRowMarkersTest {
 
     @Test
     fun `the playing chip is the explicit badge's size, not a speck`() {
-        compose.setContent {
-            SidekitPreviewFrame {
-                LibraryRow(
-                    artRes = 0,
-                    title = "Night Signals",
-                    secondary = "Aurora Vale · 2024",
-                    audio = playback().audioFor(
-                        Album(
-                            id = track.albumId,
-                            title = "Night Signals",
-                            artist = track.artist,
-                            artistId = track.artistId,
-                            year = 2024,
-                            artRes = 0,
-                            tracks = listOf(track)
-                        )
-                    ),
-                    onClick = {}
-                )
-            }
-        }
-        compose.waitForIdle()
+        libraryCollectionRow()
 
         val bounds = compose.onNodeWithTag(ROW_CHIP_TAG, useUnmergedTree = true).getBoundsInRoot()
         assertEquals(80f * 0.4f, (bounds.right - bounds.left).value, 0.01f)

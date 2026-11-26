@@ -161,38 +161,8 @@ class QueueReorderDragTest {
 
     @Test
     fun `a long press picks a row up and the drag commits the move`() {
-        val rows = mutableStateListOf(*(0 until 20).map { "row$it" }.toTypedArray())
-        val listState = LazyListState()
-        val moves = mutableListOf<Pair<Int, Int>>()
-        compose.setContent {
-            val density = LocalDensity.current
-            val reorder = remember {
-                QueueReorderState(listState, with(density) { (rowHeight + gap).toPx() })
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .testTag("list")
-                    .queueReorderGestures(
-                        state = reorder,
-                        firstItem = 0,
-                        count = rows.size,
-                        onDrop = { from, to ->
-                            moves += from to to
-                            rows.add(to, rows.removeAt(from))
-                        }
-                    ),
-                contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
-                verticalArrangement = Arrangement.spacedBy(gap)
-            ) {
-                items(rows, key = { it }) {
-                    Box(Modifier.fillMaxWidth().height(rowHeight).background(Color.LightGray))
-                }
-            }
-        }
-        compose.waitForIdle()
-        val info = listState.layoutInfo
+        val screen = dragScreen(count = 20)
+        val info = screen.listState.layoutInfo
         val pitch = pitch(info)
         val rowY = info.beforeContentPadding + pitch * 2 + info.visibleItemsInfo[2].size / 2f
 
@@ -206,47 +176,14 @@ class QueueReorderDragTest {
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
 
-        assertEquals("the drag commits the slot it crossed", listOf(2 to 3), moves)
-        assertEquals("row2", rows[3])
+        assertEquals("the drag commits the slot it crossed", listOf(2 to 3), screen.moves)
+        assertEquals("row2", screen.rows[3])
     }
 
     @Test
     fun `holding the finger past the bottom edge scrolls the list and carries the row with it`() {
-        val rows = mutableStateListOf(*(0 until 20).map { "row$it" }.toTypedArray())
-        val listState = LazyListState()
-        val moves = mutableListOf<Pair<Int, Int>>()
-        lateinit var state: QueueReorderState
-        compose.setContent {
-            val density = LocalDensity.current
-            val reorder = remember {
-                QueueReorderState(listState, with(density) { (rowHeight + gap).toPx() })
-            }
-            state = reorder
-            QueueReorderAutoScroll(reorder) { from, to ->
-                moves += from to to
-                rows.add(to, rows.removeAt(from))
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().testTag("list").queueReorderGestures(
-                    state = reorder,
-                    firstItem = 0,
-                    count = rows.size,
-                    onDrop = { from, to ->
-                        moves += from to to
-                        rows.add(to, rows.removeAt(from))
-                    }
-                ),
-                contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
-                verticalArrangement = Arrangement.spacedBy(gap)
-            ) {
-                items(rows, key = { it }) {
-                    Box(Modifier.fillMaxWidth().height(rowHeight).background(Color.LightGray))
-                }
-            }
-        }
-        compose.waitForIdle()
-        val info = listState.layoutInfo
+        val screen = dragScreen(count = 20, autoScroll = true)
+        val info = screen.listState.layoutInfo
         val pitch = pitch(info)
         val rowY = info.beforeContentPadding + pitch + info.visibleItemsInfo[1].size / 2f
 
@@ -261,12 +198,12 @@ class QueueReorderDragTest {
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
 
-        assertTrue("the held finger scrolled the list", listState.firstVisibleItemIndex > 0)
-        assertTrue("the row advanced slot by slot", moves.size > 1)
-        assertTrue("the row kept moving while the finger was still", moves.last().second > moves.first().second)
-        assertEquals("row1", rows[moves.last().second])
-        assertEquals(-1, state.to)
-        assertEquals(null, state.from)
+        assertTrue("the held finger scrolled the list", screen.listState.firstVisibleItemIndex > 0)
+        assertTrue("the row advanced slot by slot", screen.moves.size > 1)
+        assertTrue("the row kept moving while the finger was still", screen.moves.last().second > screen.moves.first().second)
+        assertEquals("row1", screen.rows[screen.moves.last().second])
+        assertEquals(-1, screen.reorder.to)
+        assertEquals(null, screen.reorder.from)
     }
 
     @Test
@@ -274,44 +211,11 @@ class QueueReorderDragTest {
         // The queue screen's geometry, which is where the flicker appeared: SidekitScaffold pads the
         // list at the bottom only, so the list is composed from the first visible index and the title
         // sits outside it. Index 0 is the queue header, so upcoming slot 0 is list index 1.
-        val rows = mutableStateListOf(*(0 until 20).map { "row$it" }.toTypedArray())
-        val listState = LazyListState()
-        val moves = mutableListOf<Pair<Int, Int>>()
         val tops = mutableListOf<Int>()
-        lateinit var state: QueueReorderState
-        compose.setContent {
-            val density = LocalDensity.current
-            val reorder = remember {
-                QueueReorderState(listState, with(density) { (rowHeight + gap).toPx() })
-            }
-            state = reorder
-            QueueReorderAutoScroll(reorder) { from, to ->
-                moves += from to to
-                rows.add(to, rows.removeAt(from))
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().testTag("list").queueReorderGestures(
-                    state = reorder,
-                    firstItem = 1,
-                    count = rows.size,
-                    onDrop = { from, to ->
-                        moves += from to to
-                        rows.add(to, rows.removeAt(from))
-                    }
-                ),
-                contentPadding = PaddingValues(bottom = bottomPadding),
-                verticalArrangement = Arrangement.spacedBy(gap)
-            ) {
-                item(key = "header") { Box(Modifier.fillMaxWidth().height(headerHeight)) }
-                items(rows, key = { it }) {
-                    Box(Modifier.fillMaxWidth().height(rowHeight).background(Color.LightGray))
-                }
-            }
-        }
-        compose.runOnIdle { listState.requestScrollToItem(5) }
+        val screen = dragScreen(count = 20, firstItem = 1, autoScroll = true)
+        compose.runOnIdle { screen.listState.requestScrollToItem(5) }
         compose.waitForIdle()
-        val info = listState.layoutInfo
+        val info = screen.listState.layoutInfo
         val second = info.visibleItemsInfo[1]
         val rowY = (second.offset + second.size / 2f).toFloat()
 
@@ -319,19 +223,19 @@ class QueueReorderDragTest {
         compose.onNodeWithTag("list").performTouchInput { down(Offset(48f, rowY)) }
         compose.mainClock.advanceTimeBy(600)
         compose.onNodeWithTag("list").performTouchInput { moveBy(Offset(0f, -1_000f)) }
-        val held = listState.firstVisibleItemIndex
+        val held = screen.listState.firstVisibleItemIndex
         repeat(40) {
             compose.mainClock.advanceTimeBy(16)
-            tops += listState.firstVisibleItemIndex
+            tops += screen.listState.firstVisibleItemIndex
         }
         compose.onNodeWithTag("list").performTouchInput { up() }
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
 
-        assertTrue("the held finger walked the row up the queue", moves.size > 2)
-        moves.zipWithNext().forEach { (before, after) ->
+        assertTrue("the held finger walked the row up the queue", screen.moves.size > 2)
+        screen.moves.zipWithNext().forEach { (before, after) ->
             assertEquals("every move picks up where the last one dropped", before.second, after.first)
-            assertTrue("the row only ever climbs while the finger is held: $moves", after.second < after.first)
+            assertTrue("the row only ever climbs while the finger is held: ${screen.moves}", after.second < after.first)
         }
         // The flicker was the viewport being shoved one row down and back by LazyList's scroll
         // anchoring, which follows the first visible row when a reorder moves it. A held finger
@@ -374,4 +278,64 @@ class QueueReorderDragTest {
         compose.runOnIdle { rows.add(to, rows.removeAt(from)) }
         compose.waitForIdle()
     }
+
+    /** Lays a padded, gesture-wired list out and hands the test handles to drive it. */
+    private fun dragScreen(
+        count: Int,
+        firstItem: Int = 0,
+        autoScroll: Boolean = false
+    ): DragScreen {
+        val rows = mutableStateListOf(*(0 until count).map { "row$it" }.toTypedArray())
+        val listState = LazyListState()
+        val moves = mutableListOf<Pair<Int, Int>>()
+        lateinit var reorder: QueueReorderState
+        compose.setContent {
+            val density = LocalDensity.current
+            val state = remember {
+                QueueReorderState(listState, with(density) { (rowHeight + gap).toPx() })
+            }
+            reorder = state
+            if (autoScroll) {
+                QueueReorderAutoScroll(state) { from, to ->
+                    moves += from to to
+                    rows.add(to, rows.removeAt(from))
+                }
+            }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().testTag("list").queueReorderGestures(
+                    state = state,
+                    firstItem = firstItem,
+                    count = rows.size,
+                    onDrop = { from, to ->
+                        moves += from to to
+                        rows.add(to, rows.removeAt(from))
+                    }
+                ),
+                contentPadding = if (firstItem == 0) {
+                    PaddingValues(top = topPadding, bottom = bottomPadding)
+                } else {
+                    PaddingValues(bottom = bottomPadding)
+                },
+                verticalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                if (firstItem > 0) {
+                    item(key = "header") { Box(Modifier.fillMaxWidth().height(headerHeight)) }
+                }
+                items(rows, key = { it }) {
+                    Box(Modifier.fillMaxWidth().height(rowHeight).background(Color.LightGray))
+                }
+            }
+        }
+        compose.waitForIdle()
+        return DragScreen(rows, listState, moves, reorder)
+    }
+
+    /** Handles into a drag-screen harness: the observable rows, list state, moves and reorder state. */
+    private class DragScreen(
+        val rows: MutableList<String>,
+        val listState: LazyListState,
+        val moves: MutableList<Pair<Int, Int>>,
+        val reorder: QueueReorderState
+    )
 }
