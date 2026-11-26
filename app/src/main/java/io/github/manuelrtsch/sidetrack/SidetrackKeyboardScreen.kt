@@ -27,6 +27,7 @@ import hrln.interactive.sidekit.sdk.input.SharedPreferencesKeypadPreferences
 import hrln.interactive.sidekit.sdk.input.applyInputMode
 import hrln.interactive.sidekit.sdk.settings.KeyCaptureScreen
 import hrln.interactive.sidekit.sdk.settings.KeyTesterScreen
+import hrln.interactive.sidekit.sdk.settings.KeypadGuide
 import hrln.interactive.sidekit.sdk.settings.KeypadMappingScreen
 
 private enum class KeyboardPage { Main, Mapping, Capture, Tester }
@@ -171,7 +172,7 @@ private fun KeyboardSettings(
                         )
                     }
                 }
-                item(key = "guide") { SidetrackKeypadGuide(module) }
+                item(key = "guide") { KeypadGuide(module) }
             }
         }
     }

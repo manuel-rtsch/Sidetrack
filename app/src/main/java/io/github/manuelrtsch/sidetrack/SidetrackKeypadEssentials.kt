@@ -140,9 +140,9 @@ internal fun keypadEssentials(module: KeypadModule): List<KeypadEssential> {
 }
 
 /**
- * The compact key cheat sheet on Welcome. It is deliberately not a diagram:
- * the full [SidetrackKeypadGuide] is a reference and lives behind "Keypad guide", while these
- * rows are the actions a new listener has to know immediately.
+ * The compact key cheat sheet on Welcome. It is deliberately not a diagram: Sidekit's
+ * [hrln.interactive.sidekit.sdk.settings.KeypadGuide] is the reference and lives behind "Keypad
+ * guide", while these rows are the actions a new listener has to know immediately.
  */
 @Composable
 internal fun KeypadEssentials(

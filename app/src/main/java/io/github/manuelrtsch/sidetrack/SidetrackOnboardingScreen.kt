@@ -33,6 +33,7 @@ import hrln.interactive.sidekit.design.input.KeypadModule
 import hrln.interactive.sidekit.design.input.LocalKeypad
 import hrln.interactive.sidekit.design.theme.SidekitTheme
 import hrln.interactive.sidekit.sdk.input.SharedPreferencesKeypadPreferences
+import hrln.interactive.sidekit.sdk.settings.KeypadGuide
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -419,7 +420,7 @@ private fun KeypadGuidePage(
                 )
             }
         }
-        item(key = "guide") { SidetrackKeypadGuide(module) }
+        item(key = "guide") { KeypadGuide(module) }
     }
 }
 
