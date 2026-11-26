@@ -341,9 +341,9 @@ class SidetrackOnboardingTest {
         compose.onNodeWithText("Step 2 of 3").assertExists()
         compose.onNodeWithText("Tap a key to see what it does on a tap and a hold.").assertExists()
 
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Up"))
-        compose.onNodeWithText("Up").performClick()
-        compose.onNodeWithText("Move focus up.").assertExists()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("OK"))
+        compose.onNodeWithText("OK").performClick()
+        compose.onNodeWithText("Activate the focused control or confirm a suggestion.").assertExists()
     }
 
     @Test
