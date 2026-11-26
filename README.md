@@ -100,6 +100,13 @@ You need JDK 21 and the Android SDK. Spotify playback through librespot also nee
 
 Release builds refuse to package without the bridge.
 
+## Contributing
+
+Bug reports and feature requests each have a form, and they ask for the build, the service and the
+keypad: a report without those usually cannot be reproduced. Building, the module boundaries, and the
+gates a change has to pass are in [CONTRIBUTING.md](CONTRIBUTING.md). Participation is covered by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Licence
 
 MIT. Sidetrack also links librespot. Its licence and notice ship with the native build.
