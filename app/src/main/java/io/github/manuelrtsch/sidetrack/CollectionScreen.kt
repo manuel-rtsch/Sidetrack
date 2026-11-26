@@ -73,6 +73,11 @@ fun CollectionScreen(
     onDismissNowPlaying: () -> Unit,
     /** Generated pages such as Song radio re-use the collection body but cannot be saved. */
     showSave: Boolean = true,
+    /**
+     * Off for a page whose Back already leads to Now Playing (song radio), so Options does not
+     * offer a third way to the same screen.
+     */
+    showNowPlayingOption: Boolean = true,
     onAddToPlaylist: ((Track) -> Unit)? = null,
     onRemoveFromPlaylist: ((Track, Int) -> Unit)? = null,
     /** Renames this collection. Null when the service or this playlist does not allow it. */
@@ -202,10 +207,10 @@ fun CollectionScreen(
     // metadata line below it, so collections keep the same play / image / save-or-follow layout
     // without a third Options entry.
     //
-    // A playlist page replaces Now playing with Rename and Delete. Both are squares because Add to
-    // queue already owns the bar's one label: three labelled options plus the close square would
-    // truncate. They are only offered when the service and the playlist's own permissions allow
-    // them, so a read-only playlist keeps a clean menu instead of two entries that can only fail.
+    // A playlist page that offers Rename or Delete trades Now playing for the width they need: Add
+    // to queue already owns the bar's one label, and a square edit beside a second label leaves the
+    // third too narrow to read. They are only offered when the service and the playlist's own
+    // permissions allow them, so a read-only playlist keeps Now playing as any album does.
     val options = if (pendingDelete) {
         // The offer bar owns the screen until its window ends; a second delete or a rename now
         // would replace the very action the user is being offered.
@@ -229,9 +234,12 @@ fun CollectionScreen(
             } else {
                 null
             },
-            // Only a playlist page trades Now playing for Rename/Delete; albums and shows keep
-            // the destination they have always had.
-            onNowPlaying = if (isPlaylist) null else onNowPlaying
+            onNowPlaying = onNowPlaying.takeIf {
+                keepsNowPlayingOption(
+                    playlistEdit = isPlaylist && (onRename != null || onDelete != null),
+                    oneTapAway = !showNowPlayingOption
+                )
+            }
         )
     }
     val header: (@Composable () -> Unit)? = if (renaming) {

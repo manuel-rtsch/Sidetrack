@@ -120,7 +120,10 @@ internal fun NavGraphBuilder.playbackGraph(
                 chrome,
                 onPlay = { vm.playRadio(0) },
                 onItem = { vm.playRadio(it) },
-                onArtwork = { nav.openNowPlaying(vm) }
+                onArtwork = { nav.openNowPlaying(vm) },
+                // Back returns to Now Playing and the artwork opens it: Options does not need a
+                // third way to the same screen.
+                showNowPlayingOption = false
             )
         }
     }
@@ -210,7 +213,8 @@ private fun RadioCollectionScreen(
     chrome: ChromeUiState,
     onPlay: () -> Unit,
     onItem: (Int) -> Unit,
-    onArtwork: () -> Unit
+    onArtwork: () -> Unit,
+    showNowPlayingOption: Boolean = true
 ) {
     CollectionScreen(
         radio,
@@ -236,6 +240,7 @@ private fun RadioCollectionScreen(
         onUndoQueueReplace = vm::undoQueueReplace,
         onDismissNowPlaying = vm::dismissNowPlayingNotice,
         showSave = radio.saveable,
+        showNowPlayingOption = showNowPlayingOption,
         onAddToPlaylist = if (vm.capabilities.supportsPlaylistEdit) {
             { track -> nav.openAddToPlaylist(track) }
         } else {

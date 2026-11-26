@@ -30,6 +30,19 @@ class OptionsBuilderTest {
     }
 
     @Test
+    fun nowPlayingIsKeptOnlyWhereItIsTheFastestWayIn() {
+        assertTrue("a browsing screen has no one-tap route", keepsNowPlayingOption())
+        assertFalse(
+            "a playlist's rename or delete needs the width beside Add to queue",
+            keepsNowPlayingOption(playlistEdit = true)
+        )
+        assertFalse(
+            "song radio's Back and artwork already open Now Playing",
+            keepsNowPlayingOption(oneTapAway = true)
+        )
+    }
+
+    @Test
     fun anEntryTheScreenCannotOfferLeavesNoGap() {
         val withoutPlaylist = sidetrackOptions(
             if (false) newPlaylistOption({}) else null,

@@ -83,6 +83,7 @@ fun sidetrackBar(
  *
  * Order is destinations, then list-wide controls, with Now playing last and a destructive entry
  * always last of all. Pass `null` for an entry the state or service cannot offer: it disappears.
+ * Whether Now playing belongs at all is [keepsNowPlayingOption]'s question, not each screen's.
  */
 fun sidetrackOptions(
     vararg entries: SideAction?,
@@ -99,6 +100,18 @@ fun sidetrackOptions(
  * does to the world (nothing here), never how far it travels.
  */
 fun nowPlayingOption(onClick: () -> Unit) = SideAction("nowPlaying", "Now playing", SidekitIcon.MusicNote2, onClick = onClick)
+
+/**
+ * Whether a screen's Options bar keeps the Now playing destination.
+ *
+ * The keypad reaches Now Playing from anywhere with the Y key; a touch user has no such key, so a
+ * content screen offers the entry and pays two taps (Options, then the entry) without giving up
+ * the screen underneath. It is therefore kept wherever it is the fastest persistent way in, and
+ * dropped where the screen already leads there in one tap — the queue's current row, song radio's
+ * Back and artwork, Home's tile — or where the bar's own entries need the width it would take, as
+ * a playlist page's rename or delete does.
+ */
+internal fun keepsNowPlayingOption(playlistEdit: Boolean = false, oneTapAway: Boolean = false): Boolean = !playlistEdit && !oneTapAway
 
 fun settingsOption(onClick: () -> Unit) = SideAction("settings", "Settings", SidekitIcon.Settings, onClick = onClick)
 

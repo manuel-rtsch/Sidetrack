@@ -24,6 +24,16 @@ it does, never how far it travels. Green (`Secondary`) for a toggle that is on, 
 **Order.** Destinations first, the list-wide control last, Now playing at the end. Destructive
 entries sort last in both menus.
 
+**Now playing is the touch stand-in for the Y key.** The keypad opens Now Playing from every screen
+with Y; a touch user has no such key, so a content screen offers the entry, and Options then the
+entry is two taps without giving up the screen underneath. Keep it wherever that is the fastest
+persistent way in. Drop it where the screen already leads there in one tap — Home's tile, the
+queue's current row, song radio's Back and artwork — or where the bar's own entries need the width
+it would take: a playlist page that offers Rename or Delete. A read-only playlist keeps it, as an
+album does. Settings-like screens do not offer it at all; they are not music surfaces.
+
+`keepsNowPlayingOption` holds that decision, `OptionsBuilderTest` pins it.
+
 **Toggle state** is expressed twice: tone change *and* label/content description. A colour-only
 state is invisible in a square button.
 
@@ -133,5 +143,8 @@ timer runs out, so a stale snapshot can never undo a newer choice. A tap whose q
   Settings, Audio quality, Appearance, Sleep timer, About, Keypad settings, Sign in, the service picker,
   New playlist, Add to playlist, Notes, Artwork. Empty options are only defensible for transient
   states (nothing playing, queue reordering).
-- "Now playing" is an option on several screens but absent from Home and from every Settings-like
-  screen. There is no written rule yet for what belongs in Options.
+- "Now playing" is deliberately absent from Home (its tile is one tap) and from every Settings-like
+  screen. A deep settings page — Audio quality, Appearance, Keypad, Keypad module, About — is
+  therefore three or more touch taps from Now Playing, as are New playlist, Add to playlist, Notes
+  opened from a show, and Artwork. That is a known cost of keeping a music destination out of a
+  form, and the keypad's Y key still covers it.
