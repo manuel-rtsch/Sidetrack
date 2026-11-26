@@ -9,8 +9,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
+import hrln.interactive.sidekit.design.action.ChromeState
+import hrln.interactive.sidekit.design.action.LocalChrome
 import hrln.interactive.sidekit.design.input.HoldToAct
 import hrln.interactive.sidekit.design.input.KeypadTiming
 
@@ -23,9 +26,52 @@ internal class CategoryHoldGate {
     var keyCode: Int? = null
     var switched: Boolean = false
 
+    /**
+     * Fires when [reset] releases a held key, so the switch can stand the arrow reservation down
+     * once the category hold lets the native corner holds take over on rows above the list.
+     */
+    var onReset: (() -> Unit)? = null
+
     fun reset() {
         keyCode = null
         switched = false
+        onReset?.invoke()
+    }
+}
+
+/**
+ * Keeps Left/Right reserved only while a list-body row owns the cursor, or while a category switch
+ * is still releasing its key. A shared key also has a module chrome hold on it — the Sundial's
+ * corners for Search and Playing Now — so standing the reservation down on the category row lets
+ * that native hold fire there, while the rows above it keep their own category gesture.
+ */
+private class ArrowReservation {
+    var chrome: ChromeState? = null
+    var gate: CategoryHoldGate? = null
+    var enabled: Boolean = false
+    private var focusedRows = 0
+    private var releases: List<() -> Unit> = emptyList()
+
+    fun rowFocusChanged(focused: Boolean) {
+        focusedRows += if (focused) 1 else -1
+        if (focusedRows < 0) focusedRows = 0
+        refresh()
+    }
+
+    fun refresh() {
+        releases.forEach { it() }
+        releases = emptyList()
+        val ch = chrome
+        val g = gate
+        if (enabled && ch != null && (focusedRows > 0 || (g?.switched == true))) {
+            releases = listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)
+                .map { ch.reserveHold(it) }
+        }
+    }
+
+    fun release() {
+        releases.forEach { it() }
+        releases = emptyList()
     }
 }
 
@@ -50,6 +96,11 @@ internal fun Modifier.consumeCategoryHoldRepeats(gate: CategoryHoldGate): Modifi
  * Steps skip categories that are not in [supported]: one the user switched off, or one the service
  * cannot answer, is never a destination. [entries] is the caller's category order — the library's
  * filters, the search scopes — and [current] must be one of them.
+ *
+ * While a body row owns the cursor the switch reserves Left/Right in [LocalChrome], so a module
+ * chrome hold on the same key (the Sundial's corner holds for Search and Playing Now) stands down on
+ * the rows and the category step is the only hold that fires there. On the category row above the
+ * list the reservation is released, so the same native holds work on it.
  */
 @Composable
 internal fun <T> Modifier.categoryHoldSwitch(
@@ -80,6 +131,28 @@ internal fun <T> Modifier.categoryHoldSwitch(
     }
     LaunchedEffect(enabled) {
         if (!enabled) hold.reset()
+    }
+    val chrome = LocalChrome.current
+    // Reservation is scoped to the rows, not the whole screen: a body row owns the cursor for the
+    // category hold, so a module chrome hold on the same corners (the Sundial's Search and Playing
+    // Now) must stand down on rows but keep working above them, on the category row. The reservation
+    // survives a mid-hold category switch — the press leaves the rows before its release — because
+    // the gate keeps [CategoryHoldGate.switched] true until the key comes up, which holds the
+    // reservation through the rebuild and its release.
+    val reservation = remember { ArrowReservation() }
+    reservation.chrome = chrome
+    reservation.gate = gate
+    LaunchedEffect(enabled, chrome) {
+        reservation.enabled = enabled && chrome != null
+        reservation.refresh()
+    }
+    DisposableEffect(gate, reservation, chrome) {
+        reservation.refresh()
+        gate.onReset = { reservation.refresh() }
+        onDispose {
+            gate.onReset = null
+            reservation.release()
+        }
     }
     // The gate is shared by every row and by the screen root, which resets it when the physical
     // key comes up. A row must not reset it on dispose: a hold switches category by disposing
@@ -123,7 +196,7 @@ internal fun <T> Modifier.categoryHoldSwitch(
                 true
             }
         }
-    }
+    }.onFocusChanged { reservation.rowFocusChanged(it.isFocused) }
 }
 
 /** The next entry in [step] order that is supported, skipping the slots that are not. */
