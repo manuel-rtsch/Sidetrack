@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Install or update the app
+    url: https://manuel-rtsch.github.io/sidetrack-pack/
+    about: The app pack for the SP-01's Library, the signing fingerprint, and Obtainium — before filing an install problem.
+  - name: Capture playback logs
+    url: https://github.com/manuel-rtsch/Sidetrack/blob/main/docs/testing.md#capturing-playback-logs-from-a-device
+    about: How to turn on the file log on a release build and pull it off the phone for a playback bug.

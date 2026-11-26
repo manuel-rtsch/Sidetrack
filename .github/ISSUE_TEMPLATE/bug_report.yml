@@ -1,0 +1,125 @@
+name: Bug report
+description: Something on the phone behaves wrong — a screen, a key, a track, a login.
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A report is only actionable if it says **which build**, **which service** and **which keypad**.
+        Settings → About names the version and whether the APK carries the native Spotify engine.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, not what you think the cause is. One bug per report.
+      placeholder: Held → on the album row opened Search instead of Playing Now, and the row lost focus.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Start from a cold launch or a named screen. Note whether the app was in the foreground.
+      placeholder: |
+        1. Open Library → Albums
+        2. Move the cursor to the third row
+        3. Hold →
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: The same action from touch can be the useful comparison.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Service
+      description: The account or library that was playing. Say so in the report if more than one is involved.
+      options:
+        - Spotify
+        - Plex
+        - Jellyfin
+        - Subsonic family (Navidrome, Nextcloud Music, OpenSubsonic, …)
+        - Local library
+        - Not service-specific (navigation, settings, keys)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: keypad
+    attributes:
+      label: Keypad
+      description: The module selected in Settings → Keyboard, or the input you were actually using.
+      options:
+        - Sundial
+        - T9
+        - Mini QWERTY
+        - Game controller
+        - Touch, no keypad
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Sidetrack version
+      description: Settings → About, or the APK file name. A report against an older release may already be fixed.
+      placeholder: 0.4.5
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Spotify engine
+      description: The version row in Settings → About says which one the installed APK carries.
+      options:
+        - Native Spotify engine
+        - Spotify Web API, no native bridge
+        - Not sure — nothing Spotify-related
+    validations:
+      required: true
+
+  - type: input
+    id: android
+    attributes:
+      label: Device and Android version
+      placeholder: Sidephone SP-01, Android 12
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Playback bugs need the file log; see docs/testing.md, "Capturing playback logs from a device".
+        A release build only writes it after `adb shell setprop log.tag.SidetrackDebug DEBUG`, and that
+        property does not survive a reboot. Pull it before the next repro rather than after the next week.
+      placeholder: |
+        adb shell setprop log.tag.SidetrackDebug DEBUG
+        # … reproduce …
+        adb pull /sdcard/Android/data/io.github.manuelrtsch.sidetrack/files/logs/
+      render: shell
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or screen recording
+      description: Drag the files in here. For a visual bug, a screenshot of the same screen from touch helps.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before posting
+      options:
+        - label: I am on the latest release, or the report names the build it happened on.
+          required: true
+        - label: I searched the open and closed issues for this.
+          required: true

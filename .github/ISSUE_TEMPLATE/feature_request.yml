@@ -1,0 +1,77 @@
+name: Feature request
+description: A behavior Sidetrack does not have yet — on the keypad, on touch, or against a service.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every action in Sidetrack has to work from the keypad and equally from touch. A request that
+        only describes a button is half a request: say which key or hold reaches it, and which screen
+        it belongs to.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The listen that is currently slow or impossible, not the control you have in mind.
+      placeholder: Starting a song radio from an album row takes four presses; I do it often enough to feel it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should it do
+      description: Where it lives, what it is called, and what the fastest route to it looks like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: keypad
+    attributes:
+      label: How it works from the keypad
+      description: A key, a hold, an Options entry, or a row action. Note the keypad module you use; the Sundial, T9 and the mini QWERTY do not share a layout.
+    validations:
+      required: true
+
+  - type: textarea
+    id: touch
+    attributes:
+      label: How it works from touch
+      description: The same action without a keypad — a tap, a row gutter, or a destination.
+
+  - type: checkboxes
+    id: services
+    attributes:
+      label: Services
+      description: Where this would apply. Capabilities differ per provider; see docs/provider-capabilities.md.
+      options:
+        - label: Spotify
+        - label: Plex
+        - label: Jellyfin
+        - label: Subsonic family (Navidrome, Nextcloud Music, OpenSubsonic, …)
+        - label: Local library
+        - label: All services
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What you do today instead, and any other player that already does this well.
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Mockups or references
+      description: Drag images in here if a sketch says it faster than the description does.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before posting
+      options:
+        - label: I checked TODO.md, which records the work already planned and deliberately deferred.
+          required: true
+        - label: I searched the open issues for this request.
+          required: true
